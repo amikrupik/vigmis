@@ -12,7 +12,6 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3003
 
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/.next ./.next
@@ -20,4 +19,4 @@ COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3003
 
-CMD ["npm", "run", "start"]
+CMD ["sh", "-c", "node_modules/.bin/next start -p ${PORT:-3000}"]
