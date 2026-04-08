@@ -1,0 +1,24 @@
+{
+  "name": "vigmis-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "dev:web": "turbo run dev --filter=@vigmis/web",
+    "dev:api": "turbo run dev --filter=@vigmis/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.4",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.9.0"
+}

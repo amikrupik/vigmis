@@ -1,0 +1,36 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# build outputs
+.next
+dist
+build
+out
+
+# turbo
+.turbo
+
+# env files
+.env
+.env.local
+.env.staging
+.env.production
+*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# misc
+.vercel
