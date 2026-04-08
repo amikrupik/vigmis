@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm ci && npx turbo run build --filter=@vigmis/api"
+
+[deploy]
+startCommand = "node apps/api/dist/server.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
