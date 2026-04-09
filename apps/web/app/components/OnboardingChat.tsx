@@ -34,6 +34,7 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const [settings, setSettings] = useState<OnboardingSettings | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isListening, setIsListening] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -76,16 +77,21 @@ export default function OnboardingChat({ onConfirm }: Props) {
     setHistory(nextHistory);
     setInput('');
 
+    setSubmitError(null);
     startTransition(async () => {
-      const result = await sendMessage(nextHistory, userMsg.content, coveredTopics);
-      const aiMsg: ConversationMessage = {
-        role: 'assistant',
-        content: result.message,
-        timestamp: new Date().toISOString(),
-      };
-      setHistory(prev => [...prev, aiMsg]);
-      setCoveredTopics(result.coveredTopics);
-      if (result.settings) setSettings(result.settings);
+      try {
+        const result = await sendMessage(nextHistory, userMsg.content, coveredTopics);
+        const aiMsg: ConversationMessage = {
+          role: 'assistant',
+          content: result.message,
+          timestamp: new Date().toISOString(),
+        };
+        setHistory(prev => [...prev, aiMsg]);
+        setCoveredTopics(result.coveredTopics);
+        if (result.settings) setSettings(result.settings);
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'שגיאה בתקשורת עם הבינה המלאכותית. אנא נסה שוב.');
+      }
     });
   }
 
@@ -141,6 +147,13 @@ export default function OnboardingChat({ onConfirm }: Props) {
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
               </span>
+            </div>
+          </div>
+        )}
+        {submitError && (
+          <div className="flex justify-start">
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-bl-sm px-4 py-2 text-sm max-w-[80%]">
+              {submitError}
             </div>
           </div>
         )}
