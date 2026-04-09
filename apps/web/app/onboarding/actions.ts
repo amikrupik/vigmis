@@ -110,12 +110,22 @@ export async function sendMessage(
     `Client: ${userMessage}`,
   ].join('\n\n');
 
-  const response = await route({
-    task: 'analysis',
-    prompt: messages,
-    systemPrompt: SYSTEM_PROMPT,
-    options: { maxTokens: 800, temperature: 0.6 },
-  });
+  let response;
+  try {
+    response = await route({
+      task: 'analysis',
+      prompt: messages,
+      systemPrompt: SYSTEM_PROMPT,
+      options: { maxTokens: 800, temperature: 0.6 },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      message: `שגיאה בתקשורת עם הבינה המלאכותית: ${msg}. אנא נסה שוב.`,
+      coveredTopics,
+      settings: null,
+    };
+  }
 
   const aiMessage = response.output;
   const settings = extractSummary(aiMessage);
