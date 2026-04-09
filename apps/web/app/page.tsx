@@ -19,7 +19,7 @@ export default async function Home() {
 
     if (res.ok) {
       const data = await res.json();
-      if (data.completed) {
+      if (data.onboardingComplete) {
         redirect("/dashboard");
       } else {
         redirect("/onboarding");

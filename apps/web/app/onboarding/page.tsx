@@ -3,9 +3,15 @@ import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import OnboardingPageClient from './OnboardingPageClient';
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; error?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in');
+
+  const params = await searchParams;
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -14,7 +20,7 @@ export default async function OnboardingPage() {
         <span className="text-sm text-gray-400">הגדרת חשבון</span>
       </header>
       <main className="flex-1 flex flex-col">
-        <OnboardingPageClient />
+        <OnboardingPageClient initialConnected={params.connected} initialError={params.error} />
       </main>
     </div>
   );

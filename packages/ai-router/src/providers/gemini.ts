@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { AIRequest, AIResponse, AIProvider_Interface } from '../types';
-import { MODEL_COSTS } from '../config';
+import type { AIRequest, AIResponse, AIProvider_Interface } from '../types.js';
+import { MODEL_COSTS } from '../config.js';
 
 const MODEL = 'gemini-2.5-flash';
 

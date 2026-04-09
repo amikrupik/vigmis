@@ -14,12 +14,20 @@ declare module 'fastify' {
 }
 
 async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
+  let token: string | null = null;
+
   const authHeader = request.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return reply.code(401).send({ error: 'Missing authorization header' });
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else {
+    // Fallback: accept token from query param for browser-redirect flows (OAuth initiation)
+    const query = request.query as Record<string, string>;
+    if (query.token) token = query.token;
   }
 
-  const token = authHeader.slice(7);
+  if (!token) {
+    return reply.code(401).send({ error: 'Missing authorization header' });
+  }
 
   try {
     const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });

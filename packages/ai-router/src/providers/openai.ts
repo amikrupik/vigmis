@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import type { AIRequest, AIResponse, AIProvider_Interface } from "../types";
-import { MODEL_COSTS } from "../config";
+import type { AIRequest, AIResponse, AIProvider_Interface } from "../types.js";
+import { MODEL_COSTS } from "../config.js";
 
 export class OpenAIProvider implements AIProvider_Interface {
   private client: OpenAI;

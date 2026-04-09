@@ -80,7 +80,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
       const [settingsRes, tokensRes] = await Promise.all([
         db
           .from('client_settings')
-          .select('confirmed_at, goal, budget_monthly_ils, risk_level')
+          .select('confirmed_at, goal, budget_monthly_ils, risk_level, management_percentage, website_url')
           .eq('tenant_id', request.tenantId)
           .maybeSingle(),
         db

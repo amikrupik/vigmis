@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
+import { ClerkSignOutButton } from '../components/sign-out-button';
 
 type Campaign = {
   id: string;
@@ -123,8 +125,7 @@ export default function DashboardClient() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-gray-900 text-lg">Vigmis</span>
-          <span className="text-xs text-gray-400">Dashboard</span>
+          <Image src="/logo.png" alt="Vigmis" width={110} height={40} priority />
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-2">
@@ -137,6 +138,7 @@ export default function DashboardClient() {
           </div>
           <a href="/billing" className="text-xs text-gray-400 hover:text-gray-600">Billing</a>
           <a href="/onboarding" className="text-xs text-gray-400 hover:text-gray-600">הגדרות</a>
+          <ClerkSignOutButton />
         </div>
       </header>
 

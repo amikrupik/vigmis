@@ -17,18 +17,41 @@ const ANALYSIS_STEPS = [
   { key: 'strategy', label: 'בונה תכנית קמפיין...' },
 ];
 
-export default function OnboardingPageClient() {
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  google_denied: 'חיבור Google בוטל',
+  google_failed: 'חיבור Google נכשל — אנא נסה שוב',
+  meta_denied: 'חיבור Meta בוטל',
+  meta_failed: 'חיבור Meta נכשל — אנא נסה שוב',
+  invalid_state: 'שגיאת אבטחה בחיבור — אנא נסה שוב',
+};
+
+interface Props {
+  initialConnected?: string;
+  initialError?: string;
+}
+
+export default function OnboardingPageClient({ initialConnected, initialError }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('connect');
-  const [connected, setConnected] = useState({ google: false, meta: false });
-  const [error, setError] = useState<string | null>(null);
+  const [connected, setConnected] = useState({
+    google: initialConnected === 'google',
+    meta: initialConnected === 'meta',
+  });
+  const [error, setError] = useState<string | null>(
+    initialError ? (OAUTH_ERROR_MESSAGES[initialError] ?? 'שגיאה בחיבור') : null,
+  );
   const [pendingSettings, setPendingSettings] = useState<OnboardingSettings | null>(null);
   const [pendingConversation, setPendingConversation] = useState<ConversationMessage[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
-  function handleConnect(platform: 'google' | 'meta') {
-    window.location.href = `${API_URL}/auth/${platform}`;
+  async function handleConnect(platform: 'google' | 'meta') {
+    try {
+      const token = await getClerkToken();
+      window.location.href = `${API_URL}/auth/${platform}?token=${encodeURIComponent(token)}`;
+    } catch {
+      setError('שגיאה בטעינת הסשן — אנא רענן את הדף');
+    }
   }
 
   async function handleChatConfirm(settings: OnboardingSettings, conversation: ConversationMessage[]) {
@@ -299,5 +322,7 @@ export default function OnboardingPageClient() {
 async function getClerkToken(): Promise<string> {
   const { Clerk } = window as any;
   if (!Clerk) throw new Error('Clerk not loaded');
-  return (await Clerk.session?.getToken()) ?? '';
+  const token = await Clerk.session?.getToken();
+  if (!token) throw new Error('לא מחובר — אנא התחבר מחדש');
+  return token;
 }

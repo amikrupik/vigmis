@@ -1,8 +1,8 @@
-import { AI_ROUTING, FALLBACK_MODEL } from "./config";
-import { OpenAIProvider } from "./providers/openai";
-import { AnthropicProvider } from "./providers/anthropic";
-import { GeminiProvider } from "./providers/gemini";
-import type { AIRequest, AIResponse, AIProvider_Interface } from "./types";
+import { AI_ROUTING, FALLBACK_MODEL } from "./config.js";
+import { OpenAIProvider } from "./providers/openai.js";
+import { AnthropicProvider } from "./providers/anthropic.js";
+import { GeminiProvider } from "./providers/gemini.js";
+import type { AIRequest, AIResponse, AIProvider_Interface } from "./types.js";
 
 const providers: Record<string, AIProvider_Interface> = {
   openai: new OpenAIProvider(),

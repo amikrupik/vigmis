@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { AIRequest, AIResponse, AIProvider_Interface } from '../types';
-import { MODEL_COSTS } from '../config';
+import type { AIRequest, AIResponse, AIProvider_Interface } from '../types.js';
+import { MODEL_COSTS } from '../config.js';
 
 const MODEL = 'claude-haiku-4-5-20251001'; // default; overridden per task in config
 

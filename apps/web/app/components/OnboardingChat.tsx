@@ -25,7 +25,7 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const [history, setHistory] = useState<ConversationMessage[]>([
     {
       role: 'assistant',
-      content: 'שלום! אני ויגמיס — מנהל הפרסום האוטומטי שלך. כדי לבנות לך קמפיין מדויק, אני צריך כמה פרטים. נתחיל — מה כתובת האתר שלך?',
+      content: "Hi! I'm Vigmis — your AI marketing manager. To build you the right campaign, I need a few details. Let's start — what's your website URL?",
       timestamp: new Date().toISOString(),
     },
   ]);

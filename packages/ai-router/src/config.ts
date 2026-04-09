@@ -1,4 +1,4 @@
-import type { TaskType } from "./types";
+import type { TaskType } from "./types.js";
 
 // Change this file to swap models — nothing else needs to change
 // Decision D-002: Claude for analysis/reasoning, GPT for writing/creativity
