@@ -1,7 +1,7 @@
 // Every ad platform connector must implement this interface.
 // This ensures Google and Meta are swappable without touching business logic.
 
-export type Platform = 'google' | 'meta';
+export type Platform = 'google' | 'meta' | 'tiktok';
 
 export interface OAuthTokens {
   accessToken: string;

@@ -9,6 +9,10 @@ import { optimizationRoutes } from './routes/optimization.js';
 import { billingRoutes } from './routes/billing.js';
 import { chatRoutes } from './routes/chat.js';
 import { feedbackRoutes } from './routes/feedback.js';
+import { analyticsRoutes } from './routes/analytics.js';
+import { intelligenceRoutes } from './routes/intelligence.js';
+import { alertRoutes } from './routes/alerts.js';
+import { creativeRoutes } from './routes/creatives.js';
 
 const app = Fastify({ logger: true });
 
@@ -30,6 +34,10 @@ await app.register(optimizationRoutes);
 await app.register(billingRoutes);
 await app.register(chatRoutes);
 await app.register(feedbackRoutes);
+await app.register(analyticsRoutes);
+await app.register(intelligenceRoutes);
+await app.register(alertRoutes);
+await app.register(creativeRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';

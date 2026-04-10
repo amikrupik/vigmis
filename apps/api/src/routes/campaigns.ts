@@ -12,17 +12,28 @@ import { authenticate } from '../middleware/auth.js';
 import {
   createGoogleCampaign,
   createMetaCampaign,
+  createTikTokCampaign,
   pauseGoogleCampaign,
   pauseMetaCampaign,
+  pauseTikTokCampaign,
   resumeGoogleCampaign,
   resumeMetaCampaign,
+  resumeTikTokCampaign,
 } from '@vigmis/ad-connectors';
 import type { CampaignSpec } from '@vigmis/ad-connectors';
 
 // How to name campaigns consistently
 function buildCampaignName(platform: string, type: string): string {
   const date = new Date().toISOString().slice(0, 10); // 2025-10-01
-  return `VIGMIS_${platform.toUpperCase()}_${type.toUpperCase()}_${date}`;
+  const safeType = type.replace(/-/g, '_'); // 'in-feed' → 'IN_FEED'
+  return `VIGMIS_${platform.toUpperCase()}_${safeType.toUpperCase()}_${date}`;
+}
+
+function detectPlatform(campaignName: string): 'google' | 'meta' | 'tiktok' {
+  if (campaignName.includes('GOOGLE')) return 'google';
+  if (campaignName.includes('META')) return 'meta';
+  if (campaignName.includes('TIKTOK')) return 'tiktok';
+  return 'google';
 }
 
 // Build campaign specs from strategy plan
@@ -78,19 +89,6 @@ export async function campaignRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'No strategy plan found. Complete onboarding first.' });
     }
 
-    // Check creative requirement for visual campaigns
-    const hasVisualCampaigns = (settings.strategy_plan as any).platforms?.some(
-      (p: any) => p.campaign_types?.some((t: string) => ['display', 'conversion', 'traffic', 'leads'].includes(t))
-    );
-
-    if (hasVisualCampaigns && !hasCreative) {
-      return reply.code(422).send({
-        error: 'creative_required',
-        message: 'קמפיינים ויזואליים דורשים חומרי קריאייטיב. אנא העלה תמונות/וידאו או רכוש מ-VIGMIS.',
-        visualCampaigns: true,
-      });
-    }
-
     // Calculate managed budget
     const monthlyBudgetUsd = Math.round(settings.budget_monthly_ils / 3.7);
     const managedBudgetUsd = Math.round(monthlyBudgetUsd * settings.management_percentage / 100);
@@ -112,22 +110,20 @@ export async function campaignRoutes(app: FastifyInstance) {
       managedBudgetUsd,
       settings.geo_include,
       settings.goal,
-    ).filter(s => {
-      const platform = s.name.includes('GOOGLE') ? 'google' : 'meta';
-      return connectedPlatforms.has(platform);
-    });
+    ).filter(s => connectedPlatforms.has(detectPlatform(s.name)));
 
     if (specs.length === 0) {
-      return reply.code(400).send({ error: 'No connected platforms. Connect Google or Meta first.' });
+      return reply.code(400).send({ error: 'No connected platforms. Connect Google, Meta, or TikTok first.' });
     }
 
     // Create campaigns
     const results = await Promise.all(
       specs.map(async spec => {
-        const platform = spec.name.includes('GOOGLE') ? 'google' : 'meta';
-        const result = platform === 'google'
-          ? await createGoogleCampaign(spec, request.tenantId)
-          : await createMetaCampaign(spec, request.tenantId);
+        const platform = detectPlatform(spec.name);
+        const result =
+          platform === 'google' ? await createGoogleCampaign(spec, request.tenantId) :
+          platform === 'meta'   ? await createMetaCampaign(spec, request.tenantId) :
+                                  await createTikTokCampaign(spec, request.tenantId);
 
         // Save to DB
         await db.from('campaigns').insert({
@@ -190,6 +186,8 @@ export async function campaignRoutes(app: FastifyInstance) {
     try {
       if (campaign.platform === 'google') {
         await pauseGoogleCampaign(campaign.external_id, request.tenantId);
+      } else if (campaign.platform === 'tiktok') {
+        await pauseTikTokCampaign(campaign.external_id, request.tenantId);
       } else {
         await pauseMetaCampaign(campaign.external_id, request.tenantId);
       }
@@ -221,6 +219,8 @@ export async function campaignRoutes(app: FastifyInstance) {
     try {
       if (campaign.platform === 'google') {
         await resumeGoogleCampaign(campaign.external_id, request.tenantId);
+      } else if (campaign.platform === 'tiktok') {
+        await resumeTikTokCampaign(campaign.external_id, request.tenantId);
       } else {
         await resumeMetaCampaign(campaign.external_id, request.tenantId);
       }

@@ -182,7 +182,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
 
   // ── Full analysis pipeline ────────────────────────────────────────────────
   app.post('/onboarding/analyze', { preHandler: authenticate }, async (request, reply) => {
-    const { settings } = request.body as any;
+    const { settings, feedback } = request.body as any;
     if (!settings) return reply.code(400).send({ error: 'settings required' });
 
     // Phase 1: Website scan
@@ -246,11 +246,15 @@ PARAMETERS:
 - Target: ${(settings.geo_include ?? []).join(', ')}
 - Exclusions: ${settings.exclusions ?? ''}
 
+Available platforms: google, meta, tiktok. Include only platforms that make strategic sense for this business and goal. TikTok is highly effective for audiences under 40 and visually-driven products.
+
+${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust the strategy accordingly.\n` : ''}
 Return ONLY valid JSON:
 {
   "platforms": [
-    { "name": "google", "campaign_types": ["search"], "budget_percentage": 60, "reasoning": "..." },
-    { "name": "meta", "campaign_types": ["conversion"], "budget_percentage": 40, "reasoning": "..." }
+    { "name": "google", "campaign_types": ["search"], "budget_percentage": 50, "reasoning": "..." },
+    { "name": "meta", "campaign_types": ["conversion"], "budget_percentage": 30, "reasoning": "..." },
+    { "name": "tiktok", "campaign_types": ["in-feed"], "budget_percentage": 20, "reasoning": "..." }
   ],
   "market_insights": "2-3 sentence summary",
   "target_audience": "Specific audience description",
@@ -270,13 +274,14 @@ Return ONLY valid JSON:
     if (!strategy) {
       strategy = {
         platforms: [
-          { name: 'google', campaign_types: ['search'], budget_percentage: 60, reasoning: 'High intent traffic for your goal' },
-          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 40, reasoning: 'Audience targeting and remarketing' },
+          { name: 'google', campaign_types: ['search'], budget_percentage: 50, reasoning: 'High intent traffic for your goal' },
+          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 30, reasoning: 'Audience targeting and remarketing' },
+          { name: 'tiktok', campaign_types: ['in-feed'], budget_percentage: 20, reasoning: 'Reach younger audiences with engaging short-form video' },
         ],
         market_insights: marketResearch.slice(0, 200),
         target_audience: (settings.geo_include ?? []).join(', '),
         estimated_cpc: '$0.50 - $2.00',
-        recommendations: 'Start with search campaigns, monitor CPC, scale what works.',
+        recommendations: 'Start with search and social, monitor CPC, scale what works.',
       };
     }
 
@@ -303,11 +308,14 @@ Return ONLY valid JSON:
       const connected = {
         google: false,
         meta: false,
+        tiktok: false,
       };
 
       for (const token of tokensRes.data ?? []) {
         const valid = token.expires_at ? new Date(token.expires_at) > new Date() : true;
-        if (valid) connected[token.platform as 'google' | 'meta'] = true;
+        if (valid && token.platform in connected) {
+          connected[token.platform as keyof typeof connected] = true;
+        }
       }
 
       return reply.send({

@@ -7,14 +7,14 @@
 // GET  /auth/status           → which platforms are connected
 
 import type { FastifyInstance } from 'fastify';
-import { GoogleAdsConnector } from '@vigmis/ad-connectors';
-import { MetaAdsConnector } from '@vigmis/ad-connectors';
+import { GoogleAdsConnector, MetaAdsConnector, TikTokAdsConnector } from '@vigmis/ad-connectors';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import crypto from 'crypto';
 
 const google = new GoogleAdsConnector();
 const meta = new MetaAdsConnector();
+const tiktok = new TikTokAdsConnector();
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
@@ -111,6 +111,52 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
   });
 
+  // ─── TikTok ────────────────────────────────────────────────────────────────
+  // NOTE: TikTok OAuth activates once TIKTOK_APP_ID, TIKTOK_APP_SECRET, and
+  // TIKTOK_REDIRECT_URI are added to Railway env vars and app is approved.
+
+  app.get('/auth/tiktok', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const state = generateState(request.tenantId, 'tiktok');
+      const url = tiktok.getAuthUrl(request.tenantId, state);
+      return reply.redirect(url);
+    } catch (err) {
+      // TikTok env vars not configured yet
+      app.log.warn({ err }, 'TikTok OAuth not configured');
+      return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_not_configured`);
+    }
+  });
+
+  app.get('/auth/tiktok/callback', async (request, reply) => {
+    const { auth_code, state, error } = request.query as Record<string, string>;
+
+    if (error) {
+      return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_denied`);
+    }
+
+    const stateData = consumeState(state);
+    if (!stateData || stateData.platform !== 'tiktok') {
+      return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
+    }
+
+    try {
+      await tiktok.handleCallback(auth_code, stateData.tenantId);
+
+      await db.from('audit_log').insert({
+        tenant_id: stateData.tenantId,
+        action: 'connector.tiktok.connected',
+        platform: 'tiktok',
+        actor: 'user',
+        payload: {},
+      });
+
+      return reply.redirect(`${WEB_URL}/onboarding?connected=tiktok`);
+    } catch (err) {
+      app.log.error({ err }, 'TikTok OAuth callback failed');
+      return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_failed`);
+    }
+  });
+
   // ─── Status ────────────────────────────────────────────────────────────────
 
   app.get('/auth/status', { preHandler: authenticate }, async (request, reply) => {
@@ -119,12 +165,21 @@ export async function connectorRoutes(app: FastifyInstance) {
       .select('platform, expires_at')
       .eq('tenant_id', request.tenantId);
 
-    const status = { google: false, meta: false };
+    const status = { google: false, meta: false, tiktok: false };
     for (const token of tokens ?? []) {
       const valid = token.expires_at ? new Date(token.expires_at) > new Date() : true;
-      if (valid) status[token.platform as 'google' | 'meta'] = true;
+      if (valid && token.platform in status) {
+        status[token.platform as keyof typeof status] = true;
+      }
     }
 
-    return reply.send(status);
+    // Indicate whether TikTok is configured server-side (env vars present)
+    const tiktokConfigured = !!(
+      process.env.TIKTOK_APP_ID &&
+      process.env.TIKTOK_APP_SECRET &&
+      process.env.TIKTOK_REDIRECT_URI
+    );
+
+    return reply.send({ ...status, tiktok_available: tiktokConfigured });
   });
 }

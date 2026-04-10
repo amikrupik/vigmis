@@ -4,7 +4,10 @@ export type CampaignType =
   | 'shopping'
   | 'conversion'
   | 'traffic'
-  | 'leads';
+  | 'leads'
+  | 'in-feed'
+  | 'spark'
+  | 'topview';
 
 export interface CampaignSpec {
   name: string;            // VIGMIS_* — caller sets this
@@ -17,7 +20,7 @@ export interface CampaignSpec {
 export interface CampaignResult {
   externalId: string | null;
   name: string;
-  platform: 'google' | 'meta';
+  platform: 'google' | 'meta' | 'tiktok';
   status: 'active' | 'paused' | 'error';
   error?: string;
 }

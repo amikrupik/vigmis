@@ -17,7 +17,6 @@ export default function ChatDrawer() {
   const [isPending, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Load history when first opened
   useEffect(() => {
     if (open && !historyLoaded) {
       getChatHistory()
@@ -29,7 +28,6 @@ export default function ChatDrawer() {
     }
   }, [open, historyLoaded]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
@@ -38,25 +36,20 @@ export default function ChatDrawer() {
     const text = input.trim();
     if (!text || isPending) return;
     setInput('');
-
-    const userMsg: Message = { role: 'user', content: text };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: 'user', content: text }]);
 
     startTransition(async () => {
       try {
         const res = await sendChatMessage(text);
         setMessages(prev => [...prev, { role: 'assistant', content: res.message }]);
       } catch {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'שגיאה בתקשורת עם VIGMIS. נסה שוב.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error — please try again.' }]);
       }
     });
   }
 
   function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
   return (
@@ -64,31 +57,30 @@ export default function ChatDrawer() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors text-2xl"
+        className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-colors"
         aria-label="Ask VIGMIS"
       >
-        💬
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
       </button>
 
       {/* Backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/20"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
       )}
 
       {/* Drawer */}
-      <div className={`fixed bottom-0 right-0 z-50 w-full max-w-md h-[70vh] bg-white shadow-2xl rounded-t-2xl flex flex-col transition-transform duration-300 ${open ? 'translate-y-0' : 'translate-y-full'}`}>
+      <div className={`fixed bottom-0 right-0 z-50 w-full max-w-md h-[72vh] bg-white shadow-2xl rounded-t-2xl flex flex-col transition-transform duration-300 ease-out ${open ? 'translate-y-0' : 'translate-y-full'}`}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
           <div>
-            <span className="font-bold text-gray-900">Ask VIGMIS</span>
-            <span className="ml-2 text-xs text-gray-400">AI Marketing Manager</span>
+            <span className="font-bold text-slate-900">Ask VIGMIS</span>
+            <span className="ml-2 text-xs text-slate-400 font-medium">AI Marketing Manager</span>
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-slate-400 hover:text-slate-600 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-lg leading-none"
           >
             ×
           </button>
@@ -97,22 +89,24 @@ export default function ChatDrawer() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {messages.length === 0 && !isPending && (
-            <div className="text-center text-sm text-gray-400 mt-8">
-              <p className="text-2xl mb-2">🤖</p>
-              <p>שאל אותי כל שאלה על הקמפיינים שלך</p>
-              <p className="mt-1 text-xs">למשל: "מה ביצועי הקמפיין?" או "אשר את האופטימיזציה"</p>
+            <div className="text-center py-10 space-y-2">
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-700">Ask me anything</p>
+              <p className="text-xs text-slate-400">e.g. "How are my campaigns performing?" or "Optimize my budget"</p>
             </div>
           )}
 
           {messages.map((msg, i) => (
             <div key={msg.id ?? i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                }`}
-              >
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-indigo-600 text-white rounded-br-sm'
+                  : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+              }`}>
                 {msg.content}
               </div>
             </div>
@@ -120,11 +114,11 @@ export default function ChatDrawer() {
 
           {isPending && (
             <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-gray-500">
+              <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-3">
                 <span className="inline-flex gap-1">
-                  <span className="animate-bounce" style={{ animationDelay: '0ms' }}>•</span>
-                  <span className="animate-bounce" style={{ animationDelay: '150ms' }}>•</span>
-                  <span className="animate-bounce" style={{ animationDelay: '300ms' }}>•</span>
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
                 </span>
               </div>
             </div>
@@ -134,21 +128,21 @@ export default function ChatDrawer() {
         </div>
 
         {/* Input */}
-        <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
+        <div className="px-4 py-3 border-t border-slate-100 flex gap-2 flex-shrink-0">
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="שאל שאלה... (Enter לשליחה)"
+            placeholder="Ask anything... (Enter to send)"
             rows={1}
-            className="flex-1 resize-none border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 resize-none border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isPending}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-medium transition-colors"
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-semibold transition-colors flex-shrink-0"
           >
-            שלח
+            Send
           </button>
         </div>
       </div>

@@ -77,13 +77,13 @@ export async function sendMessage(
 
 // ── Full analysis pipeline — proxied through API ──────────────────────────────
 
-export async function runAnalysis(settings: OnboardingSettings): Promise<AnalysisResult> {
+export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult> {
   const token = await getToken();
 
   const res = await fetch(`${API_URL}/onboarding/analyze`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ settings }),
+    body: JSON.stringify({ settings, feedback }),
   });
 
   if (!res.ok) {

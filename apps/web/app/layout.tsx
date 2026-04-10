@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ClerkProviderWrapper } from "./clerk-provider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Vigmis — ניהול פרסום אוטומטי",
-  description: "Vigmis manages your Google and Meta ad campaigns automatically.",
+  title: "Vigmis — AI Ad Campaign Manager",
+  description: "Vigmis manages your Google, Meta, and TikTok ad campaigns automatically with AI.",
 };
 
 export default function RootLayout({
@@ -24,11 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="en" className={`${inter.variable} h-full`}>
+      <body className="min-h-full flex flex-col antialiased">
         <ClerkProviderWrapper>{children}</ClerkProviderWrapper>
       </body>
     </html>
