@@ -304,7 +304,8 @@ Return ONLY valid JSON:
   "target_audience": "Specific audience description",
   "estimated_cpc": "$X.XX - $X.XX",
   "recommendations": "Top 3 actionable recommendations based on history and market",
-  "past_performance_notes": "Key learnings from client's historical campaigns, or null if no history"
+  "past_performance_notes": "Key learnings from client's historical campaigns, or null if no history",
+  "organic_recommendations": "2-3 specific organic growth actions (SEO, social content, Google Business Profile, etc.) that complement paid campaigns and reduce reliance on ad spend over time"
 }`,
       systemPrompt: 'You are a senior media planner. Return only valid JSON, no extra text.',
       options: { maxTokens: 1100, temperature: 0.3 },

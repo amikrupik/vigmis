@@ -368,9 +368,26 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
 
             {/* Recommendations */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Recommendations</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Paid Campaign Recommendations</p>
               <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.recommendations}</p>
             </div>
+
+            {/* Past performance notes */}
+            {strategy.past_performance_notes && (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+                <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">Learnings from Your Previous Campaigns</p>
+                <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.past_performance_notes}</p>
+              </div>
+            )}
+
+            {/* Organic recommendations */}
+            {strategy.organic_recommendations && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
+                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">Organic Growth — Complement Your Ads</p>
+                <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.organic_recommendations}</p>
+                <p className="text-xs text-slate-400 mt-3">Organic channels reduce ad dependency over time and improve campaign quality scores.</p>
+              </div>
+            )}
 
             {/* Feedback or CTA */}
             {showFeedback ? (

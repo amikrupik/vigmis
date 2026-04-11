@@ -679,7 +679,10 @@ function CreativeTab({ settings }: any) {
                 <div className="flex items-center gap-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>{job.status.replace('_', ' ')}</span>
                   {job.status === 'completed' && job.output_url && (
-                    <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
+                    <>
+                      <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
+                      <a href={job.output_url} download className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-lg transition-colors">Download ↓</a>
+                    </>
                   )}
                 </div>
               </div>

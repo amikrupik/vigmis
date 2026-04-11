@@ -83,22 +83,35 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">8. Limitation of Liability</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">8. No Guarantee of Results</h2>
+            <p className="mb-3">Digital advertising performance is influenced by many factors outside Vigmis's control, including market competition, seasonal demand, platform algorithm changes, landing page quality, product-market fit, and macroeconomic conditions.</p>
+            <p className="mb-3">Vigmis uses AI and data-driven methods to maximise the likelihood of strong campaign performance. However, <strong>we make no guarantee of specific results</strong>, including but not limited to:</p>
+            <ul className="list-disc list-inside space-y-2">
+              <li>Return on Ad Spend (ROAS) targets</li>
+              <li>Cost per Lead (CPL) or Cost per Acquisition (CPA) levels</li>
+              <li>Revenue, conversion rates, or profitability</li>
+              <li>Impression volumes or click-through rates</li>
+            </ul>
+            <p className="mt-3">Past performance of your campaigns or of similar businesses does not guarantee future results. We recommend treating advertising as a long-term investment and working with us over time to optimise based on real data.</p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">9. Limitation of Liability</h2>
             <p>Vigmis is not liable for ad spend losses, campaign underperformance, platform policy violations, or interruptions in third-party services (Google, Meta, TikTok). Our total liability to you for any claim shall not exceed the fees you paid to Vigmis in the 30 days preceding the claim.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">9. Termination</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">10. Termination</h2>
             <p>You may cancel your account at any time from the Settings page. We may suspend or terminate accounts that violate these terms. Upon termination, your data will be retained for 30 days before permanent deletion.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">10. Modifications</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">11. Modifications</h2>
             <p>We may update these terms with 14 days notice via email or in-app notification. Continued use of the Service after notice constitutes acceptance of the updated terms.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">11. Contact</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">12. Contact</h2>
             <p>Legal notices: <a href="mailto:legal@vigmis.com" className="text-indigo-600">legal@vigmis.com</a></p>
           </section>
         </div>

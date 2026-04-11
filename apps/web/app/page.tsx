@@ -110,6 +110,14 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Disclaimer */}
+      <section className="bg-slate-50 border-t border-slate-100 px-6 py-6">
+        <p className="max-w-3xl mx-auto text-xs text-slate-400 text-center leading-relaxed">
+          <strong className="text-slate-500">Results Disclaimer:</strong> Advertising performance depends on many factors including competition, seasonality, landing page quality, and platform algorithms — all outside our control. Vigmis uses AI and data to maximise results, but does not guarantee specific outcomes such as ROAS, CPA, or revenue. Past performance does not guarantee future results.{' '}
+          <Link href="/terms" className="underline hover:text-slate-600">Full Terms →</Link>
+        </p>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-slate-100 px-6 py-8">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
