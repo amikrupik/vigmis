@@ -29,10 +29,10 @@ app.get('/health', async () => ({ status: 'ok', service: 'vigmis-api' }));
 
 // Required by TikTok app verification
 app.get('/terms', async (_req, reply) =>
-  reply.type('text/html').send('<html><head><title>Terms of Service</title></head><body><h1>Terms of Service for VIGMIS</h1><p>By using VIGMIS, you agree to our terms of service. For full terms visit https://vigmis.com/terms</p></body></html>'),
+  reply.type('text/html').send('<html><head><title>Terms of Service</title></head><body><h1>Terms of Service for VIGMIS</h1><p>By using VIGMIS, you agree to be bound by these terms. VIGMIS provides an AI-powered advertising management platform. Users are responsible for their ad spend and compliance with platform policies. VIGMIS charges a management fee on managed spend. All fees are non-refundable.</p></body></html>'),
 );
 app.get('/privacy', async (_req, reply) =>
-  reply.type('text/html').send('<html><head><title>Privacy Policy</title></head><body><h1>Privacy Policy for VIGMIS</h1><p>VIGMIS respects your privacy. For full policy visit https://vigmis.com/privacy</p></body></html>'),
+  reply.type('text/html').send('<html><head><title>Privacy Policy</title></head><body><h1>Privacy Policy for VIGMIS</h1><p>VIGMIS collects business information, ad platform credentials, and usage data solely to provide advertising management services. We do not sell personal data. Data is stored securely and deleted upon account cancellation. Contact: privacy@vigmis.com</p></body></html>'),
 );
 app.get('/tiktokFKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u.txt', async (_req, reply) =>
   reply.type('text/plain').send('tiktok-developers-site-verification=FKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u'),
