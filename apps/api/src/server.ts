@@ -37,6 +37,9 @@ app.get('/privacy', async (_req, reply) =>
 app.get('/tiktokFKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u.txt', async (_req, reply) =>
   reply.type('text/plain').send('tiktok-developers-site-verification=FKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u'),
 );
+app.get('/tiktokxtpVXGlmrN2bQls9BPHWzyObIA2cdVzj.txt', async (_req, reply) =>
+  reply.type('text/plain').send('tiktok-developers-site-verification=xtpVXGlmrN2bQls9BPHWzyObIA2cdVzj'),
+);
 
 await app.register(onboardingRoutes);
 await app.register(connectorRoutes);
