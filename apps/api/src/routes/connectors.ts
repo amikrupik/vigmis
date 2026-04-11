@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { GoogleAdsConnector, MetaAdsConnector, TikTokAdsConnector } from '@vigmis/ad-connectors';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { fetchAndStoreHistoricalData } from '../services/historical.js';
 import crypto from 'crypto';
 
 const google = new GoogleAdsConnector();
@@ -66,6 +67,9 @@ export async function connectorRoutes(app: FastifyInstance) {
         payload: {},
       });
 
+      // Fire-and-forget: pull last 30 days of historical data
+      fetchAndStoreHistoricalData(stateData.tenantId, 'google').catch(() => {});
+
       return reply.redirect(`${WEB_URL}/onboarding?connected=google`);
     } catch (err) {
       app.log.error({ err }, 'Google OAuth callback failed');
@@ -103,6 +107,9 @@ export async function connectorRoutes(app: FastifyInstance) {
         actor: 'user',
         payload: {},
       });
+
+      // Fire-and-forget: pull last 30 days of historical data
+      fetchAndStoreHistoricalData(stateData.tenantId, 'meta').catch(() => {});
 
       return reply.redirect(`${WEB_URL}/onboarding?connected=meta`);
     } catch (err) {
@@ -149,6 +156,9 @@ export async function connectorRoutes(app: FastifyInstance) {
         actor: 'user',
         payload: {},
       });
+
+      // Fire-and-forget: pull last 30 days of historical data
+      fetchAndStoreHistoricalData(stateData.tenantId, 'tiktok').catch(() => {});
 
       return reply.redirect(`${WEB_URL}/onboarding?connected=tiktok`);
     } catch (err) {

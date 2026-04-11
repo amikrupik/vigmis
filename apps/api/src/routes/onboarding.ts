@@ -5,9 +5,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { db } from '@vigmis/db';
+import { db, decryptToken } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { route } from '@vigmis/ai-router';
+import { getAllHistoricalData, fetchCompetitorAds } from '../services/historical.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -102,6 +103,27 @@ const SaveSettingsSchema = z.object({
   conversation: z.array(ConversationMessageSchema),
 });
 
+function buildHistoricalContext(historical: Record<string, any>): string {
+  const parts: string[] = [];
+  for (const [platform, data] of Object.entries(historical)) {
+    if (!data) continue;
+    const m = data.metrics_30d;
+    const campaignNames = (data.campaigns ?? []).slice(0, 5).map((c: any) => c.name).join(', ');
+    const keywords = (data.keywords ?? []).slice(0, 5).map((k: any) => k.text).join(', ');
+    const audiences = (data.top_audiences ?? []).slice(0, 3).join(', ');
+    parts.push(
+      `${platform.toUpperCase()} (last 30 days): ` +
+      `Spend $${m.spend_usd}, ${m.impressions.toLocaleString()} impressions, ${m.clicks.toLocaleString()} clicks, ` +
+      `CTR ${m.ctr}%, avg CPC $${m.avg_cpc_usd}, ${m.conversions} conversions` +
+      (m.roas ? `, ROAS ${m.roas}x` : '') +
+      (campaignNames ? `. Campaigns: ${campaignNames}` : '') +
+      (keywords ? `. Top keywords: ${keywords}` : '') +
+      (audiences ? `. Audiences: ${audiences}` : ''),
+    );
+  }
+  return parts.join('\n');
+}
+
 export async function onboardingRoutes(app: FastifyInstance) {
   // Save confirmed onboarding settings
   app.post(
@@ -185,30 +207,48 @@ export async function onboardingRoutes(app: FastifyInstance) {
     const { settings, feedback } = request.body as any;
     if (!settings) return reply.code(400).send({ error: 'settings required' });
 
-    // Phase 1: Website scan
+    // Phase 1: Website scan + historical data + competitor ads (in parallel)
     let websiteAnalysis = 'Website could not be scanned.';
-    try {
-      const res = await fetch(settings.website_url, {
-        headers: { 'User-Agent': 'Vigmis/1.0 (Marketing Analysis)' },
-        signal: AbortSignal.timeout(10000),
-      });
-      const html = await res.text();
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 6000);
 
-      const analysis = await route({
-        task: 'analysis',
-        prompt: `Analyze this website content and extract:\n1. What they sell / service they offer\n2. Target audience\n3. Unique selling proposition\n4. Tone and brand voice\n5. Key products/services\n\nWebsite content:\n${text}`,
-        systemPrompt: 'You are a marketing analyst. Be concise. Respond in English.',
-        options: { maxTokens: 600 },
-      });
-      websiteAnalysis = analysis.output;
-    } catch { /* use default */ }
+    const [websiteResult, historical, metaTokenRow] = await Promise.all([
+      // Website scan
+      (async () => {
+        try {
+          const res = await fetch(settings.website_url, {
+            headers: { 'User-Agent': 'Vigmis/1.0 (Marketing Analysis)' },
+            signal: AbortSignal.timeout(10000),
+          });
+          const html = await res.text();
+          const text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 6000);
+          const analysis = await route({
+            task: 'analysis',
+            prompt: `Analyze this website content and extract:\n1. What they sell / service they offer\n2. Target audience\n3. Unique selling proposition\n4. Tone and brand voice\n5. Key products/services\n\nWebsite content:\n${text}`,
+            systemPrompt: 'You are a marketing analyst. Be concise. Respond in English.',
+            options: { maxTokens: 600 },
+          });
+          return analysis.output;
+        } catch { return 'Website could not be scanned.'; }
+      })(),
+      // Historical data from connected platforms
+      getAllHistoricalData(request.tenantId),
+      // Meta token for Ad Library competitor search
+      db.from('platform_tokens').select('access_token').eq('tenant_id', request.tenantId).eq('platform', 'meta').maybeSingle(),
+    ]);
+
+    websiteAnalysis = websiteResult;
+
+    // Fetch competitor ads using Meta Ad Library
+    const metaToken = metaTokenRow.data?.access_token ? decryptToken(metaTokenRow.data.access_token) : undefined;
+    const competitorAds = await fetchCompetitorAds(settings.website_url, settings.geo_include ?? [], metaToken);
+
+    // Build historical context string for AI prompts
+    const historicalContext = buildHistoricalContext(historical);
 
     // Phase 2: Market research
     const managedBudget = Math.round(
@@ -221,11 +261,13 @@ export async function onboardingRoutes(app: FastifyInstance) {
 - Target geography: ${(settings.geo_include ?? []).join(', ')}
 - Exclude: ${(settings.geo_exclude ?? []).join(', ')}
 - Budget: ~$${managedBudget}/month
-- Business context: ${websiteAnalysis.slice(0, 1000)}
+- Business context: ${websiteAnalysis.slice(0, 800)}
+${historicalContext ? `\nCLIENT'S HISTORICAL AD PERFORMANCE:\n${historicalContext}` : ''}
+${competitorAds ? `\nCOMPETITOR ADS RUNNING RIGHT NOW (Facebook Ad Library):\n${competitorAds}` : ''}
 
-Provide: 1) Estimated CPC range 2) Top competitor tactics 3) Best ad formats for this goal 4) Key audience insights 5) Seasonality considerations. Be specific and actionable.`,
+Provide: 1) Estimated CPC range 2) What competitors are doing and how to differentiate 3) Best ad formats for this goal 4) Key audience insights based on history and market 5) What worked vs what didn't in past campaigns. Be specific and actionable.`,
       systemPrompt: 'You are a digital marketing strategist. Be data-driven and specific.',
-      options: { maxTokens: 800 },
+      options: { maxTokens: 900 },
     });
     const marketResearch = research.output;
 
@@ -235,10 +277,12 @@ Provide: 1) Estimated CPC range 2) Top competitor tactics 3) Best ad formats for
       prompt: `Based on this data, generate a campaign strategy plan:
 
 BUSINESS:
-${websiteAnalysis.slice(0, 800)}
+${websiteAnalysis.slice(0, 600)}
 
-MARKET RESEARCH:
-${marketResearch.slice(0, 800)}
+MARKET RESEARCH & COMPETITOR INSIGHTS:
+${marketResearch.slice(0, 700)}
+
+${historicalContext ? `WHAT THE CLIENT DID BEFORE (learn from it):\n${historicalContext.slice(0, 500)}\n` : ''}
 
 PARAMETERS:
 - Goal: ${settings.goal}
@@ -246,9 +290,9 @@ PARAMETERS:
 - Target: ${(settings.geo_include ?? []).join(', ')}
 - Exclusions: ${settings.exclusions ?? ''}
 
-Available platforms: google, meta, tiktok. Include only platforms that make strategic sense for this business and goal. TikTok is highly effective for audiences under 40 and visually-driven products.
+Available platforms: google, meta, tiktok. Include only platforms that make strategic sense. TikTok is highly effective for audiences under 40 and visual products.
 
-${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust the strategy accordingly.\n` : ''}
+${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 Return ONLY valid JSON:
 {
   "platforms": [
@@ -256,13 +300,14 @@ Return ONLY valid JSON:
     { "name": "meta", "campaign_types": ["conversion"], "budget_percentage": 30, "reasoning": "..." },
     { "name": "tiktok", "campaign_types": ["in-feed"], "budget_percentage": 20, "reasoning": "..." }
   ],
-  "market_insights": "2-3 sentence summary",
+  "market_insights": "2-3 sentence summary including what competitors are doing",
   "target_audience": "Specific audience description",
   "estimated_cpc": "$X.XX - $X.XX",
-  "recommendations": "Top 3 actionable recommendations"
+  "recommendations": "Top 3 actionable recommendations based on history and market",
+  "past_performance_notes": "Key learnings from client's historical campaigns, or null if no history"
 }`,
       systemPrompt: 'You are a senior media planner. Return only valid JSON, no extra text.',
-      options: { maxTokens: 1000, temperature: 0.3 },
+      options: { maxTokens: 1100, temperature: 0.3 },
     });
 
     let strategy: object;
