@@ -1,14 +1,13 @@
 "use client";
 
 import { SignIn } from "@clerk/nextjs";
+import Image from "next/image";
 
 export default function SignInPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 p-6">
-      <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-3xl font-semibold text-zinc-950">Sign in</h1>
-        <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 gap-6">
+      <Image src="/logo.png" alt="Vigmis" width={120} height={44} priority />
+      <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
     </div>
   );
 }

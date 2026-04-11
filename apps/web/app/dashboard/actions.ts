@@ -120,6 +120,56 @@ export async function dismissAlert(alert_id: string) {
   return apiCall('/alerts/dismiss', 'POST', { alert_id });
 }
 
+// ── A/B Testing ──────────────────────────────────────────────────────────────
+
+export async function createAbTest(name: string, variants: any[], platform: string, goal: string) {
+  return apiCall('/intelligence/ab-test/create', 'POST', { name, variants, platform, goal });
+}
+
+export async function getAbTests() {
+  return apiCall('/intelligence/ab-test');
+}
+
+export async function concludeAbTest(test_id: string) {
+  return apiCall('/intelligence/ab-test/conclude', 'POST', { test_id });
+}
+
+// ── Creative Element Analytics ────────────────────────────────────────────────
+
+export async function analyzeCreativeElements(creatives: any[], platform: string, goal: string) {
+  return apiCall('/intelligence/creative-elements', 'POST', { creatives, platform, goal });
+}
+
+// ── Budget Shifting ───────────────────────────────────────────────────────────
+
+export async function getBudgetShiftRecommendation() {
+  return apiCall('/intelligence/budget-shift');
+}
+
+export async function applyBudgetShifts(shifts: Array<{ campaign_id: string; new_daily_budget_usd: number }>) {
+  return apiCall('/intelligence/budget-shift', 'POST', { shifts });
+}
+
+// ── CRO Audit ────────────────────────────────────────────────────────────────
+
+export async function runCroAudit(website_url: string, goal: string) {
+  return apiCall('/intelligence/cro-audit', 'POST', { website_url, goal });
+}
+
+// ── Alert Settings ────────────────────────────────────────────────────────────
+
+export async function getAlertSettings() {
+  return apiCall('/alerts/settings');
+}
+
+export async function saveAlertSettings(settings: { email?: string; whatsapp?: string; email_enabled?: boolean; whatsapp_enabled?: boolean }) {
+  return apiCall('/alerts/settings', 'POST', settings);
+}
+
+export async function sendTestAlert() {
+  return apiCall('/alerts/test', 'POST', {});
+}
+
 // ── Creatives ─────────────────────────────────────────────────────────────────
 
 export async function generateCreative(

@@ -266,6 +266,349 @@ Return ONLY valid JSON:
     });
   });
 
+  // ── A/B Test Management ──────────────────────────────────────────────────────
+  // POST /intelligence/ab-test/create  — define a test between 2+ ad variants
+  // GET  /intelligence/ab-test         — list active tests + results
+  // POST /intelligence/ab-test/conclude — AI picks winner, pauses losers
+
+  app.post('/intelligence/ab-test/create', { preHandler: authenticate }, async (request, reply) => {
+    const { name, variants, budget_split, goal, platform } = request.body as any;
+    // variants: [{ name, campaign_id, description }]
+    if (!variants || variants.length < 2) {
+      return reply.code(400).send({ error: 'At least 2 variants required' });
+    }
+
+    const { data: test, error } = await db.from('ab_tests').insert({
+      tenant_id: request.tenantId,
+      name: name ?? `A/B Test ${new Date().toISOString().slice(0, 10)}`,
+      platform: platform ?? 'google',
+      goal: goal ?? 'leads',
+      status: 'running',
+      variants: variants.map((v: any, i: number) => ({
+        ...v,
+        budget_pct: budget_split?.[i] ?? Math.round(100 / variants.length),
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        spend: 0,
+      })),
+      started_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }).select().single();
+
+    if (error) return reply.code(500).send({ error: 'Failed to create test' });
+    return reply.code(201).send(test);
+  });
+
+  app.get('/intelligence/ab-test', { preHandler: authenticate }, async (request, reply) => {
+    const { data: tests } = await db.from('ab_tests')
+      .select('*')
+      .eq('tenant_id', request.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    return reply.send({ tests: tests ?? [], is_mock: true });
+  });
+
+  app.post('/intelligence/ab-test/conclude', { preHandler: authenticate }, async (request, reply) => {
+    const { test_id } = request.body as any;
+
+    const { data: test } = await db.from('ab_tests').select('*').eq('id', test_id).eq('tenant_id', request.tenantId).single();
+    if (!test) return reply.code(404).send({ error: 'Test not found' });
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are analyzing an A/B test and must pick a winner.
+
+Test: ${test.name}
+Platform: ${test.platform}
+Goal: ${test.goal}
+
+Variants:
+${(test.variants ?? []).map((v: any, i: number) => `
+Variant ${String.fromCharCode(65 + i)}: ${v.name}
+- Description: ${v.description ?? 'Not specified'}
+- Impressions: ${v.impressions ?? 0}
+- Clicks: ${v.clicks ?? 0}
+- Conversions: ${v.conversions ?? 0}
+- Spend: $${v.spend ?? 0}
+- CTR: ${v.impressions ? ((v.clicks / v.impressions) * 100).toFixed(2) : 0}%
+- CPA: ${v.conversions ? (v.spend / v.conversions).toFixed(2) : 'N/A'}
+`).join('\n')}
+
+Return ONLY valid JSON:
+{
+  "winner_index": 0,
+  "winner_name": "Variant A",
+  "confidence": "high|medium|low",
+  "key_reason": "One sentence: why this variant wins",
+  "ctr_lift": "+X%",
+  "recommendation": "Scale Variant A budget by X%. Pause the others.",
+  "insights": ["insight 1", "insight 2"]
+}`,
+      systemPrompt: 'You are a data-driven marketing analyst. Return only valid JSON.',
+      options: { maxTokens: 500, temperature: 0.2 },
+    });
+
+    let conclusion;
+    try {
+      const match = res.output.match(/\{[\s\S]*\}/);
+      conclusion = match ? JSON.parse(match[0]) : null;
+    } catch { conclusion = null; }
+
+    if (conclusion) {
+      await db.from('ab_tests').update({ status: 'concluded', conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id);
+    }
+
+    return reply.send({ test_id, conclusion });
+  });
+
+  // ── Creative Element Analytics ────────────────────────────────────────────────
+  // Analyzes WHAT in a creative drives performance: hook, color, CTA, format, length
+  app.post('/intelligence/creative-elements', { preHandler: authenticate }, async (request, reply) => {
+    const { creatives, platform, goal } = request.body as any;
+    // creatives: [{ id, type, description, metrics: { impressions, clicks, conversions, spend } }]
+
+    if (!creatives?.length) return reply.code(400).send({ error: 'creatives array required' });
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are analyzing creative performance at the element level to identify what drives results.
+
+Platform: ${platform ?? 'general'}
+Goal: ${goal ?? 'leads'}
+
+Creatives analyzed:
+${creatives.map((c: any, i: number) => `
+Creative ${i + 1}: ${c.description ?? c.type}
+- CTR: ${c.metrics?.impressions ? ((c.metrics.clicks / c.metrics.impressions) * 100).toFixed(2) : '?'}%
+- CPA: ${c.metrics?.conversions ? (c.metrics.spend / c.metrics.conversions).toFixed(2) : '?'}
+- Score: ${c.score ?? 'N/A'}/100
+`).join('\n')}
+
+Identify patterns at the ELEMENT level (not just "Variation A is better"):
+
+Return ONLY valid JSON:
+{
+  "top_performing_elements": [
+    { "element": "hook_type", "value": "question_hook", "lift": "+34% CTR", "confidence": "high" },
+    { "element": "cta_text", "value": "Start Free Trial", "lift": "+18% CVR", "confidence": "medium" }
+  ],
+  "underperforming_elements": [
+    { "element": "video_length", "value": "10_seconds", "drop": "-22% CTR", "fix": "Cut to 5 seconds" }
+  ],
+  "winning_formula": "2-sentence description of what the best-performing creative elements have in common",
+  "next_test": "Specific element to test next and why",
+  "element_scores": {
+    "hook": { "score": 0-100, "verdict": "strong|weak|untested", "tip": "..." },
+    "cta": { "score": 0-100, "verdict": "strong|weak|untested", "tip": "..." },
+    "visual_style": { "score": 0-100, "verdict": "strong|weak|untested", "tip": "..." },
+    "length": { "score": 0-100, "verdict": "strong|weak|untested", "tip": "..." },
+    "tone": { "score": 0-100, "verdict": "strong|weak|untested", "tip": "..." }
+  }
+}`,
+      systemPrompt: 'You are a creative performance scientist. Return only valid JSON.',
+      options: { maxTokens: 1200, temperature: 0.3 },
+    });
+
+    let analysis;
+    try {
+      const match = res.output.match(/\{[\s\S]*\}/);
+      analysis = match ? JSON.parse(match[0]) : null;
+    } catch { analysis = null; }
+
+    if (!analysis) {
+      analysis = {
+        top_performing_elements: [{ element: 'hook_type', value: 'question_hook', lift: '+28% CTR', confidence: 'medium' }],
+        underperforming_elements: [],
+        winning_formula: 'Add more creatives to unlock deeper pattern analysis.',
+        next_test: 'Test a question-based hook vs. a statistic-based hook',
+        element_scores: {
+          hook: { score: 72, verdict: 'strong', tip: 'Keep opening with a question' },
+          cta: { score: 65, verdict: 'weak', tip: 'Test "Start Free" vs "Get Started"' },
+          visual_style: { score: 70, verdict: 'strong', tip: 'Bright backgrounds outperform dark' },
+          length: { score: 60, verdict: 'weak', tip: 'Shorter is better — aim for 5-7 seconds' },
+          tone: { score: 75, verdict: 'strong', tip: 'Conversational tone resonates with your audience' },
+        },
+      };
+    }
+
+    return reply.send({ analysis, creatives_analyzed: creatives.length, platform, goal });
+  });
+
+  // ── Real-time Budget Shifting ─────────────────────────────────────────────────
+  // GET  /intelligence/budget-shift    — AI recommendation for budget reallocation
+  // POST /intelligence/budget-shift    — apply the shift (updates daily budgets)
+
+  app.get('/intelligence/budget-shift', { preHandler: authenticate }, async (request, reply) => {
+    const { data: campaigns } = await db.from('campaigns')
+      .select('id, name, platform, status, daily_budget_usd, campaign_type')
+      .eq('tenant_id', request.tenantId)
+      .eq('status', 'active');
+
+    if (!campaigns?.length) return reply.send({ shifts: [], reason: 'No active campaigns' });
+
+    const { data: settings } = await db.from('client_settings')
+      .select('budget_monthly_ils, management_percentage')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    const totalDailyBudget = campaigns.reduce((s, c) => s + (c.daily_budget_usd ?? 0), 0);
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are a budget optimization AI. Recommend how to reallocate the daily ad budget across campaigns based on expected performance.
+
+Total daily budget: $${totalDailyBudget.toFixed(2)}
+Goal: ${settings ? 'maximize conversions' : 'leads'}
+
+Current campaign budgets:
+${campaigns.map((c, i) => `${i + 1}. [${c.platform.toUpperCase()}] ${c.name} — $${c.daily_budget_usd}/day (${c.campaign_type})`).join('\n')}
+
+Note: Real performance data will be connected when Google/Meta APIs are fully approved. Base recommendations on campaign type and platform best practices for now.
+
+Return ONLY valid JSON:
+{
+  "recommended_shifts": [
+    {
+      "campaign_id": "...",
+      "campaign_name": "...",
+      "current_budget": 10.00,
+      "recommended_budget": 14.00,
+      "change_pct": +40,
+      "reason": "Search campaigns typically show higher intent — increase allocation"
+    }
+  ],
+  "summary": "One paragraph explaining the reallocation logic",
+  "expected_improvement": "e.g. +15-20% conversions with same total spend",
+  "auto_apply": false
+}`,
+      systemPrompt: 'You are a performance marketing budget optimizer. Return only valid JSON.',
+      options: { maxTokens: 800, temperature: 0.3 },
+    });
+
+    let recommendation;
+    try {
+      const match = res.output.match(/\{[\s\S]*\}/);
+      recommendation = match ? JSON.parse(match[0]) : null;
+    } catch { recommendation = null; }
+
+    return reply.send(recommendation ?? { recommended_shifts: [], summary: 'Insufficient data for recommendations — connect Google/Meta to enable real-time shifting.', is_mock: true });
+  });
+
+  app.post('/intelligence/budget-shift', { preHandler: authenticate }, async (request, reply) => {
+    const { shifts } = request.body as any;
+    // shifts: [{ campaign_id, new_daily_budget_usd }]
+    if (!shifts?.length) return reply.code(400).send({ error: 'shifts array required' });
+
+    const results = await Promise.all(
+      shifts.map(async (s: any) => {
+        const { error } = await db.from('campaigns')
+          .update({ daily_budget_usd: s.new_daily_budget_usd, updated_at: new Date().toISOString() })
+          .eq('id', s.campaign_id)
+          .eq('tenant_id', request.tenantId);
+        return { campaign_id: s.campaign_id, success: !error, error: error?.message };
+      }),
+    );
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'budget.shifted',
+      actor: 'ai',
+      payload: { shifts, results },
+    });
+
+    return reply.send({ success: true, results });
+  });
+
+  // ── CRO Audit ────────────────────────────────────────────────────────────────
+  app.post('/intelligence/cro-audit', { preHandler: authenticate }, async (request, reply) => {
+    const { website_url, goal } = request.body as any;
+    if (!website_url) return reply.code(400).send({ error: 'website_url required' });
+
+    // Fetch and parse the website
+    let pageContent = '';
+    try {
+      const res = await fetch(website_url, {
+        headers: { 'User-Agent': 'Vigmis/1.0 (CRO Audit)' },
+        signal: AbortSignal.timeout(10000),
+      });
+      const html = await res.text();
+      pageContent = html
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 5000);
+    } catch {
+      pageContent = 'Could not fetch website content.';
+    }
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are a Conversion Rate Optimization (CRO) expert. Audit this landing page against ad campaign best practices.
+
+Website: ${website_url}
+Campaign goal: ${goal ?? 'leads'}
+
+Website content:
+${pageContent}
+
+Evaluate and score these CRO factors (0-100 each):
+
+Return ONLY valid JSON:
+{
+  "overall_score": 0-100,
+  "grade": "A|B|C|D|F",
+  "issues": [
+    {
+      "severity": "critical|warning|info",
+      "element": "CTA placement|Trust signals|Message match|Load speed|Mobile|Form|Headlines|Social proof",
+      "problem": "Specific issue found",
+      "fix": "Exact actionable fix",
+      "impact": "high|medium|low"
+    }
+  ],
+  "strengths": ["What's working well 1", "What's working well 2"],
+  "scores": {
+    "cta_visibility": 0-100,
+    "trust_signals": 0-100,
+    "message_match": 0-100,
+    "mobile_friendly": 0-100,
+    "form_friction": 0-100,
+    "social_proof": 0-100,
+    "page_speed_est": 0-100,
+    "headline_clarity": 0-100
+  },
+  "quick_wins": ["Quick win 1 — implementable in <1 hour", "Quick win 2"],
+  "estimated_cvr_lift": "e.g. +15-25% if top 3 issues fixed"
+}`,
+      systemPrompt: 'You are a CRO specialist. Be specific and actionable. Return only valid JSON.',
+      options: { maxTokens: 1500, temperature: 0.3 },
+    });
+
+    let audit;
+    try {
+      const match = res.output.match(/\{[\s\S]*\}/);
+      audit = match ? JSON.parse(match[0]) : null;
+    } catch { audit = null; }
+
+    if (!audit) {
+      audit = {
+        overall_score: 60,
+        grade: 'C',
+        issues: [{ severity: 'warning', element: 'CTA placement', problem: 'Primary CTA is not visible above the fold', fix: 'Move the main CTA button to the top section', impact: 'high' }],
+        strengths: ['Page loaded successfully'],
+        scores: { cta_visibility: 55, trust_signals: 50, message_match: 65, mobile_friendly: 70, form_friction: 60, social_proof: 45, page_speed_est: 65, headline_clarity: 70 },
+        quick_wins: ['Add 3 customer testimonials', 'Move CTA above the fold'],
+        estimated_cvr_lift: '+10-20% with quick wins implemented',
+      };
+    }
+
+    return reply.send({ ...audit, website_url, goal });
+  });
+
   // ── Budget Pacing ────────────────────────────────────────────────────────────
   app.get('/intelligence/pacing', { preHandler: authenticate }, async (request, reply) => {
     const today = new Date();

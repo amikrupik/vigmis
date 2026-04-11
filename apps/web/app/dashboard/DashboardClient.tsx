@@ -8,6 +8,9 @@ import {
   getAnalytics, generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
   generateCreative, getCreatives, getCreativeStatus,
+  createAbTest, getAbTests, concludeAbTest,
+  analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
+  runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
 } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
@@ -161,7 +164,7 @@ export default function DashboardClient() {
           />
         )}
         {tab === 'creative' && <CreativeTab settings={settings} />}
-        {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} />}
+        {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
       </div>
 
@@ -798,17 +801,37 @@ function CreativeTab({ settings }: any) {
 
 // ── Intelligence Tab ──────────────────────────────────────────────────────────
 
-function IntelligenceTab({ settings, connected }: any) {
+function IntelligenceTab({ settings, connected, campaigns }: any) {
+  const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro'>('territory');
   const [audiences, setAudiences] = useState<any[]>([]);
   const [audiencesLoading, setAudiencesLoading] = useState(false);
   const [territory, setTerritory] = useState<any>(null);
   const [competitors, setCompetitors] = useState<any>(null);
   const [competitorKeyword, setCompetitorKeyword] = useState('');
 
+  // A/B Testing
+  const [abTests, setAbTests] = useState<any[]>([]);
+  const [abLoading, setAbLoading] = useState(false);
+  const [newTest, setNewTest] = useState({ name: '', platform: 'google', goal: 'leads', variantA: '', variantB: '' });
+
+  // Creative Element Analytics
+  const [elementAnalysis, setElementAnalysis] = useState<any>(null);
+  const [elementLoading, setElementLoading] = useState(false);
+
+  // Budget Shifting
+  const [budgetRec, setBudgetRec] = useState<any>(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  // CRO Audit
+  const [croAudit, setCroAudit] = useState<any>(null);
+  const [croLoading, setCroLoading] = useState(false);
+
   useEffect(() => {
     if (settings) {
       getTerritoryIntel(settings.geo_include ?? [], settings.website_url ?? '', settings.goal ?? 'leads').then(setTerritory);
     }
+    getAbTests().then(r => setAbTests(r?.tests ?? []));
   }, [settings]);
 
   async function handleDiscoverAudiences() {
@@ -823,10 +846,88 @@ function IntelligenceTab({ settings, connected }: any) {
     setCompetitors(res);
   }
 
+  async function handleCreateAbTest() {
+    if (!newTest.variantA || !newTest.variantB) return;
+    setAbLoading(true);
+    const variants = [
+      { name: 'Variant A', description: newTest.variantA },
+      { name: 'Variant B', description: newTest.variantB },
+    ];
+    const res = await createAbTest(newTest.name || 'New A/B Test', variants, newTest.platform, newTest.goal);
+    if (res?.id) setAbTests(prev => [res, ...prev]);
+    setNewTest({ name: '', platform: 'google', goal: 'leads', variantA: '', variantB: '' });
+    setAbLoading(false);
+  }
+
+  async function handleConcludeTest(id: string) {
+    const res = await concludeAbTest(id);
+    if (res?.conclusion) setAbTests(prev => prev.map(t => t.id === id ? { ...t, status: 'concluded', conclusion: res.conclusion } : t));
+  }
+
+  async function handleElementAnalysis() {
+    setElementLoading(true);
+    const res = await analyzeCreativeElements(
+      (campaigns ?? []).slice(0, 5).map((c: any) => ({
+        id: c.id,
+        type: c.campaign_type,
+        description: c.name,
+        metrics: { impressions: 0, clicks: 0, conversions: 0, spend: c.daily_budget_usd * 30 },
+      })),
+      'google',
+      settings?.goal ?? 'leads',
+    );
+    setElementAnalysis(res?.analysis);
+    setElementLoading(false);
+  }
+
+  async function handleBudgetRec() {
+    setBudgetLoading(true);
+    const res = await getBudgetShiftRecommendation();
+    setBudgetRec(res);
+    setBudgetLoading(false);
+  }
+
+  async function handleApplyShifts() {
+    if (!budgetRec?.recommended_shifts?.length) return;
+    setApplying(true);
+    const shifts = budgetRec.recommended_shifts.map((s: any) => ({
+      campaign_id: s.campaign_id,
+      new_daily_budget_usd: s.recommended_budget,
+    }));
+    await applyBudgetShifts(shifts);
+    setBudgetRec(null);
+    setApplying(false);
+  }
+
+  async function handleCroAudit() {
+    if (!settings?.website_url) return;
+    setCroLoading(true);
+    const res = await runCroAudit(settings.website_url, settings.goal ?? 'leads');
+    setCroAudit(res);
+    setCroLoading(false);
+  }
+
+  const SUB_TABS = [
+    { key: 'territory', label: 'Territory' },
+    { key: 'audiences', label: 'Audiences' },
+    { key: 'competitors', label: 'Competitors' },
+    { key: 'ab', label: 'A/B Testing' },
+    { key: 'elements', label: 'Creative Elements' },
+    { key: 'budget', label: 'Budget Shift' },
+    { key: 'cro', label: 'CRO Audit' },
+  ] as const;
+
   return (
     <div className="space-y-6">
-      {/* Territory Intelligence */}
-      {territory && (
+      {/* Sub-tab nav */}
+      <div className="flex gap-1 flex-wrap bg-slate-100 p-1 rounded-xl w-fit">
+        {SUB_TABS.map(t => (
+          <button key={t.key} onClick={() => setSubTab(t.key)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${subTab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Territory */}
+      {subTab === 'territory' && territory && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900">Territory Intelligence</h3>
@@ -865,70 +966,278 @@ function IntelligenceTab({ settings, connected }: any) {
       )}
 
       {/* Audience Discovery */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900">Audience Discovery</h3>
-            <p className="text-sm text-slate-500 mt-0.5">AI finds profitable audience segments you haven't tested</p>
+      {subTab === 'audiences' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">Audience Discovery</h3>
+              <p className="text-sm text-slate-500 mt-0.5">AI finds profitable segments you haven't tested yet</p>
+            </div>
+            <button onClick={handleDiscoverAudiences} disabled={audiencesLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
+              {audiencesLoading ? 'Discovering...' : 'Discover Audiences'}
+            </button>
           </div>
-          <button onClick={handleDiscoverAudiences} disabled={audiencesLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
-            {audiencesLoading ? 'Discovering...' : 'Discover Audiences'}
-          </button>
+          {audiences.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-3">
+              {audiences.map((a: any) => (
+                <div key={a.id} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-900 text-sm">{a.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${a.potential === 'high' ? 'bg-emerald-100 text-emerald-700' : a.potential === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{a.potential}</span>
+                      <span className="text-xs text-slate-400">{a.size}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500">{a.description}</p>
+                  {a.interests?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {a.interests.slice(0, 3).map((int: string) => <span key={int} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{int}</span>)}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400">{a.reasoning}</p>
+                  <div className="flex gap-1">
+                    {(a.platforms ?? []).map((p: string) => <span key={p} className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${PLATFORM_BADGE[p] ?? 'bg-slate-100 text-slate-500'}`}>{p}</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {audiences.length > 0 && (
-          <div className="grid md:grid-cols-2 gap-3">
-            {audiences.map((a: any) => (
-              <div key={a.id} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-900 text-sm">{a.name}</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${a.potential === 'high' ? 'bg-emerald-100 text-emerald-700' : a.potential === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{a.potential}</span>
-                    <span className="text-xs text-slate-400">{a.size}</span>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-500">{a.description}</p>
-                {a.interests?.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {a.interests.slice(0, 3).map((int: string) => <span key={int} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{int}</span>)}
-                  </div>
-                )}
-                <p className="text-xs text-slate-400">{a.reasoning}</p>
-                <div className="flex gap-1">
-                  {(a.platforms ?? []).map((p: string) => <span key={p} className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${PLATFORM_BADGE[p] ?? 'bg-slate-100 text-slate-500'}`}>{p}</span>)}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Competitive Intelligence */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div>
-          <h3 className="font-bold text-slate-900">Competitive Intelligence</h3>
-          <p className="text-sm text-slate-500 mt-0.5">See what ads your competitors are running</p>
+      {subTab === 'competitors' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div>
+            <h3 className="font-bold text-slate-900">Competitive Intelligence</h3>
+            <p className="text-sm text-slate-500 mt-0.5">See what ads your competitors are running (Facebook Ad Library)</p>
+          </div>
+          {!connected.meta ? (
+            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-600">Connect Meta to unlock competitor intelligence</p>
+              <p className="text-xs text-slate-400">Uses Facebook Ad Library — shows all active ads in your market</p>
+              <a href="/onboarding" className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Connect Meta →</a>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <input
+                value={competitorKeyword}
+                onChange={e => setCompetitorKeyword(e.target.value)}
+                placeholder="Search competitor brand or keyword..."
+                className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button onClick={handleCompetitors} disabled={!competitorKeyword} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">Search</button>
+            </div>
+          )}
+          {competitors?.ads?.length === 0 && competitors?.connected && (
+            <p className="text-sm text-slate-400 text-center py-4">No ads found for this keyword</p>
+          )}
         </div>
-        {!connected.meta ? (
-          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center space-y-2">
-            <p className="text-sm font-semibold text-slate-600">Connect Meta to unlock competitor intelligence</p>
-            <p className="text-xs text-slate-400">Uses Facebook Ad Library — shows all active ads in your market</p>
-            <a href="/onboarding" className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Connect Meta →</a>
+      )}
+
+      {/* A/B Testing */}
+      {subTab === 'ab' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-900">Create A/B Test</h3>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input value={newTest.name} onChange={e => setNewTest(n => ({ ...n, name: e.target.value }))} placeholder="Test name (e.g. Hook style test)" className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <select value={newTest.platform} onChange={e => setNewTest(n => ({ ...n, platform: e.target.value }))} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="google">Google</option><option value="meta">Meta</option><option value="tiktok">TikTok</option>
+              </select>
+            </div>
+            <textarea value={newTest.variantA} onChange={e => setNewTest(n => ({ ...n, variantA: e.target.value }))} placeholder="Variant A — describe the ad creative or copy..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+            <textarea value={newTest.variantB} onChange={e => setNewTest(n => ({ ...n, variantB: e.target.value }))} placeholder="Variant B — describe the alternative..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+            <button onClick={handleCreateAbTest} disabled={abLoading || !newTest.variantA || !newTest.variantB} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+              {abLoading ? 'Creating...' : 'Create Test'}
+            </button>
           </div>
-        ) : (
-          <div className="flex gap-3">
-            <input
-              value={competitorKeyword}
-              onChange={e => setCompetitorKeyword(e.target.value)}
-              placeholder="Search competitor brand or keyword..."
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button onClick={handleCompetitors} disabled={!competitorKeyword} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">Search</button>
+
+          {abTests.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-slate-100"><p className="font-bold text-slate-900 text-sm">Active Tests</p></div>
+              <div className="divide-y divide-slate-50">
+                {abTests.map((t: any) => (
+                  <div key={t.id} className="px-6 py-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900 text-sm">{t.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${t.status === 'running' ? 'bg-blue-100 text-blue-700' : t.status === 'concluded' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{t.status}</span>
+                        {t.status === 'running' && <button onClick={() => handleConcludeTest(t.id)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-3 py-1 rounded-lg">Conclude →</button>}
+                      </div>
+                    </div>
+                    {t.conclusion && (
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs space-y-1">
+                        <p className="font-bold text-emerald-800">Winner: {t.conclusion.winner_name} · {t.conclusion.ctr_lift} CTR lift</p>
+                        <p className="text-emerald-700">{t.conclusion.key_reason}</p>
+                        <p className="text-emerald-600">{t.conclusion.recommendation}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Creative Element Analytics */}
+      {subTab === 'elements' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">Creative Element Analytics</h3>
+              <p className="text-sm text-slate-500 mt-0.5">What's working — hook, CTA, color, length, tone</p>
+            </div>
+            <button onClick={handleElementAnalysis} disabled={elementLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
+              {elementLoading ? 'Analyzing...' : 'Analyze Elements'}
+            </button>
           </div>
-        )}
-        {competitors?.ads?.length === 0 && competitors?.connected && (
-          <p className="text-sm text-slate-400 text-center py-4">No ads found for this keyword</p>
-        )}
-      </div>
+          {elementAnalysis && (
+            <div className="space-y-4">
+              {elementAnalysis.winning_formula && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                  <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">Winning Formula</p>
+                  <p className="text-sm text-slate-800">{elementAnalysis.winning_formula}</p>
+                </div>
+              )}
+              {elementAnalysis.element_scores && (
+                <div className="grid grid-cols-5 gap-3">
+                  {Object.entries(elementAnalysis.element_scores).map(([k, v]: [string, any]) => (
+                    <div key={k} className={`rounded-xl p-3 text-center border ${v.verdict === 'strong' ? 'border-emerald-200 bg-emerald-50' : v.verdict === 'weak' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                      <p className={`text-2xl font-black ${v.verdict === 'strong' ? 'text-emerald-600' : v.verdict === 'weak' ? 'text-amber-500' : 'text-slate-400'}`}>{v.score}</p>
+                      <p className="text-xs font-semibold text-slate-600 capitalize mt-0.5">{k.replace('_', ' ')}</p>
+                      <p className="text-xs text-slate-400 mt-1 leading-tight">{v.tip}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {elementAnalysis.top_performing_elements?.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Top Performing Elements</p>
+                  {elementAnalysis.top_performing_elements.map((e: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">{e.lift}</span>
+                      <span className="text-sm text-slate-700 capitalize">{e.element.replace(/_/g, ' ')}: <strong>{e.value}</strong></span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {elementAnalysis.next_test && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Next Test to Run</p>
+                  <p className="text-sm text-slate-700">{elementAnalysis.next_test}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Budget Shifting */}
+      {subTab === 'budget' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">Real-time Budget Shifting</h3>
+              <p className="text-sm text-slate-500 mt-0.5">AI recommends how to reallocate budget to top performers</p>
+            </div>
+            <button onClick={handleBudgetRec} disabled={budgetLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
+              {budgetLoading ? 'Analyzing...' : 'Get Recommendation'}
+            </button>
+          </div>
+          {budgetRec && (
+            <div className="space-y-4">
+              {budgetRec.summary && <p className="text-sm text-slate-600 leading-relaxed">{budgetRec.summary}</p>}
+              {budgetRec.expected_improvement && (
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                  <p className="text-sm font-semibold text-emerald-800">Expected improvement: {budgetRec.expected_improvement}</p>
+                </div>
+              )}
+              {budgetRec.recommended_shifts?.length > 0 && (
+                <div className="space-y-2">
+                  {budgetRec.recommended_shifts.map((s: any, i: number) => (
+                    <div key={i} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{s.campaign_name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{s.reason}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm text-slate-400 line-through">${s.current_budget}/day</p>
+                        <p className={`text-sm font-bold ${s.change_pct > 0 ? 'text-emerald-600' : 'text-red-500'}`}>${s.recommended_budget}/day ({s.change_pct > 0 ? '+' : ''}{s.change_pct}%)</p>
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={handleApplyShifts} disabled={applying} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+                    {applying ? 'Applying...' : 'Apply Budget Shifts →'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CRO Audit */}
+      {subTab === 'cro' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">CRO Audit</h3>
+              <p className="text-sm text-slate-500 mt-0.5">AI audits your landing page for conversion rate issues</p>
+            </div>
+            <button onClick={handleCroAudit} disabled={croLoading || !settings?.website_url} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
+              {croLoading ? 'Auditing...' : `Audit ${settings?.website_url ? settings.website_url.replace('https://', '') : 'website'}`}
+            </button>
+          </div>
+          {!settings?.website_url && <p className="text-sm text-slate-400">Complete onboarding with a website URL to run the audit.</p>}
+          {croAudit && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <p className={`text-5xl font-black ${croAudit.overall_score >= 80 ? 'text-emerald-600' : croAudit.overall_score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{croAudit.overall_score}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">CRO Score</p>
+                </div>
+                <div>
+                  <p className={`text-3xl font-black ${croAudit.overall_score >= 80 ? 'text-emerald-600' : croAudit.overall_score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{croAudit.grade}</p>
+                  <p className="text-sm text-emerald-700 font-semibold mt-1">{croAudit.estimated_cvr_lift}</p>
+                </div>
+              </div>
+              {croAudit.scores && (
+                <div className="grid grid-cols-4 gap-2">
+                  {Object.entries(croAudit.scores).map(([k, v]: [string, any]) => (
+                    <div key={k} className="text-center bg-slate-50 rounded-xl p-2">
+                      <p className={`text-lg font-bold ${v >= 80 ? 'text-emerald-600' : v >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{v}</p>
+                      <p className="text-xs text-slate-400 capitalize leading-tight">{k.replace(/_/g, ' ')}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {croAudit.quick_wins?.length > 0 && (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Quick Wins</p>
+                  {croAudit.quick_wins.map((w: string, i: number) => <p key={i} className="text-sm text-slate-700 flex gap-2"><span className="text-amber-500">→</span>{w}</p>)}
+                </div>
+              )}
+              {croAudit.issues?.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Issues Found</p>
+                  {croAudit.issues.map((issue: any, i: number) => (
+                    <div key={i} className={`border rounded-xl p-4 space-y-1 ${issue.severity === 'critical' ? 'border-red-200 bg-red-50' : issue.severity === 'warning' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${issue.severity === 'critical' ? 'bg-red-200 text-red-700' : issue.severity === 'warning' ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>{issue.severity}</span>
+                        <span className="text-sm font-semibold text-slate-900">{issue.element}</span>
+                      </div>
+                      <p className="text-xs text-slate-600">{issue.problem}</p>
+                      <p className="text-xs font-semibold text-indigo-600">→ Fix: {issue.fix}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -936,6 +1245,59 @@ function IntelligenceTab({ settings, connected }: any) {
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ settings, connected }: any) {
+  const [alertEmail, setAlertEmail] = useState('');
+  const [alertWhatsApp, setAlertWhatsApp] = useState('');
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [alertLoading, setAlertLoading] = useState(true);
+  const [alertSaving, setAlertSaving] = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
+
+  useEffect(() => {
+    getAlertSettings().then(data => {
+      if (data) {
+        setAlertEmail(data.email ?? '');
+        setAlertWhatsApp(data.whatsapp ?? '');
+        setEmailEnabled(data.email_enabled ?? false);
+        setWhatsappEnabled(data.whatsapp_enabled ?? false);
+      }
+      setAlertLoading(false);
+    });
+  }, []);
+
+  async function handleSaveAlerts() {
+    setAlertSaving(true);
+    setAlertMsg('');
+    try {
+      const res = await saveAlertSettings({
+        email: alertEmail,
+        whatsapp: alertWhatsApp,
+        email_enabled: emailEnabled,
+        whatsapp_enabled: whatsappEnabled,
+      });
+      const channels = res?.active_channels ?? [];
+      setAlertMsg(channels.length ? `Active on: ${channels.join(', ')}` : 'Saved. No channels enabled yet.');
+    } catch {
+      setAlertMsg('Save failed.');
+    } finally {
+      setAlertSaving(false);
+    }
+  }
+
+  async function handleTestAlert() {
+    setTestSending(true);
+    setAlertMsg('');
+    try {
+      await sendTestAlert();
+      setAlertMsg('Test alert sent!');
+    } catch {
+      setAlertMsg('Failed to send test alert.');
+    } finally {
+      setTestSending(false);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
       <h2 className="font-bold text-slate-900 text-lg">Campaign Settings</h2>
@@ -980,17 +1342,72 @@ function SettingsTab({ settings, connected }: any) {
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-900 mb-1">Alert Channels</h3>
-        <p className="text-sm text-slate-500 mb-4">Get notified when campaigns need attention</p>
-        <div className="space-y-2 text-sm text-slate-500">
-          <div className="flex items-center justify-between py-2 border-b border-slate-100">
-            <span>Email alerts</span>
-            <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">Setup next week</span>
+        <p className="text-sm text-slate-500 mb-5">Get notified via email or WhatsApp when campaigns need attention</p>
+        {alertLoading ? (
+          <p className="text-sm text-slate-400">Loading...</p>
+        ) : (
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Email alerts</label>
+                <button
+                  onClick={() => setEmailEnabled(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${emailEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={alertEmail}
+                onChange={e => setAlertEmail(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">WhatsApp alerts</label>
+                <button
+                  onClick={() => setWhatsappEnabled(v => !v)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${whatsappEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${whatsappEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              <input
+                type="tel"
+                placeholder="+972501234567"
+                value={alertWhatsApp}
+                onChange={e => setAlertWhatsApp(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <p className="text-xs text-slate-400">Include country code (e.g. +972 for Israel)</p>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={handleSaveAlerts}
+                disabled={alertSaving}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
+              >
+                {alertSaving ? 'Saving...' : 'Save Settings'}
+              </button>
+              <button
+                onClick={handleTestAlert}
+                disabled={testSending}
+                className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
+              >
+                {testSending ? 'Sending...' : 'Send Test Alert'}
+              </button>
+            </div>
+
+            {alertMsg && (
+              <p className="text-sm text-indigo-600 font-medium">{alertMsg}</p>
+            )}
           </div>
-          <div className="flex items-center justify-between py-2">
-            <span>WhatsApp alerts</span>
-            <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">Setup next week</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
