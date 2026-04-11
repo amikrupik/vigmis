@@ -43,6 +43,9 @@ app.get('/tiktokxtpVXGlmrN2bQls9BPHWzyObIA2cdVzj.txt', async (_req, reply) =>
 app.get('/tiktokJu5VbEdtJ2xOwu1FNRk8Zq8WBIHAqmmH.txt', async (_req, reply) =>
   reply.type('text/plain').send('tiktok-developers-site-verification=Ju5VbEdtJ2xOwu1FNRk8Zq8WBIHAqmmH'),
 );
+app.get('/tiktok2SCYjNOs8dReqWEv7qIxbxwyLAy1RiVu.txt', async (_req, reply) =>
+  reply.type('text/plain').send('tiktok-developers-site-verification=2SCYjNOs8dReqWEv7qIxbxwyLAy1RiVu'),
+);
 
 await app.register(onboardingRoutes);
 await app.register(connectorRoutes);
