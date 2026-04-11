@@ -30,6 +30,9 @@ app.get('/health', async () => ({ status: 'ok', service: 'vigmis-api' }));
 // Required by TikTok app verification
 app.get('/terms', async (_req, reply) => reply.type('text/plain').send('Terms of Service for VIGMIS'));
 app.get('/privacy', async (_req, reply) => reply.type('text/plain').send('Privacy Policy for VIGMIS'));
+app.get('/tiktokFKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u.txt', async (_req, reply) =>
+  reply.type('text/plain').send('tiktok-developers-site-verification=FKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u'),
+);
 
 await app.register(onboardingRoutes);
 await app.register(connectorRoutes);
