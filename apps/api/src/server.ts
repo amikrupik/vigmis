@@ -40,6 +40,9 @@ app.get('/tiktokFKdY6CjQCCckeNNfGdHVhCnsLNqaeO3u.txt', async (_req, reply) =>
 app.get('/tiktokxtpVXGlmrN2bQls9BPHWzyObIA2cdVzj.txt', async (_req, reply) =>
   reply.type('text/plain').send('tiktok-developers-site-verification=xtpVXGlmrN2bQls9BPHWzyObIA2cdVzj'),
 );
+app.get('/tiktokJu5VbEdtJ2xOwu1FNRk8Zq8WBIHAqmmH.txt', async (_req, reply) =>
+  reply.type('text/plain').send('tiktok-developers-site-verification=Ju5VbEdtJ2xOwu1FNRk8Zq8WBIHAqmmH'),
+);
 
 await app.register(onboardingRoutes);
 await app.register(connectorRoutes);
