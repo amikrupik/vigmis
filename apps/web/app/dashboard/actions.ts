@@ -188,6 +188,18 @@ export async function saveOptimizationSettings(settings: { risk_level: 'conserva
   return apiCall('/optimization/settings', 'POST', settings);
 }
 
+export async function getApprovalRequests() {
+  return apiCall('/optimization/approvals');
+}
+
+export async function approveRequest(id: string) {
+  return apiCall(`/optimization/approvals/${id}/approve`, 'POST', {});
+}
+
+export async function rejectRequest(id: string) {
+  return apiCall(`/optimization/approvals/${id}/reject`, 'POST', {});
+}
+
 // ── Creatives ─────────────────────────────────────────────────────────────────
 
 export async function generateCreative(
