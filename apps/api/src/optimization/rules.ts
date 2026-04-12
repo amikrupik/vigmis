@@ -13,13 +13,16 @@ export type OptimizationAction =
 export interface CampaignMetrics {
   campaignId: string;       // internal DB id
   externalId: string;
-  platform: 'google' | 'meta';
+  platform: 'google' | 'meta' | 'tiktok';
   clicks: number;
   impressions: number;
   spend: number;            // USD
   dailyBudgetUsd: number;
   daysRunning: number;
   status: string;
+  // For creative fatigue: compare recent vs earlier CTR
+  recentCtr?: number;       // CTR last 3 days
+  baselineCtr?: number;     // CTR days 4-7
 }
 
 // Target thresholds — tunable
@@ -79,6 +82,20 @@ export function evaluateCampaign(metrics: CampaignMetrics): OptimizationAction {
       type: 'scale_down',
       factor: THRESHOLDS.SCALE_DOWN_FACTOR,
       reason: `CPC $${cpc.toFixed(2)} is ${(cpc / expectedCpc).toFixed(1)}x expected — reducing budget`,
+    };
+  }
+
+  // Creative fatigue: CTR dropped >30% vs baseline
+  if (
+    metrics.recentCtr !== undefined &&
+    metrics.baselineCtr !== undefined &&
+    metrics.baselineCtr > 0.005 &&
+    metrics.recentCtr < metrics.baselineCtr * 0.7
+  ) {
+    const drop = ((1 - metrics.recentCtr / metrics.baselineCtr) * 100).toFixed(0);
+    return {
+      type: 'needs_creative',
+      reason: `CTR dropped ${drop}% vs baseline — creative fatigue detected, generate a new variation`,
     };
   }
 

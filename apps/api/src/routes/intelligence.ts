@@ -251,18 +251,40 @@ Return ONLY valid JSON:
       });
     }
 
-    // TODO: Real Facebook Ad Library call
-    // const fbRes = await fetch(
-    //   `https://graph.facebook.com/v19.0/ads_archive?` +
-    //   `access_token=${metaToken.access_token}&ad_type=ALL&` +
-    //   `ad_reached_countries=${territory}&search_terms=${keyword}&limit=20`
-    // );
-    // const fbData = await fbRes.json();
+    // Use user's Meta token or fall back to system FB_ACCESS_TOKEN
+    const { decryptToken } = await import('@vigmis/db');
+    const accessToken = decryptToken(metaToken!.access_token);
+    const fbToken = accessToken || process.env.FB_ACCESS_TOKEN;
+
+    if (!fbToken) {
+      return reply.send({ connected: true, ads: [], source: 'facebook_ad_library' });
+    }
+
+    const country = territory?.toUpperCase() ?? 'US';
+    const fbUrl = new URL('https://graph.facebook.com/v19.0/ads_archive');
+    fbUrl.searchParams.set('access_token', fbToken);
+    fbUrl.searchParams.set('ad_type', 'ALL');
+    fbUrl.searchParams.set('ad_reached_countries', `["${country}"]`);
+    fbUrl.searchParams.set('search_terms', keyword ?? '');
+    fbUrl.searchParams.set('fields', 'id,ad_creative_bodies,ad_creative_link_titles,page_name,ad_delivery_start_time,ad_snapshot_url,currency,impressions');
+    fbUrl.searchParams.set('limit', '20');
+
+    let ads: any[] = [];
+    try {
+      const fbRes = await fetch(fbUrl.toString(), { signal: AbortSignal.timeout(10000) });
+      if (fbRes.ok) {
+        const fbData = await fbRes.json() as { data?: any[] };
+        ads = fbData.data ?? [];
+      }
+    } catch {
+      // silently continue with empty results
+    }
 
     return reply.send({
       connected: true,
-      ads: [], // swap with fbData.data
+      ads,
       source: 'facebook_ad_library',
+      total: ads.length,
     });
   });
 

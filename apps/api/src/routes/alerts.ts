@@ -194,21 +194,49 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // GET /alerts
   app.get('/alerts', { preHandler: authenticate }, async (request, reply) => {
-    const [campaignsRes, dismissedRes] = await Promise.all([
+    const [campaignsRes, dismissedRes, fatigueRes] = await Promise.all([
       db.from('campaigns')
         .select('id, platform, name, status, daily_budget_usd, error_message')
         .eq('tenant_id', request.tenantId),
       db.from('dismissed_alerts')
         .select('alert_id')
         .eq('tenant_id', request.tenantId),
+      // Real creative fatigue alerts from optimization engine
+      db.from('audit_log')
+        .select('payload, created_at')
+        .eq('tenant_id', request.tenantId)
+        .eq('action', 'optimization.creative_fatigue')
+        .order('created_at', { ascending: false })
+        .limit(5),
     ]);
 
     const dismissedIds = new Set((dismissedRes.data ?? []).map((d: any) => d.alert_id));
     const alerts = generateAlerts(campaignsRes.data ?? [], dismissedIds);
 
+    // Inject real creative fatigue alerts from optimization engine
+    for (const log of (fatigueRes.data ?? [])) {
+      const p = log.payload as any;
+      const id = `fatigue-real-${p.campaignId}`;
+      if (dismissedIds.has(id)) continue;
+      if (alerts.some(a => a.id === id)) continue;
+      alerts.unshift({
+        id,
+        type: 'creative_fatigue',
+        severity: 'warning',
+        title: 'Creative Fatigue Detected',
+        message: p.reason ?? `CTR dropped significantly for "${p.campaignName}" — time to refresh your creative.`,
+        campaign_id: p.campaignId,
+        campaign_name: p.campaignName,
+        platform: undefined,
+        action: 'Generate a new creative variation in the Creative tab',
+        created_at: log.created_at,
+        dismissed: false,
+      });
+    }
+
     return reply.send({
       alerts,
-      is_mock: true,
+      is_mock: fatigueRes.data?.length === 0,
       unread_count: alerts.filter(a => !a.dismissed && a.severity !== 'info').length,
     });
   });

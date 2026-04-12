@@ -118,7 +118,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
     .eq('tenant_id', tenantId)
     .single();
 
-  const autoMode = true; // TODO: read from settings when UI toggle is added
+  const autoMode = settings?.risk_level !== 'conservative'; // conservative = manual approval
 
   for (const campaign of campaigns) {
     result.campaignsEvaluated++;
@@ -140,16 +140,47 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         (Date.now() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
       ));
 
+      // Creative fatigue: fetch audit_log for CTR trend
+      let recentCtr: number | undefined;
+      let baselineCtr: number | undefined;
+      if (daysRunning >= 7 && metrics.impressions > 0) {
+        // Use stored historical snapshots from audit_log if available
+        const { data: logs } = await db
+          .from('audit_log')
+          .select('payload, created_at')
+          .eq('tenant_id', tenantId)
+          .eq('action', 'optimization.metrics_snapshot')
+          .contains('payload', { campaignId: campaign.id })
+          .order('created_at', { ascending: false })
+          .limit(14);
+
+        if (logs && logs.length >= 6) {
+          const recent = logs.slice(0, 3);
+          const baseline = logs.slice(3, 7);
+          const avg = (arr: typeof logs) => {
+            const total = arr.reduce((s, l) => {
+              const p = l.payload as any;
+              return s + (p.ctr ?? 0);
+            }, 0);
+            return total / arr.length;
+          };
+          recentCtr = avg(recent);
+          baselineCtr = avg(baseline);
+        }
+      }
+
       const campaignMetrics: CampaignMetrics = {
         campaignId: campaign.id,
         externalId: campaign.external_id ?? '',
-        platform: campaign.platform as 'google' | 'meta',
+        platform: campaign.platform as 'google' | 'meta' | 'tiktok',
         clicks: metrics.clicks,
         impressions: metrics.impressions,
         spend: metrics.spend,
         dailyBudgetUsd: campaign.daily_budget_usd,
         daysRunning,
         status: campaign.status,
+        recentCtr,
+        baselineCtr,
       };
 
       const action = evaluateCampaign(campaignMetrics);
@@ -199,11 +230,49 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         if (campaign.platform === 'meta') {
           await updateMetaBudget(campaign.external_id, tenantId, newBudget);
         }
+        // Google + TikTok budget updates will be wired when APIs are approved
 
         await db.from('campaigns')
           .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
         result.actionsApplied++;
+      }
+
+      // Creative fatigue: log alert to dismissed_alerts so deliverAlert can pick it up
+      if (action.type === 'needs_creative') {
+        // Log a metrics snapshot for future fatigue detection
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: 'optimization.creative_fatigue',
+          platform: campaign.platform,
+          actor: 'system',
+          payload: {
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            recentCtr: campaignMetrics.recentCtr,
+            baselineCtr: campaignMetrics.baselineCtr,
+            reason: action.reason,
+          },
+        });
+        result.actionsApplied++;
+      }
+
+      // Snapshot metrics for trend analysis
+      if (metrics.impressions > 0) {
+        const ctr = metrics.clicks / metrics.impressions;
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: 'optimization.metrics_snapshot',
+          platform: campaign.platform,
+          actor: 'system',
+          payload: {
+            campaignId: campaign.id,
+            clicks: metrics.clicks,
+            impressions: metrics.impressions,
+            spend: metrics.spend,
+            ctr,
+          },
+        }).then(() => {}); // fire-and-forget, don't block
       }
 
       // Log action
