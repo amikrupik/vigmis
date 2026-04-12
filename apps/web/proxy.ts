@@ -19,7 +19,8 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
+  // Explicitly exclude: _next, tiktok*.txt files, and any static file with extension
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|tiktok|[^?]*\\.[^?/]+$).*)",
+    "/((?!_next|tiktok.*\\.txt|favicon\\.ico|robots\\.txt|sitemap\\.xml|[^/]+\\.[a-zA-Z0-9]+$).*)",
   ],
 };
