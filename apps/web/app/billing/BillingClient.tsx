@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { getBillingStatus, startCheckout, openPortal } from './actions';
+import { getBillingStatus, startCheckout, openPortal, getInvoices } from './actions';
 import ChatDrawer from '../dashboard/ChatDrawer';
 
 type BillingStatus = {
@@ -22,6 +22,7 @@ type BillingStatus = {
 export default function BillingClient() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -30,8 +31,8 @@ export default function BillingClient() {
   const canceledMsg = searchParams.get('canceled') === 'true';
 
   useEffect(() => {
-    getBillingStatus()
-      .then(setStatus)
+    Promise.all([getBillingStatus(), getInvoices().catch(() => ({ invoices: [] }))])
+      .then(([s, inv]) => { setStatus(s); setInvoices(inv?.invoices ?? []); })
       .catch(() => setError('Failed to load billing information'))
       .finally(() => setLoading(false));
   }, []);
@@ -213,6 +214,29 @@ export default function BillingClient() {
             <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
               * Final amount is calculated at month end based on actual spend from Google, Meta, and TikTok.
             </p>
+          </div>
+        )}
+
+        {/* Invoice History */}
+        {invoices.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Invoice History</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="divide-y divide-slate-100">
+                {invoices.map(inv => (
+                  <div key={inv.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{inv.period_start} — {inv.period_end}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Managed spend: ${inv.managed_spend_usd?.toFixed(2)} · Fee: ${inv.fee_usd?.toFixed(2)}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : inv.status === 'draft' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>{inv.status}</span>
+                      <span className="font-bold text-slate-900">${inv.total_usd?.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

@@ -170,6 +170,24 @@ export async function sendTestAlert() {
   return apiCall('/alerts/test', 'POST', {});
 }
 
+// ── Optimization ─────────────────────────────────────────────────────────────
+
+export async function runOptimizationNow() {
+  return apiCall('/optimization/run', 'POST', {});
+}
+
+export async function getOptimizationHistory() {
+  return apiCall('/optimization/history');
+}
+
+export async function getOptimizationSettings() {
+  return apiCall('/optimization/settings');
+}
+
+export async function saveOptimizationSettings(settings: { risk_level: 'conservative' | 'moderate' | 'aggressive'; management_percentage?: number }) {
+  return apiCall('/optimization/settings', 'POST', settings);
+}
+
 // ── Creatives ─────────────────────────────────────────────────────────────────
 
 export async function generateCreative(

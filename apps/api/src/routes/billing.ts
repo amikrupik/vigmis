@@ -171,6 +171,18 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send({ received: true });
   });
 
+  // ── List invoices ────────────────────────────────────────────────────────────
+  app.get('/billing/invoices', { preHandler: authenticate }, async (request, reply) => {
+    const { data: invoices } = await db
+      .from('billing_invoices')
+      .select('id, period_start, period_end, managed_spend_usd, fee_usd, subscription_usd, total_usd, status, created_at')
+      .eq('tenant_id', request.tenantId)
+      .order('period_start', { ascending: false })
+      .limit(12);
+
+    return reply.send({ invoices: invoices ?? [] });
+  });
+
   // ── Generate monthly invoice (cron) ──────────────────────────────────────
   app.post('/billing/invoice', async (request, reply) => {
     const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';

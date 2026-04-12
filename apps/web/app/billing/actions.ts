@@ -31,3 +31,7 @@ export async function startCheckout(): Promise<{ url: string }> {
 export async function openPortal(): Promise<{ url: string }> {
   return apiCall('/billing/portal', 'POST');
 }
+
+export async function getInvoices(): Promise<{ invoices: any[] }> {
+  return apiCall('/billing/invoices');
+}

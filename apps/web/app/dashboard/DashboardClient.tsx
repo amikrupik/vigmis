@@ -11,6 +11,7 @@ import {
   createAbTest, getAbTests, concludeAbTest,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
+  runOptimizationNow, getOptimizationHistory, getOptimizationSettings, saveOptimizationSettings,
 } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
@@ -1035,6 +1036,37 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           {competitors?.ads?.length === 0 && competitors?.connected && (
             <p className="text-sm text-slate-400 text-center py-4">No ads found for this keyword</p>
           )}
+          {competitors?.ads?.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">{competitors.total} ads found · source: Facebook Ad Library</p>
+              {competitors.ads.map((ad: any) => (
+                <div key={ad.id} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-900">{ad.page_name}</p>
+                    {ad.ad_delivery_start_time && (
+                      <span className="text-xs text-slate-400">Since {ad.ad_delivery_start_time.slice(0, 10)}</span>
+                    )}
+                  </div>
+                  {ad.ad_creative_link_titles?.[0] && (
+                    <p className="text-sm font-semibold text-indigo-700">{ad.ad_creative_link_titles[0]}</p>
+                  )}
+                  {ad.ad_creative_bodies?.[0] && (
+                    <p className="text-sm text-slate-600 leading-relaxed">{ad.ad_creative_bodies[0].slice(0, 200)}{ad.ad_creative_bodies[0].length > 200 ? '...' : ''}</p>
+                  )}
+                  <div className="flex items-center gap-3 pt-1">
+                    {ad.impressions?.lower_bound && (
+                      <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                        {Number(ad.impressions.lower_bound).toLocaleString()}–{Number(ad.impressions.upper_bound).toLocaleString()} impressions
+                      </span>
+                    )}
+                    {ad.ad_snapshot_url && (
+                      <a href={ad.ad_snapshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View Ad →</a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1257,6 +1289,15 @@ function SettingsTab({ settings, connected }: any) {
   const [testSending, setTestSending] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
 
+  // Optimization
+  const [riskLevel, setRiskLevel] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate');
+  const [optLoading, setOptLoading] = useState(true);
+  const [optSaving, setOptSaving] = useState(false);
+  const [optRunning, setOptRunning] = useState(false);
+  const [optResult, setOptResult] = useState<any>(null);
+  const [optHistory, setOptHistory] = useState<any[]>([]);
+  const [optMsg, setOptMsg] = useState('');
+
   useEffect(() => {
     getAlertSettings().then(data => {
       if (data) {
@@ -1266,6 +1307,11 @@ function SettingsTab({ settings, connected }: any) {
         setWhatsappEnabled(data.whatsapp_enabled ?? false);
       }
       setAlertLoading(false);
+    });
+    Promise.all([getOptimizationSettings(), getOptimizationHistory()]).then(([s, h]) => {
+      if (s) setRiskLevel(s.risk_level ?? 'moderate');
+      setOptHistory(h?.entries ?? []);
+      setOptLoading(false);
     });
   }, []);
 
@@ -1300,6 +1346,49 @@ function SettingsTab({ settings, connected }: any) {
       setTestSending(false);
     }
   }
+
+  async function handleSaveOptimization() {
+    setOptSaving(true); setOptMsg('');
+    try {
+      await saveOptimizationSettings({ risk_level: riskLevel });
+      setOptMsg(riskLevel === 'conservative' ? 'Manual mode saved — changes need your approval.' : `Auto mode saved (${riskLevel}).`);
+    } catch {
+      setOptMsg('Save failed.');
+    } finally {
+      setOptSaving(false);
+    }
+  }
+
+  async function handleRunNow() {
+    setOptRunning(true); setOptMsg(''); setOptResult(null);
+    try {
+      const res = await runOptimizationNow();
+      setOptResult(res);
+      const h = await getOptimizationHistory();
+      setOptHistory(h?.entries ?? []);
+      setOptMsg(`Done — ${res?.actionsApplied ?? 0} action(s) applied, ${res?.approvalsPending ?? 0} pending approval.`);
+    } catch {
+      setOptMsg('Run failed.');
+    } finally {
+      setOptRunning(false);
+    }
+  }
+
+  const RISK_OPTIONS = [
+    { value: 'conservative', label: 'Manual (Conservative)', desc: 'All changes need your approval' },
+    { value: 'moderate',     label: 'Auto (Moderate)',       desc: 'AI applies safe changes automatically' },
+    { value: 'aggressive',   label: 'Auto (Aggressive)',     desc: 'AI maximizes performance aggressively' },
+  ] as const;
+
+  const ACTION_LABELS: Record<string, string> = {
+    pause: 'Paused campaign',
+    resume: 'Resumed campaign',
+    scale_up: 'Scaled up budget',
+    scale_down: 'Scaled down budget',
+    needs_creative: 'Flagged creative fatigue',
+    creative_fatigue: 'Creative fatigue detected',
+    no_action: 'No action',
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -1341,6 +1430,80 @@ function SettingsTab({ settings, connected }: any) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Optimization Mode */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900">Optimization Mode</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Control how the AI manages your campaigns</p>
+          </div>
+          <button
+            onClick={handleRunNow}
+            disabled={optRunning}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
+          >
+            {optRunning ? 'Running...' : 'Run Now'}
+          </button>
+        </div>
+
+        {optLoading ? <p className="text-sm text-slate-400">Loading...</p> : (
+          <div className="space-y-2">
+            {RISK_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setRiskLevel(opt.value)}
+                className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-colors ${riskLevel === opt.value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
+              >
+                <p className={`text-sm font-semibold ${riskLevel === opt.value ? 'text-indigo-700' : 'text-slate-800'}`}>{opt.label}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button onClick={handleSaveOptimization} disabled={optSaving || optLoading} className="bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors">
+          {optSaving ? 'Saving...' : 'Save Mode'}
+        </button>
+
+        {optMsg && <p className={`text-sm font-medium ${optMsg.includes('failed') ? 'text-red-600' : 'text-indigo-600'}`}>{optMsg}</p>}
+
+        {/* Optimization history */}
+        {optHistory.length > 0 && (
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Optimization Actions</p>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {optHistory.map((entry: any) => (
+                <div key={entry.id} className="flex items-center gap-3 py-1.5 text-sm border-b border-slate-50 last:border-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
+                    entry.action === 'pause' ? 'bg-amber-100 text-amber-700' :
+                    entry.action === 'resume' ? 'bg-emerald-100 text-emerald-700' :
+                    entry.action === 'scale_up' ? 'bg-blue-100 text-blue-700' :
+                    entry.action === 'scale_down' ? 'bg-red-100 text-red-700' :
+                    entry.action === 'needs_creative' || entry.action === 'creative_fatigue' ? 'bg-purple-100 text-purple-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    {ACTION_LABELS[entry.action] ?? entry.action}
+                  </span>
+                  {entry.campaign_name && <span className="text-slate-600 truncate">{entry.campaign_name}</span>}
+                  {entry.reason && <span className="text-slate-400 text-xs truncate hidden md:block">{entry.reason}</span>}
+                  <span className="text-xs text-slate-300 flex-shrink-0 ml-auto">{new Date(entry.created_at).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {optResult && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm space-y-1">
+            <p className="font-semibold text-slate-800">Last run results</p>
+            <p className="text-slate-600">{optResult.campaignsEvaluated} campaigns evaluated</p>
+            <p className="text-slate-600">{optResult.actionsApplied} actions applied</p>
+            {optResult.approvalsPending > 0 && <p className="text-amber-600">{optResult.approvalsPending} pending your approval</p>}
+            {optResult.errors?.length > 0 && <p className="text-red-600">{optResult.errors.length} errors</p>}
+          </div>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
