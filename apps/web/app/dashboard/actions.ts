@@ -67,6 +67,19 @@ export async function pauseCampaign(id: string) {
   if (!res.ok) throw new Error('Pause failed');
 }
 
+export async function updateCampaignBudget(id: string, daily_budget_usd: number) {
+  const { getToken } = await auth();
+  const token = await getToken();
+  if (!token) throw new Error('Not authenticated');
+  const res = await fetch(`${API_URL}/campaigns/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ daily_budget_usd }),
+  });
+  if (!res.ok) throw new Error('Update failed');
+  return res.json();
+}
+
 export async function resumeCampaign(id: string) {
   const { getToken } = await auth();
   const token = await getToken();

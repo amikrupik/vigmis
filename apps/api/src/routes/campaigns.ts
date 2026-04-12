@@ -1,9 +1,10 @@
-// Campaign Engine — create, list, pause, resume campaigns
+// Campaign Engine — create, list, pause, resume, edit campaigns
 //
-// POST /campaigns/launch  — create campaigns from strategy plan
-// GET  /campaigns         — list all campaigns for tenant
-// POST /campaigns/:id/pause
-// POST /campaigns/:id/resume
+// POST  /campaigns/launch    — create campaigns from strategy plan
+// GET   /campaigns           — list all campaigns for tenant
+// PATCH /campaigns/:id       — update daily budget
+// POST  /campaigns/:id/pause
+// POST  /campaigns/:id/resume
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -167,6 +168,45 @@ export async function campaignRoutes(app: FastifyInstance) {
 
     if (error) return reply.code(500).send({ error: 'Failed to fetch campaigns' });
     return reply.send({ campaigns: campaigns ?? [] });
+  });
+
+  // ── Update campaign (budget) ───────────────────────────────────────────────
+  app.patch('/campaigns/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { daily_budget_usd } = request.body as any;
+
+    if (typeof daily_budget_usd !== 'number' || daily_budget_usd < 1) {
+      return reply.code(400).send({ error: 'daily_budget_usd must be a number >= 1' });
+    }
+
+    // Verify campaign belongs to this tenant
+    const { data: campaign } = await db
+      .from('campaigns')
+      .select('id, platform, external_id, status')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (!campaign) return reply.code(404).send({ error: 'Campaign not found' });
+
+    const newBudget = Math.round(daily_budget_usd * 100) / 100;
+
+    // Note: Platform budget sync happens automatically on next optimization run
+    const { error } = await db.from('campaigns')
+      .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) return reply.code(500).send({ error: 'Failed to update budget' });
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'campaign.budget_updated',
+      platform: campaign.platform,
+      actor: 'user',
+      payload: { campaignId: id, newBudget },
+    });
+
+    return reply.send({ success: true, daily_budget_usd: newBudget });
   });
 
   // ── Pause campaign ────────────────────────────────────────────────────────

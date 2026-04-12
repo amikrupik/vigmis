@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
-  getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign,
+  getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign, updateCampaignBudget,
   getAnalytics, generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
   generateCreative, getCreatives, getCreativeStatus,
@@ -183,6 +183,7 @@ export default function DashboardClient() {
           <CampaignsTab
             campaigns={campaigns} isPending={isPending}
             onAction={handleCampaignAction}
+            onReload={load}
             activeCampaigns={activeCampaigns} pausedCampaigns={pausedCampaigns} errorCampaigns={errorCampaigns}
           />
         )}
@@ -430,7 +431,26 @@ function AnalyticsTab() {
 
 // ── Campaigns Tab ─────────────────────────────────────────────────────────────
 
-function CampaignsTab({ campaigns, isPending, onAction, activeCampaigns, pausedCampaigns, errorCampaigns }: any) {
+function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaigns, pausedCampaigns, errorCampaigns }: any) {
+  const [editingBudget, setEditingBudget] = useState<string | null>(null);
+  const [budgetInput, setBudgetInput] = useState('');
+  const [budgetSaving, setBudgetSaving] = useState(false);
+
+  async function handleBudgetSave(id: string) {
+    const val = parseFloat(budgetInput);
+    if (isNaN(val) || val < 1) return;
+    setBudgetSaving(true);
+    try {
+      await updateCampaignBudget(id, val);
+      setEditingBudget(null);
+      onReload?.();
+    } catch {
+      // keep editing state on error
+    } finally {
+      setBudgetSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -455,7 +475,34 @@ function CampaignsTab({ campaigns, isPending, onAction, activeCampaigns, pausedC
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-slate-400 capitalize">{c.campaign_type}</span>
-                    <span className="text-xs text-slate-400">${c.daily_budget_usd}/day</span>
+                    {editingBudget === c.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-slate-400">$</span>
+                        <input
+                          type="number"
+                          value={budgetInput}
+                          onChange={e => setBudgetInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleBudgetSave(c.id); if (e.key === 'Escape') setEditingBudget(null); }}
+                          className="w-20 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          min={1}
+                          step={1}
+                          autoFocus
+                        />
+                        <span className="text-xs text-slate-400">/day</span>
+                        <button onClick={() => handleBudgetSave(c.id)} disabled={budgetSaving} className="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded font-medium disabled:opacity-50">
+                          {budgetSaving ? '...' : 'Save'}
+                        </button>
+                        <button onClick={() => setEditingBudget(null)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingBudget(c.id); setBudgetInput(String(c.daily_budget_usd)); }}
+                        className="text-xs text-slate-400 hover:text-indigo-600 hover:underline transition-colors"
+                        title="Click to edit budget"
+                      >
+                        ${c.daily_budget_usd}/day
+                      </button>
+                    )}
                     {c.error_message && <span className="text-xs text-red-500 truncate">{c.error_message}</span>}
                   </div>
                 </div>
