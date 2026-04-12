@@ -62,6 +62,7 @@ export default function DashboardClient() {
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [unreadCount, setUnreadCount] = useState(0);
 
   async function load() {
     setLoading(true);
@@ -74,7 +75,10 @@ export default function DashboardClient() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    getAlerts().then(r => setUnreadCount(r?.unread_count ?? 0));
+  }, []);
 
   async function handleLaunch() {
     setLaunching(true); setError(null);
@@ -113,9 +117,26 @@ export default function DashboardClient() {
             <div className="hidden sm:flex items-center gap-2">
               <PlatformBadge name="Google" connected={connected.google} />
               <PlatformBadge name="Meta" connected={connected.meta} />
-              <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-400 font-medium">TikTok — soon</span>
+              {connected.tiktok
+              ? <PlatformBadge name="TikTok" connected={true} />
+              : <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-400 font-medium">TikTok — soon</span>
+            }
             </div>
             <div className="flex items-center gap-4 text-sm">
+              <button
+                onClick={() => setTab('overview')}
+                className="relative text-slate-400 hover:text-slate-700 transition-colors"
+                title={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}` : 'Alerts'}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
               <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Billing</a>
               <ClerkSignOutButton />
             </div>
