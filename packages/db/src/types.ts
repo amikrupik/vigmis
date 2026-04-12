@@ -23,6 +23,8 @@ export interface StrategyPlan {
   target_audience: string;
   estimated_cpc: string;
   recommendations: string;
+  past_performance_notes?: string;
+  organic_recommendations?: string[];
 }
 
 export interface ClientSettings {
