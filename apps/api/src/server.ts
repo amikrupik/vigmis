@@ -13,6 +13,7 @@ import { analyticsRoutes } from './routes/analytics.js';
 import { intelligenceRoutes } from './routes/intelligence.js';
 import { alertRoutes } from './routes/alerts.js';
 import { creativeRoutes } from './routes/creatives.js';
+import { notificationRoutes } from './routes/notifications.js';
 
 const app = Fastify({ logger: true });
 
@@ -58,6 +59,7 @@ await app.register(analyticsRoutes);
 await app.register(intelligenceRoutes);
 await app.register(alertRoutes);
 await app.register(creativeRoutes);
+await app.register(notificationRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';
