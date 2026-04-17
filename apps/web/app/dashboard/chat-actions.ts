@@ -20,7 +20,15 @@ async function apiCall(path: string, method = 'GET', body?: object) {
   return res.json();
 }
 
-export async function sendChatMessage(message: string): Promise<{ message: string; action: object | null }> {
+export type ExecutedAction = {
+  type: string;
+  campaign_id?: string;
+  campaign_name?: string;
+  detail?: string;
+  success: boolean;
+};
+
+export async function sendChatMessage(message: string): Promise<{ message: string; executedActions: ExecutedAction[] }> {
   return apiCall('/chat', 'POST', { message });
 }
 

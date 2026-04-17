@@ -231,3 +231,13 @@ export async function getCreativeStatus(jobId: string) {
 export async function getCreatives() {
   return apiCall('/creatives');
 }
+
+// ── Emergency controls ────────────────────────────────────────────────────────
+
+export async function pauseAllCampaigns() {
+  return apiCall('/campaigns/pause-all', 'POST', {});
+}
+
+export async function resumeAllCampaigns() {
+  return apiCall('/campaigns/resume-all', 'POST', {});
+}

@@ -13,6 +13,7 @@ import {
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
   runOptimizationNow, getOptimizationHistory, getOptimizationSettings, saveOptimizationSettings,
   getApprovalRequests, approveRequest, rejectRequest,
+  pauseAllCampaigns, resumeAllCampaigns,
 } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
@@ -63,6 +64,8 @@ export default function DashboardClient() {
   const [launching, setLaunching] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showStopModal, setShowStopModal] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -85,6 +88,13 @@ export default function DashboardClient() {
     try { await launchCampaigns(true); await load(); }
     catch (err) { setError(err instanceof Error ? err.message : 'Launch failed'); }
     finally { setLaunching(false); }
+  }
+
+  async function handleEmergencyStop() {
+    setStopping(true);
+    try { await pauseAllCampaigns(); await load(); }
+    catch { /* ignore */ }
+    finally { setStopping(false); setShowStopModal(false); }
   }
 
   function handleCampaignAction(id: string, action: 'pause' | 'resume') {
@@ -176,6 +186,7 @@ export default function DashboardClient() {
             managedBudget={managedBudget} feeEstimate={feeEstimate}
             onViewAll={() => setTab('campaigns')}
             launching={launching} onLaunch={handleLaunch}
+            onEmergencyStop={() => setShowStopModal(true)}
           />
         )}
         {tab === 'analytics' && <AnalyticsTab />}
@@ -194,13 +205,40 @@ export default function DashboardClient() {
 
       <ChatDrawer />
       <FeedbackModal />
+
+      {showStopModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-slate-900 text-lg">Emergency Stop</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              This will immediately pause <strong>{activeCampaigns} active campaign{activeCampaigns !== 1 ? 's' : ''}</strong> across all platforms. All advertising will stop.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setShowStopModal(false)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleEmergencyStop} disabled={stopping} className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl transition-colors">
+                {stopping ? 'Stopping...' : 'Pause All Now'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll }: any) {
+function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [pacing, setPacing] = useState<any>(null);
 
@@ -211,12 +249,32 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, er
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Active Campaigns" value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
-        <StatCard label="Daily Budget" value={`$${totalDailyBudget.toFixed(0)}`} sub="active spend" color="blue" />
-        <StatCard label="Managed / Month" value={`$${managedBudget}`} sub="of ad budget" color="purple" />
-        <StatCard label="Monthly Fee" value={`~$${feeEstimate}`} sub="Free tier (7%)" color="gray" />
+      {/* Disclaimer */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 flex items-start gap-2">
+        <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span><strong>Disclaimer:</strong> Vigmis provides AI-driven campaign management on a best-effort basis. Results are not guaranteed. You retain full control and can pause all campaigns at any time. Vigmis is not liable for ad spend outcomes.</span>
+      </div>
+
+      {/* Stats + Emergency Stop */}
+      <div className="flex items-start gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+          <StatCard label="Active Campaigns" value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
+          <StatCard label="Daily Budget" value={`$${totalDailyBudget.toFixed(0)}`} sub="active spend" color="blue" />
+          <StatCard label="Managed / Month" value={`$${managedBudget}`} sub="of ad budget" color="purple" />
+          <StatCard label="Monthly Fee" value={`~$${feeEstimate}`} sub="Free tier (7%)" color="gray" />
+        </div>
+        {activeCampaigns > 0 && (
+          <button
+            onClick={onEmergencyStop}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors mt-0.5"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+            </svg>
+            Emergency Stop
+          </button>
+        )}
       </div>
 
       {/* Active Alerts */}
@@ -317,7 +375,7 @@ function AnalyticsTab() {
       {data.is_mock && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 flex items-center gap-2">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          Demo data shown — connect Google + Meta next week to see real campaign performance
+          <span><strong>Simulated data</strong> — metrics shown are projections based on your budget. Real performance data (ROAS, CTR, CPA) will appear once Google and Meta API access is confirmed.</span>
         </div>
       )}
 

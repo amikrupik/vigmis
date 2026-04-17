@@ -274,4 +274,62 @@ export async function campaignRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: err instanceof Error ? err.message : 'Resume failed' });
     }
   });
+
+  // ── Emergency stop — pause all active campaigns ───────────────────────────────
+  app.post('/campaigns/pause-all', { preHandler: authenticate }, async (request, reply) => {
+    const { data: active } = await db
+      .from('campaigns').select('id, platform, external_id, name')
+      .eq('tenant_id', request.tenantId).eq('status', 'active');
+
+    if (!active?.length) return reply.send({ paused: 0, total: 0 });
+
+    let paused = 0;
+    for (const c of active) {
+      try {
+        if (c.external_id) {
+          if (c.platform === 'google') await pauseGoogleCampaign(c.external_id, request.tenantId);
+          else if (c.platform === 'tiktok') await pauseTikTokCampaign(c.external_id, request.tenantId);
+          else await pauseMetaCampaign(c.external_id, request.tenantId);
+        }
+        await db.from('campaigns').update({ status: 'paused', updated_at: new Date().toISOString() }).eq('id', c.id);
+        paused++;
+      } catch { /* continue pausing others */ }
+    }
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId, action: 'campaigns.emergency_stop',
+      actor: 'user', payload: { paused, total: active.length },
+    });
+
+    return reply.send({ paused, total: active.length });
+  });
+
+  // ── Resume all paused campaigns ───────────────────────────────────────────────
+  app.post('/campaigns/resume-all', { preHandler: authenticate }, async (request, reply) => {
+    const { data: pausedList } = await db
+      .from('campaigns').select('id, platform, external_id, name')
+      .eq('tenant_id', request.tenantId).eq('status', 'paused');
+
+    if (!pausedList?.length) return reply.send({ resumed: 0, total: 0 });
+
+    let resumed = 0;
+    for (const c of pausedList) {
+      try {
+        if (c.external_id) {
+          if (c.platform === 'google') await resumeGoogleCampaign(c.external_id, request.tenantId);
+          else if (c.platform === 'tiktok') await resumeTikTokCampaign(c.external_id, request.tenantId);
+          else await resumeMetaCampaign(c.external_id, request.tenantId);
+        }
+        await db.from('campaigns').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', c.id);
+        resumed++;
+      } catch { /* continue */ }
+    }
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId, action: 'campaigns.resume_all',
+      actor: 'user', payload: { resumed },
+    });
+
+    return reply.send({ resumed, total: pausedList.length });
+  });
 }
