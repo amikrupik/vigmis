@@ -229,14 +229,27 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
                 }
               </button>
 
-              <div className="w-full flex items-center gap-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl px-5 py-4 opacity-60 cursor-default">
+              <button
+                onClick={async () => {
+                  try {
+                    const token = await getClerkToken();
+                    window.location.href = `${API_URL}/auth/tiktok?token=${encodeURIComponent(token)}`;
+                  } catch {
+                    setError('Session error — please refresh the page');
+                  }
+                }}
+                className="w-full flex items-center gap-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md rounded-xl px-5 py-4 transition-all shadow-sm text-left"
+              >
                 <TikTokIcon />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-600">TikTok Ads</p>
-                  <p className="text-xs text-slate-400 mt-0.5">TikTok for Business — launching soon</p>
+                  <p className="text-sm font-semibold text-slate-800">TikTok Ads</p>
+                  <p className="text-xs text-slate-400 mt-0.5">TikTok for Business — In-Feed, Spark, TopView</p>
                 </div>
-                <span className="text-xs bg-slate-200 text-slate-500 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Coming Soon</span>
-              </div>
+                {connected.tiktok
+                  ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Connected ✓</span>
+                  : <span className="text-xs text-slate-400 flex-shrink-0">Connect →</span>
+                }
+              </button>
             </div>
 
             <div className="space-y-3 pt-2 border-t border-slate-100">

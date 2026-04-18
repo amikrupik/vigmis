@@ -50,10 +50,10 @@ export default function AboutPage() {
         </div>
 
         <div className="mt-16 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center">
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Ready to get started?</h3>
-          <p className="text-slate-500 text-sm mb-6">Your first campaign is just a few minutes away.</p>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Start with a free marketing analysis</h3>
+          <p className="text-slate-500 text-sm mb-6">AI strategy, competitor research & campaign plan — free. Then 7% only when campaigns are live.</p>
           <Link href="/sign-up" className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl transition-colors">
-            Start for free →
+            Get your free analysis →
           </Link>
         </div>
       </main>
@@ -61,9 +61,11 @@ export default function AboutPage() {
       <footer className="border-t border-slate-100 px-6 py-6">
         <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
           <Link href="/" className="hover:text-slate-600">Home</Link>
+          <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
           <Link href="/contact" className="hover:text-slate-600">Contact</Link>
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-slate-600">Terms of Service</Link>
+          <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
           <span>© {new Date().getFullYear()} Vigmis</span>
         </div>
       </footer>
