@@ -274,7 +274,7 @@ Provide: 1) Estimated CPC range 2) What competitors are doing and how to differe
     // Phase 3: Strategy generation
     const strategyRes = await route({
       task: 'analysis',
-      prompt: `Based on this data, generate a campaign strategy plan:
+      prompt: `You are a senior media planner and honest business advisor. Based on the data below, produce a complete campaign strategy with a detailed budget advisory section.
 
 BUSINESS:
 ${websiteAnalysis.slice(0, 600)}
@@ -282,33 +282,64 @@ ${websiteAnalysis.slice(0, 600)}
 MARKET RESEARCH & COMPETITOR INSIGHTS:
 ${marketResearch.slice(0, 700)}
 
-${historicalContext ? `WHAT THE CLIENT DID BEFORE (learn from it):\n${historicalContext.slice(0, 500)}\n` : ''}
+${historicalContext ? `CLIENT'S HISTORICAL AD PERFORMANCE (learn from it):\n${historicalContext.slice(0, 500)}\n` : ''}
 
 PARAMETERS:
 - Goal: ${settings.goal}
-- Monthly managed budget: ~$${managedBudget}
-- Target: ${(settings.geo_include ?? []).join(', ')}
-- Exclusions: ${settings.exclusions ?? ''}
+- Client's stated monthly budget: ~$${managedBudget}
+- Target geography: ${(settings.geo_include ?? []).join(', ')}
+- Exclusions: ${settings.exclusions ?? 'none'}
+- Has parallel campaigns outside Vigmis: ${settings.has_parallel_campaigns ? 'yes' : 'no'}
 
-Available platforms: google, meta, tiktok. Include only platforms that make strategic sense. TikTok is highly effective for audiences under 40 and visual products.
+PLATFORM SELECTION RULES (apply strictly — do not include platforms that don't fit):
+- Google Search: only if there is clear search intent for this product/service
+- Google Display: only for retargeting or brand awareness with budget >$500/mo
+- Meta (Facebook/Instagram): good for most B2C products, visual goods, 25-55 audience
+- TikTok: ONLY if target audience is under 40 AND product is visual/lifestyle/consumer. Never for B2B, medical, financial, legal, or products targeting 50+ audience.
+- If budget is below $300/mo: use maximum 1-2 platforms
+
+BUDGET ADVISORY — think like a CFO + CMO combined. Consider:
+- What is the minimum budget to generate enough data to optimize in this market?
+- What does the client's budget actually buy (clicks, leads) at the estimated CPC?
+- Is there a ceiling where more spend won't help (market saturation, small audience)?
+- Is the stated budget too low to work, sufficient, or higher than the efficient ceiling?
+- What warnings does this client need to hear (funnel quality, competition, audience size)?
+- Assume a realistic landing page conversion rate for this goal/industry (leads: 2-5%, purchases: 1-3%)
 
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
-Return ONLY valid JSON:
+
+Return ONLY valid JSON (no extra text):
 {
   "platforms": [
-    { "name": "google", "campaign_types": ["search"], "budget_percentage": 50, "reasoning": "..." },
-    { "name": "meta", "campaign_types": ["conversion"], "budget_percentage": 30, "reasoning": "..." },
-    { "name": "tiktok", "campaign_types": ["in-feed"], "budget_percentage": 20, "reasoning": "..." }
+    { "name": "google", "campaign_types": ["search"], "budget_percentage": 60, "reasoning": "Specific reason based on this business and market data" }
   ],
-  "market_insights": "2-3 sentence summary including what competitors are doing",
-  "target_audience": "Specific audience description",
+  "market_insights": "2-3 sentences including what competitors are doing and market dynamics",
+  "target_audience": "Specific audience description based on analysis",
   "estimated_cpc": "$X.XX - $X.XX",
   "recommendations": "Top 3 actionable recommendations based on history and market",
-  "past_performance_notes": "Key learnings from client's historical campaigns, or null if no history",
-  "organic_recommendations": "2-3 specific organic growth actions (SEO, social content, Google Business Profile, etc.) that complement paid campaigns and reduce reliance on ad spend over time"
+  "past_performance_notes": "Key learnings from client historical campaigns, or null",
+  "organic_recommendations": "2-3 specific organic growth actions to complement and reduce ad dependency",
+  "budget_analysis": {
+    "verdict": "sufficient",
+    "verdict_explanation": "One honest sentence about whether the budget makes sense for this market",
+    "minimum_monthly_usd": 300,
+    "recommended_learning_usd": 450,
+    "recommended_steady_usd": 350,
+    "efficiency_ceiling_usd": 800,
+    "projected_clicks_monthly": 600,
+    "projected_leads_monthly": 15,
+    "break_even_conversions": 4,
+    "warnings": [
+      "Landing page conversion rate is the key variable — a weak page will waste budget",
+      "Competition in this niche is high — expect the lower end of the CPC range"
+    ],
+    "platform_exclusions": [
+      { "platform": "tiktok", "reason": "Target audience is 45+ — TikTok reach in this demographic is minimal" }
+    ]
+  }
 }`,
-      systemPrompt: 'You are a senior media planner. Return only valid JSON, no extra text.',
-      options: { maxTokens: 1100, temperature: 0.3 },
+      systemPrompt: 'You are a senior media planner and honest business advisor. Return only valid JSON, no extra text.',
+      options: { maxTokens: 1400, temperature: 0.3 },
     });
 
     let strategy: object;
@@ -318,16 +349,29 @@ Return ONLY valid JSON:
     } catch { strategy = null as any; }
 
     if (!strategy) {
+      const defaultBudget = managedBudget;
       strategy = {
         platforms: [
-          { name: 'google', campaign_types: ['search'], budget_percentage: 50, reasoning: 'High intent traffic for your goal' },
-          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 30, reasoning: 'Audience targeting and remarketing' },
-          { name: 'tiktok', campaign_types: ['in-feed'], budget_percentage: 20, reasoning: 'Reach younger audiences with engaging short-form video' },
+          { name: 'google', campaign_types: ['search'], budget_percentage: 60, reasoning: 'High intent traffic for your goal' },
+          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 40, reasoning: 'Audience targeting and remarketing' },
         ],
         market_insights: marketResearch.slice(0, 200),
         target_audience: (settings.geo_include ?? []).join(', '),
         estimated_cpc: '$0.50 - $2.00',
-        recommendations: 'Start with search and social, monitor CPC, scale what works.',
+        recommendations: 'Start with search, monitor CPC closely, scale what converts.',
+        budget_analysis: {
+          verdict: 'sufficient',
+          verdict_explanation: 'Budget appears workable for this market — monitor CPC in the first two weeks.',
+          minimum_monthly_usd: Math.round(defaultBudget * 0.6),
+          recommended_learning_usd: Math.round(defaultBudget * 1.2),
+          recommended_steady_usd: defaultBudget,
+          efficiency_ceiling_usd: Math.round(defaultBudget * 2.5),
+          projected_clicks_monthly: Math.round(defaultBudget / 1.5),
+          projected_leads_monthly: Math.round((defaultBudget / 1.5) * 0.03),
+          break_even_conversions: 3,
+          warnings: ['Actual CPC and conversion rate will be refined after the first 2 weeks of data.'],
+          platform_exclusions: [],
+        },
       };
     }
 

@@ -437,6 +437,79 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
               </div>
             </div>
 
+            {/* Budget advisory */}
+            {strategy.budget_analysis && (() => {
+              const ba = strategy.budget_analysis;
+              const verdictColor = ba.verdict === 'too_low'
+                ? 'border-red-200 bg-red-50'
+                : ba.verdict === 'exceeds_ceiling'
+                ? 'border-amber-200 bg-amber-50'
+                : 'border-emerald-200 bg-emerald-50';
+              const verdictLabel = ba.verdict === 'too_low'
+                ? '⚠ Budget may be too low'
+                : ba.verdict === 'exceeds_ceiling'
+                ? '↓ Budget exceeds efficient ceiling'
+                : '✓ Budget is workable';
+              const verdictTextColor = ba.verdict === 'too_low'
+                ? 'text-red-700'
+                : ba.verdict === 'exceeds_ceiling'
+                ? 'text-amber-700'
+                : 'text-emerald-700';
+              return (
+                <div className={`border rounded-xl p-5 space-y-4 ${verdictColor}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Budget Advisory</p>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full bg-white ${verdictTextColor}`}>{verdictLabel}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{ba.verdict_explanation}</p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Minimum to enter market', value: `$${ba.minimum_monthly_usd}/mo` },
+                      { label: 'Recommended (learning phase)', value: `$${ba.recommended_learning_usd}/mo` },
+                      { label: 'Recommended (ongoing)', value: `$${ba.recommended_steady_usd}/mo` },
+                      { label: 'Efficiency ceiling', value: `$${ba.efficiency_ceiling_usd}/mo` },
+                    ].map(item => (
+                      <div key={item.label} className="bg-white rounded-lg p-3 border border-white/60">
+                        <p className="text-xs text-slate-400 mb-0.5">{item.label}</p>
+                        <p className="text-sm font-bold text-slate-900">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { label: 'Est. clicks/mo', value: ba.projected_clicks_monthly.toLocaleString() },
+                      { label: 'Est. leads/mo', value: ba.projected_leads_monthly.toLocaleString() },
+                      { label: 'Break-even sales', value: `${ba.break_even_conversions}` },
+                    ].map(item => (
+                      <div key={item.label} className="bg-white rounded-lg p-3 border border-white/60">
+                        <p className="text-sm font-black text-slate-900">{item.value}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{item.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {ba.warnings?.length > 0 && (
+                    <div className="space-y-1.5">
+                      {ba.warnings.map((w: string, i: number) => (
+                        <p key={i} className="text-xs text-slate-600 leading-relaxed">⚠ {w}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {ba.platform_exclusions?.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500">Platforms not recommended:</p>
+                      {ba.platform_exclusions.map((e: any) => (
+                        <p key={e.platform} className="text-xs text-slate-500 capitalize">✕ <strong>{e.platform}</strong> — {e.reason}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Recommendations */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Paid Campaign Recommendations</p>

@@ -17,6 +17,20 @@ export interface StrategyPlatform {
   reasoning: string;
 }
 
+export interface BudgetAnalysis {
+  verdict: 'sufficient' | 'too_low' | 'exceeds_ceiling';
+  verdict_explanation: string;         // one sentence, plain English
+  minimum_monthly_usd: number;         // below this = won't work
+  recommended_learning_usd: number;    // first 30 days (higher — accelerate data)
+  recommended_steady_usd: number;      // ongoing after learning
+  efficiency_ceiling_usd: number;      // above this = diminishing returns
+  projected_clicks_monthly: number;    // at recommended_steady budget
+  projected_leads_monthly: number;     // at recommended_steady (realistic conversion rate)
+  break_even_conversions: number;      // sales needed to cover monthly ad cost
+  warnings: string[];                  // specific issues: funnel, audience size, competition, etc.
+  platform_exclusions: Array<{ platform: string; reason: string }>; // platforms NOT recommended
+}
+
 export interface StrategyPlan {
   platforms: StrategyPlatform[];
   market_insights: string;
@@ -25,6 +39,7 @@ export interface StrategyPlan {
   recommendations: string;
   past_performance_notes?: string;
   organic_recommendations?: string[];
+  budget_analysis?: BudgetAnalysis;
 }
 
 export interface ClientSettings {
