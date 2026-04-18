@@ -38,6 +38,12 @@ export default function ContactPage() {
           <h2 className="font-bold text-slate-900 mb-6">Send us a message</h2>
           <ContactForm />
         </div>
+
+        <div className="mt-10 text-center text-xs text-slate-400 space-y-1">
+          <p className="font-medium text-slate-500">Taurus Management and Investments Ltd. (טאורוס ניהול והשקעות בע"מ)</p>
+          <p>Company No. 514565118 · 25 Mabshovitz Binyamin St., Herzliya 4640525, Israel</p>
+          <p><a href="mailto:legal@vigmis.com" className="hover:text-slate-600">legal@vigmis.com</a></p>
+        </div>
       </main>
 
       <footer className="border-t border-slate-100 px-6 py-6">
@@ -47,7 +53,7 @@ export default function ContactPage() {
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-slate-600">Terms of Service</Link>
           <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
-          <span>© {new Date().getFullYear()} Vigmis</span>
+          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
         </div>
       </footer>
     </div>

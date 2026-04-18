@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata = { title: "Terms of Service — Vigmis" };
 
-const LAST_UPDATED = "April 11, 2026";
+const LAST_UPDATED = "April 18, 2026";
 
 export default function TermsPage() {
   return (
@@ -20,7 +20,8 @@ export default function TermsPage() {
         <div className="space-y-10 text-slate-600 leading-relaxed">
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">1. Agreement</h2>
-            <p>By creating an account or using the Vigmis platform ("Service"), you agree to these Terms of Service. If you do not agree, do not use the Service. These terms form a binding agreement between you and Vigmis.</p>
+            <p className="mb-3">By creating an account or using the Vigmis platform ("Service"), you agree to these Terms of Service. If you do not agree, do not use the Service.</p>
+            <p>These terms form a binding agreement between you and <strong>Taurus Management and Investments Ltd.</strong> (טאורוס ניהול והשקעות בע"מ), Company No. 514565118, registered in Israel, with offices at 25 Mabshovitz Binyamin St., Herzliya, 4640525, Israel — operating the Vigmis product ("Vigmis", "we", "us", "our"). Contact: <a href="mailto:legal@vigmis.com" className="text-indigo-600 hover:underline">legal@vigmis.com</a>.</p>
           </section>
 
           <section>
@@ -127,6 +128,7 @@ export default function TermsPage() {
           <Link href="/cookies" className="hover:text-slate-600">Cookie Policy</Link>
           <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
           <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
+          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
         </div>
       </footer>
     </div>

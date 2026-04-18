@@ -66,7 +66,7 @@ export default function AboutPage() {
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-slate-600">Terms of Service</Link>
           <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
-          <span>© {new Date().getFullYear()} Vigmis</span>
+          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
         </div>
       </footer>
     </div>

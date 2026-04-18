@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata = { title: "Privacy Policy — Vigmis" };
 
-const LAST_UPDATED = "April 11, 2026";
+const LAST_UPDATED = "April 18, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -20,7 +20,9 @@ export default function PrivacyPage() {
         <div className="space-y-10 text-slate-600 leading-relaxed">
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">1. Who We Are</h2>
-            <p>Vigmis ("we", "us", "our") provides an AI-powered advertising management platform. This Privacy Policy explains how we collect, use, and protect your information when you use our services at vigmis.com.</p>
+            <p className="mb-2">Vigmis is a product operated by <strong>Taurus Management and Investments Ltd.</strong> (טאורוס ניהול והשקעות בע"מ), Company No. 514565118, registered in Israel.</p>
+            <p className="mb-2">Registered address: 25 Mabshovitz Binyamin St., Herzliya, 4640525, Israel.</p>
+            <p>This Privacy Policy explains how we collect, use, and protect your information when you use our services at vigmis.com. For privacy inquiries: <a href="mailto:privacy@vigmis.com" className="text-indigo-600 hover:underline">privacy@vigmis.com</a>.</p>
           </section>
 
           <section>
@@ -101,6 +103,7 @@ export default function PrivacyPage() {
           <Link href="/cookies" className="hover:text-slate-600">Cookie Policy</Link>
           <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
           <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
+          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
         </div>
       </footer>
     </div>

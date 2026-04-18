@@ -142,7 +142,7 @@ export default async function Home() {
             <Link href="/cookies" className="hover:text-slate-600">Cookies</Link>
             <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
           </div>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Vigmis. All rights reserved.</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Taurus Management and Investments Ltd. — Vigmis</p>
         </div>
       </footer>
     </div>
