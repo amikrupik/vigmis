@@ -135,6 +135,28 @@ async function checkStagnation(
 function buildStagnationMessage(campaign: any, daysRunning: number, ctr: number, minCtr: number): string {
   const ctrPct = (ctr * 100).toFixed(2);
   const benchPct = (minCtr * 100).toFixed(1);
+  const isDeepStagnation = daysRunning >= 60;
+
+  if (isDeepStagnation) {
+    return [
+      `Vigmis has been optimizing "${campaign.name}" on ${campaign.platform} for ${daysRunning} days. Despite consistent adjustments, results have not reached an acceptable level.`,
+      ``,
+      `We want to be completely honest with you: at this point, continuing to invest in paid online advertising may not be the right decision for your business right now.`,
+      ``,
+      `Paid advertising works best when there is already some level of market demand, a strong offer, and a proven conversion path. When all of these are optimized and results still don't come, it's often a signal to step back from paid channels entirely — at least for now.`,
+      ``,
+      `It may make more sense to invest your time and resources in:`,
+      `A. Building organic presence — SEO, content, social — before scaling with paid ads`,
+      `B. Validating your offer through direct sales or referrals first`,
+      `C. Improving the product or pricing before driving paid traffic`,
+      `D. Waiting for a more favorable market moment (seasonality, competition level)`,
+      `E. Exploring other marketing channels better suited to your stage`,
+      ``,
+      `Our recommendation: pause all campaigns for now. Vigmis will not charge management fees on paused campaigns. When you're ready to try again — with a revised offer, a better landing page, or a different strategy — we'll be here.`,
+      ``,
+      `This is not a failure. Most successful businesses go through several iterations before paid advertising becomes profitable. We'd rather tell you this now than watch you spend money without results.`,
+    ].join('\n');
+  }
 
   return [
     `Vigmis has been optimizing "${campaign.name}" on ${campaign.platform} for ${daysRunning} days, but CTR (${ctrPct}%) remains below the ${benchPct}% benchmark despite repeated adjustments.`,
@@ -252,12 +274,19 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       const isStagnant = await checkStagnation(campaign, tenantId, daysRunning, ctr, bench.minCtr);
       if (isStagnant) {
         const message = buildStagnationMessage(campaign, daysRunning, ctr, bench.minCtr);
+        const isDeep = daysRunning >= 60;
+        const title = isDeep
+          ? `Honest assessment: consider pausing paid ads for now`
+          : `"${campaign.name}" — results not improving after ${daysRunning} days`;
+        const actionText = isDeep
+          ? 'Pause campaigns — no fees charged on paused campaigns'
+          : 'Open dashboard to review or rethink strategy';
         await sendTenantNotification(
           tenantId,
-          `"${campaign.name}" — results not improving after ${daysRunning} days`,
+          title,
           message,
-          'warning',
-          'Open dashboard to review or rethink strategy',
+          isDeep ? 'critical' : 'warning',
+          actionText,
         ).catch(() => {});
         await db.from('audit_log').insert({
           tenant_id: tenantId,
