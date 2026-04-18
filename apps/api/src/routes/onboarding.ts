@@ -378,6 +378,42 @@ Return ONLY valid JSON (no extra text):
     return reply.send({ websiteAnalysis, marketResearch, strategy });
   });
 
+  // ── Strategy discussion — Vigmis gives honest opinion on client's proposed changes ──
+  app.post('/onboarding/discuss', { preHandler: authenticate }, async (request, reply) => {
+    const { strategy, clientRequest, settings } = request.body as any;
+    if (!strategy || !clientRequest) return reply.code(400).send({ error: 'strategy and clientRequest required' });
+
+    const managedBudget = settings
+      ? Math.round((settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100))
+      : null;
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are Vigmis — an honest and direct marketing advisor. A client has reviewed your campaign strategy and wants to make changes.
+
+CURRENT STRATEGY SUMMARY:
+- Platforms: ${(strategy.platforms ?? []).map((p: any) => `${p.name} (${p.budget_percentage}%)`).join(', ')}
+- Budget advisory verdict: ${strategy.budget_analysis?.verdict ?? 'unknown'}
+- Recommended budget: $${strategy.budget_analysis?.recommended_steady_usd ?? managedBudget}/mo
+- Estimated CPC: ${strategy.estimated_cpc ?? 'unknown'}
+
+CLIENT'S REQUESTED CHANGES:
+"${clientRequest}"
+
+Your job: respond honestly and directly.
+- If you agree with the client's changes: say so clearly and explain why it makes sense.
+- If you partially agree: say which parts you agree with and which you don't, and why.
+- If you disagree: explain your concern clearly and specifically. Don't be vague. Don't just say "it depends".
+- Always end by acknowledging that the final decision is theirs. You will update the plan according to their decision.
+- Be concise. 3-5 sentences max. Don't lecture. Don't repeat the strategy back to them.
+- Write as a trusted advisor, not as a salesperson or a yes-man.`,
+      systemPrompt: 'You are Vigmis, an honest marketing advisor. Be direct and concise.',
+      options: { maxTokens: 400, temperature: 0.5 },
+    });
+
+    return reply.send({ response: res.output });
+  });
+
   // Return onboarding + connection status
   app.get(
     '/onboarding/status',

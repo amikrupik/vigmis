@@ -6,7 +6,7 @@ import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import ChatDrawer from '../dashboard/ChatDrawer';
 import type { OnboardingSettings, AnalysisResult } from './actions';
-import { runAnalysis } from './actions';
+import { runAnalysis, discussStrategy } from './actions';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
@@ -73,6 +73,8 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
   const [strategyFeedback, setStrategyFeedback] = useState('');
   const [isRevising, setIsRevising] = useState(false);
   const [creativeChoice, setCreativeChoice] = useState<CreativeChoice>(null);
+  const [discussionResponse, setDiscussionResponse] = useState<string | null>(null);
+  const [isDiscussing, setIsDiscussing] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -116,9 +118,12 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
     if (!strategyFeedback.trim() || !pendingSettings) return;
     setIsRevising(true);
     setError(null);
-    const feedback = strategyFeedback;
+    const feedback = discussionResponse
+      ? `${strategyFeedback}\n\nNote: Vigmis shared concerns, but the client has decided to proceed with the above changes as their final decision. Incorporate them fully and note any risks briefly.`
+      : strategyFeedback;
     setStrategyFeedback('');
     setShowFeedback(false);
+    setDiscussionResponse(null);
     await runAnalysisFlow(pendingSettings, feedback);
     setIsRevising(false);
   }
@@ -533,37 +538,78 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
               </div>
             )}
 
-            {/* Feedback or CTA */}
+            {/* Feedback / discussion / CTA */}
             {showFeedback ? (
-              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 shadow-sm">
-                <p className="text-sm font-semibold text-slate-800">What would you like to change?</p>
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">What would you like to change?</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Vigmis will share its honest opinion before updating the plan.</p>
+                </div>
+
                 <textarea
                   value={strategyFeedback}
-                  onChange={e => setStrategyFeedback(e.target.value)}
-                  placeholder="e.g. Increase TikTok budget, target younger audience, reduce Google spend, focus on conversions..."
+                  onChange={e => { setStrategyFeedback(e.target.value); setDiscussionResponse(null); }}
+                  placeholder="e.g. I want to include TikTok, or I'd prefer a lower budget, or focus only on Google Search..."
                   rows={3}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                 />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setShowFeedback(false); setStrategyFeedback(''); }}
-                    className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleRevise}
-                    disabled={!strategyFeedback.trim() || isRevising}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-                  >
-                    {isRevising ? 'Revising...' : 'Apply Changes'}
-                  </button>
-                </div>
+
+                {/* Vigmis's discussion response */}
+                {discussionResponse && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Vigmis's Take</p>
+                    <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">{discussionResponse}</p>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => { setDiscussionResponse(null); setStrategyFeedback(''); }}
+                        className="flex-1 border border-slate-200 text-slate-600 text-xs font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        Modify my request
+                      </button>
+                      <button
+                        onClick={handleRevise}
+                        disabled={isRevising}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                      >
+                        {isRevising ? 'Updating...' : 'Proceed with my decision →'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!discussionResponse && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); }}
+                      className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!strategyFeedback.trim() || !pendingSettings || !analysisResult) return;
+                        setIsDiscussing(true);
+                        try {
+                          const opinion = await discussStrategy(analysisResult.strategy, strategyFeedback, pendingSettings);
+                          setDiscussionResponse(opinion);
+                        } catch {
+                          setDiscussionResponse("I couldn't generate a response right now. You can proceed with your changes directly.");
+                        } finally {
+                          setIsDiscussing(false);
+                        }
+                      }}
+                      disabled={!strategyFeedback.trim() || isDiscussing}
+                      className="flex-1 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                    >
+                      {isDiscussing ? 'Thinking...' : 'Get Vigmis\'s opinion →'}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex gap-3 pt-1">
                 <button
-                  onClick={() => setShowFeedback(true)}
+                  onClick={() => { setShowFeedback(true); setDiscussionResponse(null); }}
                   className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
                 >
                   Request Changes

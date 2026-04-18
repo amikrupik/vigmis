@@ -76,6 +76,30 @@ export async function sendMessage(
   return res.json();
 }
 
+// ── Strategy discussion — get Vigmis's honest opinion before applying changes ──
+
+export async function discussStrategy(
+  strategy: object,
+  clientRequest: string,
+  settings: OnboardingSettings,
+): Promise<string> {
+  const token = await getToken();
+
+  const res = await fetch(`${API_URL}/onboarding/discuss`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ strategy, clientRequest, settings }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Failed');
+    throw new Error(text);
+  }
+
+  const data = await res.json();
+  return data.response as string;
+}
+
 // ── Full analysis pipeline — proxied through API ──────────────────────────────
 
 export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult> {
