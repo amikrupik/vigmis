@@ -54,9 +54,21 @@ async function sendWhatsApp(to: string, message: string): Promise<void> {
   );
 }
 
-async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+
+function withUnsubscribeFooter(html: string, tenantId: string): string {
+  return `${html}
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center">
+  You're receiving this because you enabled email alerts in Vigmis.
+  <a href="${WEB_URL}/unsubscribe?token=${tenantId}" style="color:#94a3b8;text-decoration:underline;margin-left:4px">Unsubscribe</a>
+</div>`;
+}
+
+async function sendEmail(to: string, subject: string, html: string, tenantId?: string): Promise<void> {
   const { SENDGRID_API_KEY } = process.env;
   if (!SENDGRID_API_KEY) return;
+
+  const finalHtml = tenantId ? withUnsubscribeFooter(html, tenantId) : html;
 
   await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
@@ -68,7 +80,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
       personalizations: [{ to: [{ email: to }] }],
       from: { email: 'alerts@vigmis.com', name: 'Vigmis Alerts' },
       subject,
-      content: [{ type: 'text/html', value: html }],
+      content: [{ type: 'text/html', value: finalHtml }],
     }),
   });
 }
@@ -102,9 +114,8 @@ async function deliverAlert(tenantId: string, alert: Alert): Promise<void> {
         </div>
         ${alert.action ? `<p style="font-size:14px;color:#6b7280">→ ${alert.action}</p>` : ''}
         <a href="https://vigmis.com/dashboard" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none;font-size:14px;margin-top:16px">Open Dashboard</a>
-        <p style="font-size:12px;color:#9ca3af;margin-top:24px">You're receiving this because you enabled Vigmis alerts. <a href="https://vigmis.com/dashboard">Manage settings</a></p>
       </div>`;
-    promises.push(sendEmail(settings.email, `Vigmis: ${alert.title}`, html));
+    promises.push(sendEmail(settings.email, `Vigmis: ${alert.title}`, html, tenantId));
   }
 
   await Promise.allSettled(promises);

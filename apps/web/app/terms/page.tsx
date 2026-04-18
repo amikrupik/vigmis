@@ -122,7 +122,11 @@ export default function TermsPage() {
           <Link href="/" className="hover:text-slate-600">Home</Link>
           <Link href="/about" className="hover:text-slate-600">About</Link>
           <Link href="/contact" className="hover:text-slate-600">Contact</Link>
+          <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
           <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
+          <Link href="/cookies" className="hover:text-slate-600">Cookie Policy</Link>
+          <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
+          <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
         </div>
       </footer>
     </div>

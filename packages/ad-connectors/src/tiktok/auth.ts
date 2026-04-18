@@ -1,10 +1,10 @@
 // TikTok for Business Marketing API — OAuth 2.0 connector
 // Docs: https://business-api.tiktok.com/portal/docs?id=1738373164380162
 //
-// Required env vars (add to Railway when TikTok app is approved):
-//   TIKTOK_APP_ID       — from TikTok for Business developer portal
-//   TIKTOK_APP_SECRET   — from TikTok for Business developer portal
-//   TIKTOK_REDIRECT_URI — e.g. https://vigmisapi-production.up.railway.app/auth/tiktok/callback
+// Required env vars (Railway):
+//   TIKTOK_CLIENT_KEY    — from TikTok for Business developer portal
+//   TIKTOK_CLIENT_SECRET — from TikTok for Business developer portal
+//   TIKTOK_REDIRECT_URI  — e.g. https://vigmisapi-production.up.railway.app/auth/tiktok/callback
 //
 // Scopes needed:
 //   advertiser.read     — read advertiser info
@@ -19,11 +19,11 @@ const TIKTOK_TOKEN_URL = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/a
 const TIKTOK_REFRESH_URL = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/refresh_token/';
 
 function getConfig() {
-  const appId = process.env.TIKTOK_APP_ID;
-  const appSecret = process.env.TIKTOK_APP_SECRET;
+  const appId = process.env.TIKTOK_CLIENT_KEY;
+  const appSecret = process.env.TIKTOK_CLIENT_SECRET;
   const redirectUri = process.env.TIKTOK_REDIRECT_URI;
   if (!appId || !appSecret || !redirectUri) {
-    throw new Error('Missing TikTok OAuth environment variables: TIKTOK_APP_ID, TIKTOK_APP_SECRET, TIKTOK_REDIRECT_URI');
+    throw new Error('Missing TikTok OAuth environment variables: TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_REDIRECT_URI');
   }
   return { appId, appSecret, redirectUri };
 }

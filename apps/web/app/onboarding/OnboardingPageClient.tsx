@@ -73,6 +73,9 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
   const [strategyFeedback, setStrategyFeedback] = useState('');
   const [isRevising, setIsRevising] = useState(false);
   const [creativeChoice, setCreativeChoice] = useState<CreativeChoice>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   async function handleConnect(platform: 'google' | 'meta') {
     try {
@@ -236,17 +239,57 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={e => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                />
+                <span className="text-xs text-slate-600 leading-relaxed">
+                  I have read and agree to the{' '}
+                  <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">Terms of Service</a>
+                  {', '}
+                  <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">Privacy Policy</a>
+                  {', and '}
+                  <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">Acceptable Use Policy</a>.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={e => setAgeConfirmed(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                />
+                <span className="text-xs text-slate-600">I confirm that I am 18 years of age or older.</span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketingOptIn}
+                  onChange={e => setMarketingOptIn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                />
+                <span className="text-xs text-slate-500">I'd like to receive tips, product updates, and performance insights by email. (Optional)</span>
+              </label>
+            </div>
+
+            <div className="space-y-3">
               <button
                 onClick={() => setStep('chat')}
-                disabled={!connected.google && !connected.meta && !connected.tiktok}
+                disabled={!termsAccepted || !ageConfirmed || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Continue →
               </button>
               <button
                 onClick={() => setStep('chat')}
-                className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors"
+                disabled={!termsAccepted || !ageConfirmed}
+                className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Skip — I'll connect later
               </button>

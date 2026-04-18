@@ -6,6 +6,7 @@ import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 
 const FROM_EMAIL = 'digest@vigmis.com';
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 function buildDigestHtml(tenantData: {
   period: string;
@@ -99,7 +100,8 @@ function buildDigestHtml(tenantData: {
         </a>
         <p style="margin:16px 0 0;font-size:11px;color:#94a3b8">
           You're receiving this because you have an active Vigmis account.
-          <a href="https://vigmis.com/dashboard" style="color:#94a3b8">Manage notifications</a>
+          <a href="https://vigmis.com/dashboard" style="color:#94a3b8">Manage notifications</a> &middot;
+          <a href="${WEB_URL}/unsubscribe?token={{TENANT_ID}}" style="color:#94a3b8">Unsubscribe</a>
         </p>
       </div>
     </div>
@@ -198,7 +200,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           campaigns: campaignsRes.data ?? [],
           alertCount: 0,
           actionsApplied: logsRes.data?.length ?? 0,
-        });
+        }).replace('{{TENANT_ID}}', settings.tenant_id);
 
         await sendDigest(settings.email, html, period);
         sent++;

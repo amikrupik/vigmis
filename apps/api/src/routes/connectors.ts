@@ -119,8 +119,8 @@ export async function connectorRoutes(app: FastifyInstance) {
   });
 
   // ─── TikTok ────────────────────────────────────────────────────────────────
-  // NOTE: TikTok OAuth activates once TIKTOK_APP_ID, TIKTOK_APP_SECRET, and
-  // TIKTOK_REDIRECT_URI are added to Railway env vars and app is approved.
+  // NOTE: TikTok OAuth activates once TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, and
+  // TIKTOK_REDIRECT_URI are set in Railway env vars.
 
   app.get('/auth/tiktok', { preHandler: authenticate }, async (request, reply) => {
     try {
@@ -185,8 +185,8 @@ export async function connectorRoutes(app: FastifyInstance) {
 
     // Indicate whether TikTok is configured server-side (env vars present)
     const tiktokConfigured = !!(
-      process.env.TIKTOK_APP_ID &&
-      process.env.TIKTOK_APP_SECRET &&
+      process.env.TIKTOK_CLIENT_KEY &&
+      process.env.TIKTOK_CLIENT_SECRET &&
       process.env.TIKTOK_REDIRECT_URI
     );
 

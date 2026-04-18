@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ClerkProviderWrapper } from "./clerk-provider";
+import CookieBanner from "./components/CookieBanner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased">
         <ClerkProviderWrapper>{children}</ClerkProviderWrapper>
+        <CookieBanner />
       </body>
     </html>
   );

@@ -14,6 +14,7 @@ import {
   runOptimizationNow, getOptimizationHistory, getOptimizationSettings, saveOptimizationSettings,
   getApprovalRequests, approveRequest, rejectRequest,
   pauseAllCampaigns, resumeAllCampaigns,
+  deleteAccount, getExportUrl,
 } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
@@ -1427,6 +1428,13 @@ function SettingsTab({ settings, connected }: any) {
   const [approvals, setApprovals] = useState<any[]>([]);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
 
+  // Danger zone
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const router = useRouter();
+
   useEffect(() => {
     getAlertSettings().then(data => {
       if (data) {
@@ -1756,6 +1764,95 @@ function SettingsTab({ settings, connected }: any) {
             {alertMsg && (
               <p className="text-sm text-indigo-600 font-medium">{alertMsg}</p>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Danger Zone */}
+      <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="font-bold text-red-700 text-lg mb-1">Danger Zone</h2>
+        <p className="text-xs text-slate-500 mb-5">These actions are irreversible. Please read carefully before proceeding.</p>
+
+        <div className="space-y-4">
+          {/* Export */}
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-slate-100">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Export my data</p>
+              <p className="text-xs text-slate-500">Download all your campaign data, settings, and history as JSON.</p>
+            </div>
+            <button
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const { url, token } = await getExportUrl();
+                  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                  const blob = await res.blob();
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `vigmis-export-${new Date().toISOString().slice(0, 10)}.json`;
+                  a.click();
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 transition-colors disabled:opacity-50"
+            >
+              {exporting ? 'Exporting...' : 'Export Data'}
+            </button>
+          </div>
+
+          {/* Delete */}
+          <div className="flex items-start justify-between gap-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-red-700">Delete my account</p>
+              <p className="text-xs text-slate-500">All campaigns will be paused. Your data will be permanently deleted within 30 days. This cannot be undone.</p>
+            </div>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+            >
+              Delete Account
+            </button>
+          </div>
+        </div>
+
+        {/* Delete confirmation modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <h3 className="font-bold text-slate-900 text-lg mb-2">Delete your account?</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                This will pause all campaigns and schedule permanent deletion of all your data within 30 days. This action <strong>cannot be undone</strong>.
+              </p>
+              <p className="text-xs text-slate-500 mb-2">Type <strong>DELETE</strong> to confirm:</p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                  className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={deleteConfirmText !== 'DELETE' || deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    await deleteAccount();
+                    router.push('/sign-in?deleted=1');
+                  }}
+                  className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+                >
+                  {deleting ? 'Deleting...' : 'Yes, delete my account'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

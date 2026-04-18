@@ -241,3 +241,15 @@ export async function pauseAllCampaigns() {
 export async function resumeAllCampaigns() {
   return apiCall('/campaigns/resume-all', 'POST', {});
 }
+
+// ── Account ───────────────────────────────────────────────────────────────────
+
+export async function deleteAccount() {
+  return apiCall('/account', 'DELETE');
+}
+
+export async function getExportUrl() {
+  const { getToken } = await auth();
+  const token = await getToken();
+  return { url: `${API_URL}/account/export`, token };
+}

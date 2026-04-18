@@ -3,7 +3,7 @@
 
 create table if not exists approval_request (
   id           uuid primary key default gen_random_uuid(),
-  tenant_id    text not null references tenants(id) on delete cascade,
+  tenant_id    uuid not null references tenants(id) on delete cascade,
   action_type  text not null,           -- scale_up | scale_down | needs_creative
   platform     text,
   payload      jsonb default '{}',
@@ -22,5 +22,5 @@ alter table approval_request enable row level security;
 create policy "Tenants manage own approval requests"
   on approval_request
   for all
-  using (tenant_id = current_setting('app.tenant_id', true))
-  with check (tenant_id = current_setting('app.tenant_id', true));
+  using (tenant_id = current_setting('app.tenant_id', true)::uuid)
+  with check (tenant_id = current_setting('app.tenant_id', true)::uuid);
