@@ -76,6 +76,7 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [hasParallelCampaigns, setHasParallelCampaigns] = useState(false);
 
   async function handleConnect(platform: 'google' | 'meta') {
     try {
@@ -133,6 +134,7 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...pendingSettings,
+          has_parallel_campaigns: hasParallelCampaigns,
           conversation: pendingConversation,
           strategy_plan: analysisResult.strategy,
           creative_choice: choice,
@@ -288,6 +290,19 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
                 <span className="text-xs text-slate-500">I'd like to receive tips, product updates, and performance insights by email. (Optional)</span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasParallelCampaigns}
+                  onChange={e => setHasParallelCampaigns(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                />
+                <span className="text-xs text-slate-500">
+                  I have active campaigns on these platforms that I am <strong>not</strong> transferring to Vigmis.
+                  <span className="text-slate-400 ml-1">(Helps us calibrate performance benchmarks correctly.)</span>
+                </span>
               </label>
             </div>
 

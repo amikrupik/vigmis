@@ -25,6 +25,7 @@ export interface OnboardingSettings {
   open_notes: string;
   risk_level: 'conservative' | 'balanced' | 'aggressive';
   dayparting_rules: Array<{ day: number; start_hour: number; end_hour: number }>;
+  has_parallel_campaigns?: boolean; // campaigns running outside Vigmis on same platforms
 }
 
 export interface ChatResponse {

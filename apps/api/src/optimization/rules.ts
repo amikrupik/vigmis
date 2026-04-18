@@ -1,14 +1,21 @@
 // Optimization Rules Engine
 // Evaluates each campaign using platform- and objective-specific benchmarks.
 // MVP: rule-based only (no ML).
+//
+// Three levels of action:
+//   1. Alert client immediately (any time, including learning period)
+//   2. Fix targeting/creative (any time — reversible, non-budget changes)
+//   3. Scale budget (only after learning period — needs data)
 
 export type OptimizationAction =
-  | { type: 'pause';          reason: string }
-  | { type: 'resume';         reason: string }
-  | { type: 'scale_up';       factor: number; reason: string }
-  | { type: 'scale_down';     factor: number; reason: string }
-  | { type: 'no_action';      reason: string }
-  | { type: 'needs_creative'; reason: string };
+  | { type: 'pause';                    reason: string }
+  | { type: 'resume';                   reason: string }
+  | { type: 'scale_up';                 factor: number; reason: string }
+  | { type: 'scale_down';               factor: number; reason: string }
+  | { type: 'no_action';                reason: string }
+  | { type: 'needs_creative';           reason: string }
+  | { type: 'needs_targeting_review';   reason: string }  // fix keywords/audience, not budget
+  | { type: 'alert';   severity: 'critical' | 'warning'; reason: string };
 
 export type Platform = 'google' | 'meta' | 'tiktok';
 
@@ -22,7 +29,7 @@ export type CampaignType =
   | 'traffic'          // Meta/TikTok link clicks, landing page views
   | 'conversions'      // Meta/TikTok conversions, purchases, leads
   | 'retargeting'      // Retargeting / remarketing (any platform)
-  | string;            // forward-compatible
+  | string;
 
 export interface CampaignMetrics {
   campaignId: string;
@@ -31,49 +38,50 @@ export interface CampaignMetrics {
   campaignType: CampaignType;
   clicks: number;
   impressions: number;
-  spend: number;           // USD lifetime (within the tracking window)
+  spend: number;           // USD in tracking window
   dailyBudgetUsd: number;
   daysRunning: number;
   status: string;
-  recentCtr?: number;      // CTR last 3 days — for creative fatigue
-  baselineCtr?: number;    // CTR days 4–7 — baseline for comparison
+  recentCtr?: number;      // CTR last 3 days
+  baselineCtr?: number;    // CTR days 4–7
 }
 
 interface Benchmark {
-  minCtr: number;          // below this = underperforming
-  goodCtr: number;         // above this = strong, eligible to scale up
-  minDataClicks: number;   // need at least this many clicks before acting
-  learningDays: number;    // hands-off learning period (days)
+  minCtr: number;          // below = underperforming
+  goodCtr: number;         // above = strong, eligible to scale up
+  minDataClicks: number;   // clicks needed before budget changes
+  learningDays: number;    // days before budget scaling starts
+  // Alert thresholds — checked immediately (no learning period)
+  zeroImpressionDays: number;       // pause if zero impressions for this many days
+  lowImpressionCtrDays: number;     // flag targeting if CTR < 0.1% after this many days + 200 impressions
+  lowClicksPerDayThreshold: number; // flag targeting if clicks/day below this after 3 days
 }
 
-// Industry benchmarks by platform + campaign type.
-// Source: Meta, Google, TikTok published averages (2024–2025).
-// These are the fallback when the client has no personal history.
 const BENCHMARKS: Record<Platform, Record<string, Benchmark>> = {
   meta: {
-    awareness:   { minCtr: 0.005, goodCtr: 0.015, minDataClicks: 20,  learningDays: 7 },
-    traffic:     { minCtr: 0.010, goodCtr: 0.025, minDataClicks: 30,  learningDays: 7 },
-    conversions: { minCtr: 0.008, goodCtr: 0.020, minDataClicks: 30,  learningDays: 10 }, // longer — pixel needs data
-    retargeting: { minCtr: 0.020, goodCtr: 0.040, minDataClicks: 20,  learningDays: 5  },
-    video:       { minCtr: 0.005, goodCtr: 0.015, minDataClicks: 20,  learningDays: 7  },
-    default:     { minCtr: 0.008, goodCtr: 0.020, minDataClicks: 25,  learningDays: 7  },
+    awareness:   { minCtr: 0.005, goodCtr: 0.015, minDataClicks: 20,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.5 },
+    traffic:     { minCtr: 0.010, goodCtr: 0.025, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 1.0 },
+    conversions: { minCtr: 0.008, goodCtr: 0.020, minDataClicks: 30,  learningDays: 10, zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.5 },
+    retargeting: { minCtr: 0.020, goodCtr: 0.040, minDataClicks: 20,  learningDays: 5,  zeroImpressionDays: 1, lowImpressionCtrDays: 2, lowClicksPerDayThreshold: 0.3 },
+    video:       { minCtr: 0.005, goodCtr: 0.015, minDataClicks: 20,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    default:     { minCtr: 0.008, goodCtr: 0.020, minDataClicks: 25,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.5 },
   },
   google: {
-    search:      { minCtr: 0.030, goodCtr: 0.060, minDataClicks: 30,  learningDays: 7  },
-    display:     { minCtr: 0.001, goodCtr: 0.005, minDataClicks: 50,  learningDays: 7  },
-    shopping:    { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 30,  learningDays: 7  },
-    video:       { minCtr: 0.003, goodCtr: 0.010, minDataClicks: 30,  learningDays: 7  },
-    conversions: { minCtr: 0.020, goodCtr: 0.050, minDataClicks: 30,  learningDays: 10 },
-    retargeting: { minCtr: 0.010, goodCtr: 0.030, minDataClicks: 20,  learningDays: 5  },
-    default:     { minCtr: 0.020, goodCtr: 0.050, minDataClicks: 30,  learningDays: 7  },
+    search:      { minCtr: 0.030, goodCtr: 0.060, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 2, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    display:     { minCtr: 0.001, goodCtr: 0.005, minDataClicks: 50,  learningDays: 7,  zeroImpressionDays: 2, lowImpressionCtrDays: 4, lowClicksPerDayThreshold: 0.2 },
+    shopping:    { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 2, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    video:       { minCtr: 0.003, goodCtr: 0.010, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 2, lowImpressionCtrDays: 4, lowClicksPerDayThreshold: 0.2 },
+    conversions: { minCtr: 0.020, goodCtr: 0.050, minDataClicks: 30,  learningDays: 10, zeroImpressionDays: 2, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    retargeting: { minCtr: 0.010, goodCtr: 0.030, minDataClicks: 20,  learningDays: 5,  zeroImpressionDays: 1, lowImpressionCtrDays: 2, lowClicksPerDayThreshold: 0.2 },
+    default:     { minCtr: 0.020, goodCtr: 0.050, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 2, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
   },
   tiktok: {
-    awareness:   { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 20,  learningDays: 7  },
-    traffic:     { minCtr: 0.010, goodCtr: 0.030, minDataClicks: 30,  learningDays: 7  },
-    conversions: { minCtr: 0.008, goodCtr: 0.025, minDataClicks: 30,  learningDays: 10 },
-    video:       { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 20,  learningDays: 7  },
-    retargeting: { minCtr: 0.020, goodCtr: 0.040, minDataClicks: 20,  learningDays: 5  },
-    default:     { minCtr: 0.008, goodCtr: 0.022, minDataClicks: 25,  learningDays: 7  },
+    awareness:   { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 20,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    traffic:     { minCtr: 0.010, goodCtr: 0.030, minDataClicks: 30,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.5 },
+    conversions: { minCtr: 0.008, goodCtr: 0.025, minDataClicks: 30,  learningDays: 10, zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    video:       { minCtr: 0.005, goodCtr: 0.020, minDataClicks: 20,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
+    retargeting: { minCtr: 0.020, goodCtr: 0.040, minDataClicks: 20,  learningDays: 5,  zeroImpressionDays: 1, lowImpressionCtrDays: 2, lowClicksPerDayThreshold: 0.2 },
+    default:     { minCtr: 0.008, goodCtr: 0.022, minDataClicks: 25,  learningDays: 7,  zeroImpressionDays: 1, lowImpressionCtrDays: 3, lowClicksPerDayThreshold: 0.3 },
   },
 };
 
@@ -82,9 +90,9 @@ function getBenchmark(platform: Platform, campaignType: CampaignType): Benchmark
   return platformBenchmarks[campaignType] ?? platformBenchmarks['default'];
 }
 
-const SCALE_UP_FACTOR   = 1.20; // +20% budget
-const SCALE_DOWN_FACTOR = 0.80; // −20% budget
-const MAX_CPC_MULTIPLIER = 2.5; // CPC > 2.5× expected → scale down
+const SCALE_UP_FACTOR    = 1.20;
+const SCALE_DOWN_FACTOR  = 0.80;
+const MAX_CPC_MULTIPLIER = 2.5;
 
 export function evaluateCampaign(metrics: CampaignMetrics): OptimizationAction {
   const { clicks, impressions, spend, dailyBudgetUsd, daysRunning, status, platform, campaignType } = metrics;
@@ -94,45 +102,76 @@ export function evaluateCampaign(metrics: CampaignMetrics): OptimizationAction {
   }
 
   const bench = getBenchmark(platform, campaignType);
+  const clicksPerDay = daysRunning > 0 ? clicks / daysRunning : 0;
+  const ctr = impressions > 0 ? clicks / impressions : 0;
+  const cpc = clicks > 0 ? spend / clicks : 0;
+  const expectedCpc = dailyBudgetUsd / Math.max(clicksPerDay, 1);
 
-  // Learning period: hands-off. Only catch hard failures (zero impressions).
-  const isLearning = daysRunning < bench.learningDays || clicks < bench.minDataClicks;
+  // ── Checks that run at ANY time (including learning period) ──────────────────
 
-  if (impressions === 0 && daysRunning >= 2) {
-    return { type: 'pause', reason: 'Zero impressions after 2 days — check targeting or ad creative' };
+  // Hard failure: zero impressions after N days → pause immediately
+  if (impressions === 0 && daysRunning >= bench.zeroImpressionDays) {
+    return {
+      type: 'pause',
+      reason: `Zero impressions after ${daysRunning} day(s) on ${platform} ${campaignType} — campaign paused. Check billing, targeting, or ad approval status.`,
+    };
   }
 
+  // Targeting problem: got impressions but almost no clicks → audience or creative mismatch
+  // Act early (don't wait for learning period to end) — this is a structural issue
+  if (
+    daysRunning >= bench.lowImpressionCtrDays &&
+    impressions > 200 &&
+    ctr < 0.001 // < 0.1% is a red flag regardless of objective
+  ) {
+    return {
+      type: 'needs_targeting_review',
+      reason: `CTR ${(ctr * 100).toFixed(3)}% after ${impressions.toLocaleString()} impressions on ${platform} ${campaignType} — audience or keywords likely mismatched. Review targeting.`,
+    };
+  }
+
+  // Low traffic alert: almost no clicks after 3 days — notify client, don't wait
+  if (daysRunning >= 3 && clicksPerDay < bench.lowClicksPerDayThreshold) {
+    return {
+      type: 'alert',
+      severity: 'warning',
+      reason: `Low traffic: ${clicksPerDay.toFixed(1)} clicks/day on ${platform} ${campaignType}. Budget may be too low or targeting too narrow. Vigmis will review automatically.`,
+    };
+  }
+
+  // ── Learning period: budget changes are off, but we still detect issues ──────
+
+  const isLearning = daysRunning < bench.learningDays || clicks < bench.minDataClicks;
+
   if (isLearning) {
+    // Alert: performance looks weak even in learning period
+    if (impressions > 500 && ctr < bench.minCtr * 0.5) {
+      return {
+        type: 'alert',
+        severity: 'warning',
+        reason: `Early signal: CTR ${(ctr * 100).toFixed(2)}% is well below benchmark for ${platform} ${campaignType}. Still in learning period — monitoring closely.`,
+      };
+    }
+
     const daysLeft = Math.max(0, bench.learningDays - daysRunning);
     return {
       type: 'no_action',
       reason: daysLeft > 0
-        ? `Learning period: ${daysLeft} day(s) left before optimization starts`
-        : `Collecting data — need ${bench.minDataClicks - clicks} more clicks before optimizing`,
+        ? `Learning period: ${daysLeft} day(s) until optimization starts`
+        : `Collecting data — need ${bench.minDataClicks - clicks} more clicks before budget changes`,
     };
   }
 
-  const ctr = impressions > 0 ? clicks / impressions : 0;
-  const cpc = clicks > 0 ? spend / clicks : 0;
-  const clicksPerDay = clicks / daysRunning;
-  const expectedCpc = dailyBudgetUsd / Math.max(clicksPerDay, 1);
+  // ── Post-learning: full optimization ─────────────────────────────────────────
 
-  // Very low daily clicks — flag but don't cut budget
-  if (clicksPerDay < 2) {
-    return {
-      type: 'no_action',
-      reason: `Low traffic: ${clicksPerDay.toFixed(1)} clicks/day. Consider increasing budget or broadening targeting.`,
-    };
-  }
-
-  // CTR below minimum for this platform + objective → scale down
+  // CTR below minimum → scale down
   if (impressions > 500 && ctr < bench.minCtr) {
     const pct = (ctr * 100).toFixed(2);
     const target = (bench.minCtr * 100).toFixed(1);
     return {
       type: 'scale_down',
       factor: SCALE_DOWN_FACTOR,
-      reason: `CTR ${pct}% is below ${target}% minimum for ${platform} ${campaignType} — reducing budget`,
+      reason: `CTR ${pct}% below ${target}% minimum for ${platform} ${campaignType} — reducing budget by 20%`,
     };
   }
 
@@ -141,7 +180,7 @@ export function evaluateCampaign(metrics: CampaignMetrics): OptimizationAction {
     return {
       type: 'scale_down',
       factor: SCALE_DOWN_FACTOR,
-      reason: `CPC $${cpc.toFixed(2)} is ${(cpc / expectedCpc).toFixed(1)}× expected — reducing budget`,
+      reason: `CPC $${cpc.toFixed(2)} is ${(cpc / expectedCpc).toFixed(1)}× expected — reducing budget by 20%`,
     };
   }
 
@@ -155,18 +194,17 @@ export function evaluateCampaign(metrics: CampaignMetrics): OptimizationAction {
     const drop = ((1 - metrics.recentCtr / metrics.baselineCtr) * 100).toFixed(0);
     return {
       type: 'needs_creative',
-      reason: `CTR dropped ${drop}% vs baseline — creative fatigue on ${platform} ${campaignType}, generate a new variation`,
+      reason: `CTR dropped ${drop}% vs baseline on ${platform} ${campaignType} — creative fatigue, generating new variation`,
     };
   }
 
   // Strong CTR → scale up
   if (ctr >= bench.goodCtr) {
     const pct = (ctr * 100).toFixed(2);
-    const target = (bench.goodCtr * 100).toFixed(1);
     return {
       type: 'scale_up',
       factor: SCALE_UP_FACTOR,
-      reason: `CTR ${pct}% exceeds ${target}% target for ${platform} ${campaignType} — scaling up by 20%`,
+      reason: `CTR ${pct}% exceeds target for ${platform} ${campaignType} — scaling up budget by 20%`,
     };
   }
 

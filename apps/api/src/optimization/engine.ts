@@ -11,6 +11,7 @@
 import { db } from '@vigmis/db';
 import { evaluateCampaign } from './rules.js';
 import { pauseMetaCampaign, resumeMetaCampaign } from '@vigmis/ad-connectors';
+import { sendTenantNotification } from '../services/notify.js';
 import type { CampaignMetrics } from './rules.js';
 
 export interface OptimizationRun {
@@ -186,6 +187,16 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
 
       const action = evaluateCampaign(campaignMetrics);
 
+      // On day 1, send the client a "learning period" explanation so they know what to expect
+      if (daysRunning === 1 && metrics.impressions > 0) {
+        await sendTenantNotification(
+          tenantId,
+          `Campaign "${campaign.name}" is live`,
+          `Your ${campaign.platform} campaign is running. For the first ${campaign.campaign_type === 'conversions' ? '10' : '7'} days, Vigmis is collecting data before making budget changes. You'll receive alerts immediately if anything looks wrong.`,
+          'info',
+        ).catch(() => {});
+      }
+
       if (action.type === 'no_action') continue;
 
       // Auto mode: apply immediately. Manual mode: create approval request.
@@ -237,6 +248,46 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
           .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
         result.actionsApplied++;
+      }
+
+      // Alert: notify client, no budget change
+      if (action.type === 'alert') {
+        await sendTenantNotification(
+          tenantId,
+          `Campaign "${campaign.name}" needs attention`,
+          action.reason,
+          action.severity,
+          'Review your campaigns in the dashboard',
+        ).catch(() => {});
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: `optimization.alert`,
+          platform: campaign.platform,
+          actor: 'system',
+          payload: { campaignId: campaign.id, campaignName: campaign.name, reason: action.reason, severity: action.severity },
+        });
+        result.actionsApplied++;
+        continue;
+      }
+
+      // Targeting review: notify client + log — AI should suggest new keywords/audiences
+      if (action.type === 'needs_targeting_review') {
+        await sendTenantNotification(
+          tenantId,
+          `Targeting review needed: "${campaign.name}"`,
+          action.reason,
+          'warning',
+          'Vigmis will review keywords and audiences and suggest improvements',
+        ).catch(() => {});
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: 'optimization.needs_targeting_review',
+          platform: campaign.platform,
+          actor: 'system',
+          payload: { campaignId: campaign.id, campaignName: campaign.name, reason: action.reason },
+        });
+        result.actionsApplied++;
+        continue;
       }
 
       // Creative fatigue: log alert to dismissed_alerts so deliverAlert can pick it up

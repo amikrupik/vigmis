@@ -11,6 +11,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { sendTenantNotification, sendEmail } from '../services/notify.js';
 
 type AlertSeverity = 'critical' | 'warning' | 'info';
 
@@ -30,95 +31,14 @@ type Alert = {
 
 // ── Delivery helpers ──────────────────────────────────────────────────────────
 
-async function sendWhatsApp(to: string, message: string): Promise<void> {
-  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM } = process.env;
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM) return;
-
-  const from = TWILIO_WHATSAPP_FROM.startsWith('whatsapp:')
-    ? TWILIO_WHATSAPP_FROM
-    : `whatsapp:${TWILIO_WHATSAPP_FROM}`;
-  const toFmt = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-
-  const body = new URLSearchParams({ From: from, To: toFmt, Body: message });
-
-  await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: body.toString(),
-    },
-  );
-}
-
-const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
-
-function withUnsubscribeFooter(html: string, tenantId: string): string {
-  return `${html}
-<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center">
-  You're receiving this because you enabled email alerts in Vigmis.
-  <a href="${WEB_URL}/unsubscribe?token=${tenantId}" style="color:#94a3b8;text-decoration:underline;margin-left:4px">Unsubscribe</a>
-</div>`;
-}
-
-async function sendEmail(to: string, subject: string, html: string, tenantId?: string): Promise<void> {
-  const { SENDGRID_API_KEY } = process.env;
-  if (!SENDGRID_API_KEY) return;
-
-  const finalHtml = tenantId ? withUnsubscribeFooter(html, tenantId) : html;
-
-  await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SENDGRID_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: 'alerts@vigmis.com', name: 'Vigmis Alerts' },
-      subject,
-      content: [{ type: 'text/html', value: finalHtml }],
-    }),
-  });
-}
-
 async function deliverAlert(tenantId: string, alert: Alert): Promise<void> {
-  if (alert.severity === 'info') return;
-
-  const { data: settings } = await db
-    .from('alert_settings')
-    .select('email, whatsapp, email_enabled, whatsapp_enabled')
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
-
-  if (!settings) return;
-
-  const message = `🚨 Vigmis Alert: ${alert.title}\n\n${alert.message}\n\n→ ${alert.action ?? 'Check your dashboard'}`;
-
-  const promises: Promise<void>[] = [];
-
-  if (settings.whatsapp_enabled && settings.whatsapp) {
-    promises.push(sendWhatsApp(settings.whatsapp, message));
-  }
-
-  if (settings.email_enabled && settings.email) {
-    const html = `
-      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
-        <img src="https://vigmis.com/logo.png" alt="Vigmis" width="100" style="margin-bottom:24px"/>
-        <div style="background:${alert.severity === 'critical' ? '#fef2f2' : '#fffbeb'};border:1px solid ${alert.severity === 'critical' ? '#fecaca' : '#fde68a'};border-radius:12px;padding:20px;margin-bottom:20px">
-          <p style="font-weight:700;margin:0 0 8px;font-size:16px">${alert.title}</p>
-          <p style="margin:0;color:#374151;font-size:14px">${alert.message}</p>
-        </div>
-        ${alert.action ? `<p style="font-size:14px;color:#6b7280">→ ${alert.action}</p>` : ''}
-        <a href="https://vigmis.com/dashboard" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:600;padding:10px 24px;border-radius:10px;text-decoration:none;font-size:14px;margin-top:16px">Open Dashboard</a>
-      </div>`;
-    promises.push(sendEmail(settings.email, `Vigmis: ${alert.title}`, html, tenantId));
-  }
-
-  await Promise.allSettled(promises);
+  await sendTenantNotification(
+    tenantId,
+    alert.title,
+    alert.message,
+    alert.severity === 'info' ? 'info' : alert.severity,
+    alert.action,
+  );
 }
 
 // ── Mock alert generator ──────────────────────────────────────────────────────
