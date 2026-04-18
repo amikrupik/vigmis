@@ -168,14 +168,15 @@ export async function optimizationRoutes(app: FastifyInstance) {
   });
 
   // Cron endpoint — called by scheduler, not by users
-  // In production: protect with a secret header
+  // ?plan=pro → only run for Pro subscribers (the 3 extra daily runs)
   app.post('/optimization/run-all', async (request, reply) => {
     const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
     if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
       return reply.code(401).send({ error: 'Unauthorized' });
     }
 
-    const results = await runOptimizationAll();
+    const planFilter = (request.query as any)?.plan as string | undefined;
+    const results = await runOptimizationAll(planFilter === 'pro' ? 'pro' : undefined);
     return reply.send({
       tenantsProcessed: results.length,
       totalActions: results.reduce((s, r) => s + r.actionsApplied, 0),

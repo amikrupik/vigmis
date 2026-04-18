@@ -173,6 +173,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         campaignId: campaign.id,
         externalId: campaign.external_id ?? '',
         platform: campaign.platform as 'google' | 'meta' | 'tiktok',
+        campaignType: campaign.campaign_type ?? 'default',
         clicks: metrics.clicks,
         impressions: metrics.impressions,
         spend: metrics.spend,
@@ -292,9 +293,24 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
   return result;
 }
 
-// Run optimization for ALL tenants (called by cron/scheduler)
-export async function runOptimizationAll(): Promise<OptimizationRun[]> {
-  const { data: tenants } = await db.from('tenants').select('id');
+// Run optimization for ALL tenants (called by cron/scheduler).
+// planFilter='pro' → only Pro tenants (for the 3 extra daily Pro runs).
+export async function runOptimizationAll(planFilter?: 'pro'): Promise<OptimizationRun[]> {
+  let tenantIds: string[] | undefined;
+
+  if (planFilter === 'pro') {
+    const { data: proTenants } = await db
+      .from('billing_customers')
+      .select('tenant_id')
+      .eq('plan', 'pro');
+    if (!proTenants?.length) return [];
+    tenantIds = proTenants.map((t: any) => t.tenant_id as string);
+  }
+
+  const baseQuery = db.from('tenants').select('id');
+  const { data: tenants } = tenantIds
+    ? await baseQuery.in('id', tenantIds)
+    : await baseQuery;
   if (!tenants?.length) return [];
 
   const results = await Promise.allSettled(

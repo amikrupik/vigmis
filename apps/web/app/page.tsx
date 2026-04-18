@@ -91,32 +91,58 @@ export default async function Home() {
       </section>
 
       {/* Pricing */}
-      <section className="px-6 py-20">
-        <div className="max-w-2xl mx-auto text-center">
+      <section className="px-6 py-20" id="pricing">
+        <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-black text-slate-900 mb-4">Simple, performance-based pricing</h2>
-          <p className="text-slate-500 mb-10">You pay the ad platforms directly. We charge only for results.</p>
-          <div className="bg-white border-2 border-indigo-200 rounded-2xl p-8 shadow-md shadow-indigo-50">
-            <div className="bg-indigo-50 rounded-xl px-4 py-2 inline-block mb-4">
-              <p className="text-sm font-bold text-indigo-700">Start with a free marketing analysis</p>
+          <p className="text-slate-500 mb-10">You pay the ad platforms directly. We charge only for what we manage.</p>
+
+          <div className="grid sm:grid-cols-2 gap-6 text-left">
+            {/* Basic */}
+            <div className="bg-white border-2 border-slate-200 rounded-2xl p-8">
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Basic</p>
+              <p className="text-5xl font-black text-slate-900 mb-1">7%</p>
+              <p className="text-slate-500 text-sm mb-6">of managed spend · no monthly fee</p>
+              <ul className="space-y-2.5 text-sm text-slate-600 mb-8">
+                {[
+                  'Free AI strategy & campaign plan',
+                  'Google + Meta + TikTok management',
+                  'Smart alerts & basic analytics',
+                  'Cancel anytime',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2"><span className="text-slate-400 font-bold">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/sign-up" className="block w-full border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold py-3 rounded-xl transition-colors text-center text-sm">
+                Get your free analysis →
+              </Link>
             </div>
-            <p className="text-5xl font-black text-indigo-600 mb-1">7%</p>
-            <p className="text-slate-500 mb-6">of managed ad spend · no monthly fees · no setup cost</p>
-            <ul className="text-left space-y-3 text-sm text-slate-700 mb-8">
-              {[
-                'Free AI strategy, competitor research & campaign plan',
-                'Full campaign management: Google + Meta + TikTok',
-                'Video creative generation',
-                'Real-time alerts & analytics',
-                'Pay 7% only when campaigns are live — cancel anytime',
-              ].map(f => (
-                <li key={f} className="flex items-center gap-2"><span className="text-indigo-500 font-bold">✓</span>{f}</li>
-              ))}
-            </ul>
-            <Link href="/sign-up" className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-colors text-center">
-              Get your free analysis →
-            </Link>
-            <p className="text-xs text-slate-400 mt-3">No credit card required to start</p>
+
+            {/* Pro */}
+            <div className="bg-white border-2 border-indigo-500 rounded-2xl p-8 relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">Most popular</div>
+              <p className="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-4">Pro</p>
+              <div className="flex items-baseline gap-2 mb-1">
+                <p className="text-5xl font-black text-slate-900">5%</p>
+                <p className="text-slate-500 text-sm">+ $15/mo</p>
+              </div>
+              <p className="text-slate-500 text-sm mb-6">of managed spend · billed monthly</p>
+              <ul className="space-y-2.5 text-sm text-slate-700 mb-8">
+                {[
+                  'Everything in Basic',
+                  'More daily AI analyses & optimizations',
+                  'Advanced analytics & ROAS tracking',
+                  'Priority support',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2"><span className="text-indigo-500 font-bold">✓</span>{f}</li>
+                ))}
+              </ul>
+              <Link href="/sign-up" className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors text-center text-sm">
+                Get your free analysis →
+              </Link>
+            </div>
           </div>
+
+          <p className="text-xs text-slate-400 mt-6">No credit card required · Free AI strategy & competitor research included · Cancel anytime</p>
         </div>
       </section>
 
