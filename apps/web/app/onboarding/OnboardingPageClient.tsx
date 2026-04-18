@@ -75,6 +75,7 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
   const [creativeChoice, setCreativeChoice] = useState<CreativeChoice>(null);
   const [discussionResponse, setDiscussionResponse] = useState<string | null>(null);
   const [isDiscussing, setIsDiscussing] = useState(false);
+  const [planApproved, setPlanApproved] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -607,20 +608,95 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
                 )}
               </div>
             ) : (
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => { setShowFeedback(true); setDiscussionResponse(null); }}
-                  className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
-                >
-                  Request Changes
-                </button>
-                <button
-                  onClick={() => setStep('creative')}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors"
-                >
-                  Looks Good — Continue →
-                </button>
-              </div>
+              <>
+                {/* Campaign Plan Summary — shown before approval */}
+                <div className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-900 px-5 py-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Campaign Plan Summary</p>
+                    <p className="text-white font-bold text-base mt-0.5">Ready for your approval</p>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {/* Platforms & budget */}
+                    <div className="px-5 py-4 space-y-2">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Platforms & Budget</p>
+                      {strategy.platforms.map((p: any) => {
+                        const amt = Math.round((managedBudget * p.budget_percentage) / 100);
+                        return (
+                          <div key={p.name} className="flex items-center justify-between">
+                            <span className="text-sm text-slate-700 capitalize font-medium">{p.name} — {p.campaign_types.join(', ')}</span>
+                            <span className="text-sm font-bold text-slate-900">${amt}/mo ({p.budget_percentage}%)</span>
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="text-sm font-bold text-slate-700">Total managed budget</span>
+                        <span className="text-sm font-black text-indigo-600">${managedBudget}/mo</span>
+                      </div>
+                    </div>
+                    {/* Budget decision */}
+                    {strategy.budget_analysis && (
+                      <div className="px-5 py-4 space-y-1">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Budget Decision</p>
+                        <p className="text-sm text-slate-700">{strategy.budget_analysis.verdict_explanation}</p>
+                        <div className="flex gap-4 pt-1">
+                          <span className="text-xs text-slate-400">Est. clicks: <strong className="text-slate-700">{strategy.budget_analysis.projected_clicks_monthly.toLocaleString()}/mo</strong></span>
+                          <span className="text-xs text-slate-400">Est. leads: <strong className="text-slate-700">{strategy.budget_analysis.projected_leads_monthly.toLocaleString()}/mo</strong></span>
+                          <span className="text-xs text-slate-400">Break-even: <strong className="text-slate-700">{strategy.budget_analysis.break_even_conversions} sales</strong></span>
+                        </div>
+                      </div>
+                    )}
+                    {/* Goal */}
+                    <div className="px-5 py-4 flex justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">Goal</span>
+                      <span className="text-sm font-semibold text-slate-700 capitalize">{pendingSettings.goal}</span>
+                    </div>
+                    {/* Target */}
+                    <div className="px-5 py-4 flex justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">Target Market</span>
+                      <span className="text-sm font-semibold text-slate-700">{(pendingSettings.geo_include ?? []).join(', ')}</span>
+                    </div>
+                    {/* Learning period */}
+                    <div className="px-5 py-4">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Timeline</p>
+                      <p className="text-xs text-slate-500">Days 1–7: Learning phase — Vigmis collects data before making budget changes. Alerts are active from day 1.</p>
+                      <p className="text-xs text-slate-500 mt-1">Day 8+: Full optimization begins — budget adjustments, creative refresh, targeting review.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Formal approval */}
+                <div className="border-2 border-indigo-200 bg-indigo-50 rounded-2xl p-5 space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={planApproved}
+                      onChange={e => setPlanApproved(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                    />
+                    <span className="text-xs text-slate-700 leading-relaxed">
+                      I confirm that I have reviewed this campaign plan in full. The budget of{' '}
+                      <strong>${managedBudget}/month</strong> is my informed decision, made after reviewing Vigmis's analysis and recommendations.
+                      I understand that projected outcomes (clicks, leads, conversions) are estimates based on market benchmarks, not guarantees.
+                    </span>
+                  </label>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowFeedback(true); setDiscussionResponse(null); }}
+                      className="border border-indigo-200 text-indigo-600 text-sm font-semibold py-3 px-5 rounded-xl hover:bg-white transition-colors"
+                    >
+                      Request Changes
+                    </button>
+                    <button
+                      onClick={() => setStep('creative')}
+                      disabled={!planApproved}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
+                    >
+                      Approve Plan & Continue →
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             <button
