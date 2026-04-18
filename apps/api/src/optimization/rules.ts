@@ -90,6 +90,10 @@ function getBenchmark(platform: Platform, campaignType: CampaignType): Benchmark
   return platformBenchmarks[campaignType] ?? platformBenchmarks['default'];
 }
 
+export function getBenchmarkForStagnation(platform: string, campaignType: string): { minCtr: number } {
+  return getBenchmark((platform as Platform) ?? 'meta', campaignType);
+}
+
 const SCALE_UP_FACTOR    = 1.20;
 const SCALE_DOWN_FACTOR  = 0.80;
 const MAX_CPC_MULTIPLIER = 2.5;

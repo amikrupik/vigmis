@@ -9,7 +9,7 @@
 // 5. Log everything to audit_log
 
 import { db } from '@vigmis/db';
-import { evaluateCampaign } from './rules.js';
+import { evaluateCampaign, getBenchmarkForStagnation } from './rules.js';
 import { pauseMetaCampaign, resumeMetaCampaign } from '@vigmis/ad-connectors';
 import { sendTenantNotification } from '../services/notify.js';
 import type { CampaignMetrics } from './rules.js';
@@ -92,6 +92,65 @@ async function updateMetaBudget(
       access_token: accessToken,
     }),
   });
+}
+
+// Checks if a campaign has been consistently underperforming despite optimization.
+// Fires once per campaign (won't repeat if already sent in last 21 days).
+async function checkStagnation(
+  campaign: any,
+  tenantId: string,
+  daysRunning: number,
+  ctr: number,
+  minCtr: number,
+): Promise<boolean> {
+  if (daysRunning < 30) return false;
+  if (ctr >= minCtr * 0.6) return false; // not that bad
+
+  // Already sent a stagnation notice for this campaign recently?
+  const { data: recent } = await db
+    .from('audit_log')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('action', 'optimization.campaign_stagnant')
+    .contains('payload', { campaignId: campaign.id })
+    .gte('created_at', new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString())
+    .limit(1);
+
+  if (recent?.length) return false; // already notified recently
+
+  // How many scale_down actions have been applied to this campaign?
+  const { data: downActions } = await db
+    .from('audit_log')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('action', 'optimization.scale_down')
+    .contains('payload', { campaignId: campaign.id })
+    .limit(10);
+
+  if ((downActions?.length ?? 0) < 3) return false; // not enough evidence of repeated attempts
+
+  return true;
+}
+
+function buildStagnationMessage(campaign: any, daysRunning: number, ctr: number, minCtr: number): string {
+  const ctrPct = (ctr * 100).toFixed(2);
+  const benchPct = (minCtr * 100).toFixed(1);
+
+  return [
+    `Vigmis has been optimizing "${campaign.name}" on ${campaign.platform} for ${daysRunning} days, but CTR (${ctrPct}%) remains below the ${benchPct}% benchmark despite repeated adjustments.`,
+    ``,
+    `We want to be honest with you: when results don't improve after this long, the issue is usually outside the ads themselves. Here are things worth checking:`,
+    ``,
+    `A. Landing page — Does it load fast? Is the offer clear? Do visitors trust it? Even great ads can't convert a weak landing page.`,
+    `B. Pricing & offer — Is your price competitive vs. others in this market? A better offer often outperforms better targeting.`,
+    `C. Budget vs. competition — If competitors are spending significantly more, your budget may be too small to win auctions consistently.`,
+    `D. Audience & geography — The targeting may need a fundamental rethink, not just fine-tuning.`,
+    `E. Product-market fit — Paid ads amplify demand that already exists. If the product is new or the market isn't ready, ads may not be the right channel yet.`,
+    ``,
+    `Our honest recommendation: pause this campaign, review the points above, and consider whether a strategy change or a different approach makes sense before continuing to spend.`,
+    ``,
+    `If after reviewing this you'd like to try a different strategy, use the "Rethink strategy" option in your dashboard — Vigmis will start the AI interview again from scratch.`,
+  ].join('\n');
 }
 
 export async function runOptimizationForTenant(tenantId: string): Promise<OptimizationRun> {
@@ -186,6 +245,28 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       };
 
       const action = evaluateCampaign(campaignMetrics);
+
+      // Stagnation check — runs independently of the normal action flow
+      const ctr = metrics.impressions > 0 ? metrics.clicks / metrics.impressions : 0;
+      const bench = getBenchmarkForStagnation(campaign.platform, campaign.campaign_type ?? 'default');
+      const isStagnant = await checkStagnation(campaign, tenantId, daysRunning, ctr, bench.minCtr);
+      if (isStagnant) {
+        const message = buildStagnationMessage(campaign, daysRunning, ctr, bench.minCtr);
+        await sendTenantNotification(
+          tenantId,
+          `"${campaign.name}" — results not improving after ${daysRunning} days`,
+          message,
+          'warning',
+          'Open dashboard to review or rethink strategy',
+        ).catch(() => {});
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: 'optimization.campaign_stagnant',
+          platform: campaign.platform,
+          actor: 'system',
+          payload: { campaignId: campaign.id, campaignName: campaign.name, daysRunning, ctr },
+        });
+      }
 
       // On day 1, send the client a "learning period" explanation so they know what to expect
       if (daysRunning === 1 && metrics.impressions > 0) {
