@@ -6,9 +6,15 @@ const isPublicRoute = createRouteMatcher([
   "/contact(.*)",
   "/privacy(.*)",
   "/terms(.*)",
+  "/refund(.*)",
+  "/cookies(.*)",
+  "/acceptable-use(.*)",
+  "/faq(.*)",
+  "/unsubscribe(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/api/cron(.*)",
   "/tiktok(.*)",
 ]);
 
@@ -19,8 +25,7 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  // Explicitly exclude: _next, tiktok*.txt files, and any static file with extension
   matcher: [
-    "/((?!_next|tiktok.*\\.txt|favicon\\.ico|robots\\.txt|sitemap\\.xml|[^/]+\\.[a-zA-Z0-9]+$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|robots\\.txt|sitemap\\.xml|.*\\.png|.*\\.jpg|.*\\.svg|.*\\.ico|.*\\.txt|tiktok.*\\.txt).*)",
   ],
 };
