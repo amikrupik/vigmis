@@ -50,7 +50,8 @@ export default function ChatDrawer() {
         })
         .catch(() => setHistoryLoaded(true));
     }
-  }, [open, historyLoaded]);
+    if (!open) setHistoryLoaded(false); // reload on next open
+  }, [open]);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -71,7 +72,7 @@ export default function ChatDrawer() {
           executedActions: res.executedActions?.length ? res.executedActions : undefined,
         }]);
       } catch {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error — please try again.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: '__error__' }]);
       }
     });
   }
@@ -117,20 +118,40 @@ export default function ChatDrawer() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {messages.length === 0 && !isPending && (
-            <div className="text-center py-10 space-y-2">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
-                <svg className="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                </svg>
+            <div className="py-8 space-y-4">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
+                  <svg className="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Ask me anything</p>
+                <p className="text-xs text-slate-400 max-w-[240px] mx-auto">Campaign performance, budget changes, pausing — I can answer and act.</p>
               </div>
-              <p className="text-sm font-semibold text-slate-700">Ask me anything</p>
-              <p className="text-xs text-slate-400 max-w-[260px] mx-auto">Campaign performance, budget changes, pausing campaigns — I can answer and act.</p>
+              <div className="space-y-2">
+                {[
+                  'How are my campaigns performing?',
+                  'Which campaign has the best ROAS?',
+                  'Pause all campaigns',
+                  'Increase Google budget by 20%',
+                ].map(q => (
+                  <button key={q} onClick={() => { setInput(q); }} className="w-full text-left text-xs px-3 py-2 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors">
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {messages.map((msg, i) => (
             <div key={msg.id ?? i} className="space-y-1.5">
               <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.content === '__error__' ? (
+                  <div className="bg-red-50 border border-red-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-red-700 flex items-center gap-3">
+                    <span>Connection error</span>
+                    <button onClick={handleSend} className="text-xs font-semibold text-red-600 underline">Retry</button>
+                  </div>
+                ) : (
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-indigo-600 text-white rounded-br-sm'
@@ -138,8 +159,9 @@ export default function ChatDrawer() {
                 }`}>
                   {msg.content}
                 </div>
+                )}
               </div>
-              {msg.executedActions?.map((action, j) => (
+              {msg.content !== '__error__' && msg.executedActions?.map((action, j) => (
                 <div key={j} className="flex justify-start pl-1">
                   <ActionBadge action={action} />
                 </div>

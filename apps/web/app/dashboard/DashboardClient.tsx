@@ -494,6 +494,19 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, er
         </div>
       )}
 
+      {/* Getting started — no data at all */}
+      {campaigns.length === 0 && !daily && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 flex items-start gap-4">
+          <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-indigo-900">Welcome to Vigmis</p>
+            <p className="text-xs text-indigo-700 mt-1 leading-relaxed">Your campaigns are ready to launch. Once live, this screen will show real-time spend, ROAS, platform health, and AI actions. Have questions? Use the chat button in the bottom-right corner — I'm here 24/7.</p>
+          </div>
+        </div>
+      )}
+
       {/* Launch */}
       {campaigns.length === 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-5 shadow-sm">
@@ -556,7 +569,15 @@ function AnalyticsTab() {
   }, [period, compare]);
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
-  if (!data) return <div className="text-center py-20 text-slate-400">No data available</div>;
+  if (!data) return (
+    <div className="text-center py-20 space-y-3">
+      <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto">
+        <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+      </div>
+      <p className="text-slate-700 font-semibold">No analytics data yet</p>
+      <p className="text-sm text-slate-400 max-w-xs mx-auto">Data will appear once your campaigns are live and running. Launch campaigns from the Overview tab.</p>
+    </div>
+  );
 
   const { summary, trend, by_platform, campaigns: campaignMetrics, changes, top_performers, bottom_performers } = data;
   const maxSpend = trend?.length ? Math.max(...trend.map((d: any) => d.spend), 0.01) : 1;
@@ -726,19 +747,25 @@ function AnalyticsTab() {
           )}
           {bottom_performers?.length > 0 && (
             <div className="bg-white border border-red-100 rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-5 py-3 bg-red-50 border-b border-red-100">
+              <div className="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
                 <p className="text-sm font-bold text-red-700">⚠️ Needs Attention</p>
+                <span className="text-xs text-red-500">ROAS below target — consider pausing or adjusting budget</span>
               </div>
               <div className="divide-y divide-slate-50">
-                {bottom_performers.map((c: any, i: number) => (
+                {bottom_performers.map((c: any) => (
                   <div key={c.id} className="px-5 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${PLATFORM_BADGE[c.platform] ?? ''}`}>{c.platform}</span>
                       <span className="text-xs font-medium text-slate-700 truncate">{c.name.replace('VIGMIS_', '').replace(/_/g, ' ').toLowerCase()}</span>
                     </div>
-                    <span className={`text-sm font-black ${c.roas >= 1 ? 'text-amber-600' : 'text-red-500'} flex-shrink-0`}>{c.roas}x</span>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className={`text-sm font-black ${c.roas >= 1 ? 'text-amber-600' : 'text-red-500'}`}>{c.roas}x</span>
+                    </div>
                   </div>
                 ))}
+              </div>
+              <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+                <p className="text-xs text-slate-500">💡 Use <strong>Intelligence → Budget Shifting</strong> to reallocate budget from low to high performers automatically.</p>
               </div>
             </div>
           )}
@@ -829,7 +856,13 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
         </div>
       </div>
       {campaigns.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400">No campaigns yet — launch from Overview</div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3">
+          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          </div>
+          <p className="text-slate-700 font-semibold">No campaigns yet</p>
+          <p className="text-sm text-slate-400">Go to the Overview tab and click "Launch Campaigns" to get started.</p>
+        </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="divide-y divide-slate-50">
@@ -870,7 +903,11 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                         ${c.daily_budget_usd}/day
                       </button>
                     )}
-                    {c.error_message && <span className="text-xs text-red-500 truncate">{c.error_message}</span>}
+                    {c.error_message && (
+                      <span className="text-xs text-red-500 truncate" title={c.error_message}>
+                        {c.error_message} · <a href="mailto:support@vigmis.com" className="underline hover:text-red-700">Contact support</a>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -1104,28 +1141,38 @@ function CreativeTab({ settings }: any) {
         )}
 
         {/* Job list */}
-        {jobs.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Jobs</p>
-            {jobs.slice(0, 5).map(job => (
-              <div key={job.id} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-slate-800 capitalize">{job.type}</span>
-                  {job.platform && <span className="text-xs text-slate-400 capitalize">{job.platform}</span>}
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>{job.status.replace('_', ' ')}</span>
-                  {job.status === 'completed' && job.output_url && (
-                    <>
-                      <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
-                      <a href={job.output_url} download className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-lg transition-colors">Download ↓</a>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="pt-2 border-t border-slate-100">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Recent Jobs</p>
+          {jobs.length === 0 ? (
+            <p className="text-sm text-slate-400 py-3 text-center">No videos generated yet — write a script above and click "Preview Brief →"</p>
+          ) : (
+            <div className="space-y-2">
+              {jobs.slice(0, 5).map(job => {
+                const ageMin = Math.round((Date.now() - new Date(job.created_at).getTime()) / 60000);
+                const stuck = (job.status === 'queued' || job.status === 'processing') && ageMin > 15;
+                return (
+                  <div key={job.id} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm font-semibold text-slate-800 capitalize">{job.type}</span>
+                      {job.platform && <span className="text-xs text-slate-400 capitalize">{job.platform}</span>}
+                      {stuck && <span className="text-xs text-amber-600 font-medium">Taking longer than expected</span>}
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>{job.status.replace('_', ' ')}</span>
+                      {job.status === 'completed' && job.output_url && (
+                        <>
+                          <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
+                          <a href={job.output_url} download className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-lg transition-colors">Download ↓</a>
+                        </>
+                      )}
+                      {stuck && <a href="mailto:support@vigmis.com" className="text-xs text-amber-600 hover:underline">Contact support</a>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Ad Copy Generator ─────────────────────────────────────────────── */}
@@ -1617,6 +1664,9 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               {budgetLoading ? 'Analyzing...' : 'Get Recommendation'}
             </button>
           </div>
+          {!budgetRec && !budgetLoading && campaigns?.length === 0 && (
+            <p className="text-sm text-slate-400 py-2">Launch campaigns first — budget shifting works once you have active campaigns to compare.</p>
+          )}
           {budgetRec && (
             <div className="space-y-4">
               {budgetRec.summary && <p className="text-sm text-slate-600 leading-relaxed">{budgetRec.summary}</p>}
@@ -1863,8 +1913,9 @@ function ProtocolsTab() {
           {/* Protocol detail */}
           <div className="md:col-span-2">
             {!selected ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-sm text-slate-400 text-center">
-                Select a protocol to view details
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+                <svg className="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                <p className="text-sm text-slate-400">Select a protocol from the list to view the full recommendation and discussion</p>
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -2639,9 +2690,9 @@ function SocialTab() {
         </div>
         <h2 className="text-xl font-bold text-slate-900">Social Media not enabled</h2>
         <p className="text-sm text-slate-500 leading-relaxed">
-          Social media management wasn't enabled during onboarding.<br />
-          Contact support or use "Rethink Strategy" to add it.
+          Social media management wasn't enabled during onboarding.
         </p>
+        <p className="text-sm text-slate-400">To add it, use the <strong className="text-slate-600">chat button</strong> (bottom-right) and say <em>"Enable social media management"</em> — or contact <a href="mailto:support@vigmis.com" className="text-indigo-600 hover:underline">support@vigmis.com</a>.</p>
       </div>
     );
   }
