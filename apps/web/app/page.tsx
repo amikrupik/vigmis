@@ -32,7 +32,7 @@ export default async function Home() {
     <div className="min-h-screen bg-white flex flex-col">
       {/* Nav */}
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur z-20">
-        <Image src="/logo.png" alt="Vigmis" width={100} height={36} priority />
+        <Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} priority />
         <div className="flex items-center gap-4">
           <Link href="/about" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">About</Link>
           <Link href="/contact" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">Contact</Link>
@@ -161,7 +161,7 @@ export default async function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-100 px-6 py-8">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Image src="/logo.png" alt="Vigmis" width={80} height={28} />
+          <Image src="/logo_nav.png" alt="Vigmis" width={126} height={28} />
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
             <Link href="/about" className="hover:text-slate-600">About</Link>
             <Link href="/faq" className="hover:text-slate-600">FAQ</Link>

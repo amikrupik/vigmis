@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo.png" alt="Vigmis" width={100} height={36} /></Link>
+        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} /></Link>
         <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
       </nav>
 
