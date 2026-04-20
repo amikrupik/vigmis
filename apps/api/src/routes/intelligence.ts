@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { route } from '@vigmis/ai-router';
+import { createMetaAdSet } from '@vigmis/ad-connectors';
 
 export async function intelligenceRoutes(app: FastifyInstance) {
 
@@ -294,26 +295,54 @@ Return ONLY valid JSON:
   // POST /intelligence/ab-test/conclude — AI picks winner, pauses losers
 
   app.post('/intelligence/ab-test/create', { preHandler: authenticate }, async (request, reply) => {
-    const { name, variants, budget_split, goal, platform } = request.body as any;
-    // variants: [{ name, campaign_id, description }]
-    if (!variants || variants.length < 2) {
-      return reply.code(400).send({ error: 'At least 2 variants required' });
+    const { name, variants, goal, platform, campaign_id } = request.body as any;
+    // variants: [{ name, description }] — exactly 2 required
+    if (!variants || variants.length !== 2) {
+      return reply.code(400).send({ error: 'Exactly 2 variants required' });
+    }
+
+    // Build initial variant objects
+    let enrichedVariants = variants.map((v: any, i: number) => ({
+      name: v.name ?? `Variant ${String.fromCharCode(65 + i)}`,
+      description: v.description ?? '',
+      budget_pct: 50,
+      impressions: 0,
+      clicks: 0,
+      spend: 0,
+      ad_set_external_id: null as string | null,
+    }));
+
+    // If Meta campaign connected, create two Ad Sets with 50/50 budget split
+    if (platform === 'meta' && campaign_id) {
+      const { data: campaign } = await db
+        .from('campaigns')
+        .select('external_id, daily_budget_usd')
+        .eq('id', campaign_id)
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle();
+
+      if (campaign?.external_id && campaign.daily_budget_usd) {
+        const halfBudget = campaign.daily_budget_usd / 2;
+        for (let i = 0; i < 2; i++) {
+          const adSetId = await createMetaAdSet(
+            campaign.external_id,
+            `VIGMIS_AB_${name ?? 'test'}_${enrichedVariants[i].name}`,
+            halfBudget,
+            request.tenantId,
+          );
+          if (adSetId) enrichedVariants[i].ad_set_external_id = adSetId;
+        }
+      }
     }
 
     const { data: test, error } = await db.from('ab_tests').insert({
       tenant_id: request.tenantId,
       name: name ?? `A/B Test ${new Date().toISOString().slice(0, 10)}`,
-      platform: platform ?? 'google',
+      platform: platform ?? 'meta',
       goal: goal ?? 'leads',
       status: 'running',
-      variants: variants.map((v: any, i: number) => ({
-        ...v,
-        budget_pct: budget_split?.[i] ?? Math.round(100 / variants.length),
-        impressions: 0,
-        clicks: 0,
-        conversions: 0,
-        spend: 0,
-      })),
+      variants: enrichedVariants,
+      campaign_id: campaign_id ?? null,
       started_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     }).select().single();

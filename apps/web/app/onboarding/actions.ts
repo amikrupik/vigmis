@@ -100,6 +100,29 @@ export async function discussStrategy(
   return data.response as string;
 }
 
+// ── Website understanding quick check — before full analysis ──────────────────
+
+export interface WebsiteCheck {
+  adequate: boolean;
+  what_they_sell: string | null;
+  hero_product: string | null;
+  target_audience: string | null;
+  brand_voice: string | null;
+  unclear: string[];
+  summary: string | null;
+}
+
+export async function checkWebsite(websiteUrl: string): Promise<WebsiteCheck> {
+  const token = await getToken();
+  const res = await fetch(`${API_URL}/onboarding/website-check`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ website_url: websiteUrl }),
+  });
+  if (!res.ok) return { adequate: false, what_they_sell: null, hero_product: null, target_audience: null, brand_voice: null, unclear: ['Could not analyze website'], summary: null };
+  return res.json();
+}
+
 // ── Full analysis pipeline — proxied through API ──────────────────────────────
 
 export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult> {

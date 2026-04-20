@@ -5,7 +5,7 @@ import OnboardingPageClient from './OnboardingPageClient';
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; rethink?: string }>;
 }) {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in');
@@ -14,7 +14,11 @@ export default async function OnboardingPage({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <OnboardingPageClient initialConnected={params.connected} initialError={params.error} />
+      <OnboardingPageClient
+        initialConnected={params.connected}
+        initialError={params.error}
+        rethinkMode={params.rethink === 'true'}
+      />
     </div>
   );
 }

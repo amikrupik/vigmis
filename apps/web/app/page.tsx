@@ -53,7 +53,7 @@ export default async function Home() {
           <span className="text-indigo-600">Managed by AI.</span>
         </h1>
         <p className="text-lg text-slate-500 mt-6 max-w-xl leading-relaxed">
-          Vigmis runs your Google, Meta, and TikTok ads autonomously — strategy, creative, budget, and optimization. You grow. We handle the rest.
+          Vigmis runs your Google, Meta, and TikTok ads — and manages your social media — autonomously. Strategy, creative, posts, comments, budget, optimization. You grow. We handle the rest.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-10">
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
@@ -71,10 +71,12 @@ export default async function Home() {
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-black text-slate-900 text-center mb-4">Everything your campaigns need</h2>
           <p className="text-slate-500 text-center mb-12 text-base">One platform. Every platform.</p>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6">
             {[
               { icon: '🎯', title: 'AI Campaign Strategy', desc: 'AI interviews you, scans your website, and builds a data-driven campaign plan.' },
               { icon: '🎬', title: 'Video Creative', desc: 'AI-generated talking avatar, cinematic, and animation videos — ready in minutes.' },
+              { icon: '📱', title: 'Social Media Posts', desc: 'Weekly Facebook, Instagram, and TikTok posts — written and published by AI, approved by you.' },
+              { icon: '💬', title: 'Community Management', desc: 'Vigmis reads your comments, handles the easy ones, and drafts replies for the rest — you approve in one click.' },
               { icon: '📊', title: 'Analytics & ROAS', desc: 'Real-time spend, CPA, CTR, and ROAS across all platforms in one dashboard.' },
               { icon: '🔔', title: 'Smart Alerts', desc: 'WhatsApp and email alerts when campaigns need attention — before you lose money.' },
               { icon: '🌍', title: 'Territory Intelligence', desc: 'Auto-detects your market: currency, CPC benchmarks, holidays, and local tone.' },
@@ -106,6 +108,8 @@ export default async function Home() {
                 {[
                   'Free AI strategy & campaign plan',
                   'Google + Meta + TikTok management',
+                  'Social posts: $1/post (FB/IG) · $3 (TikTok)',
+                  'Comment management: $0.05/reply sent',
                   'Smart alerts & basic analytics',
                   'Cancel anytime',
                 ].map(f => (

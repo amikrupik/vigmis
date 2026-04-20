@@ -93,8 +93,12 @@ export async function resumeCampaign(id: string) {
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
-export async function getAnalytics(period: 7 | 30 | 90 = 30) {
-  return apiCall(`/analytics/summary?period=${period}`);
+export async function getAnalytics(period: 7 | 30 | 90 = 30, compare = false) {
+  return apiCall(`/analytics/summary?period=${period}&compare=${compare}`);
+}
+
+export async function getAnalyticsDaily() {
+  return apiCall('/analytics/daily');
 }
 
 // ── Intelligence ──────────────────────────────────────────────────────────────
@@ -213,6 +217,29 @@ export async function rejectRequest(id: string) {
   return apiCall(`/optimization/approvals/${id}/reject`, 'POST', {});
 }
 
+// ── Decision Protocols ────────────────────────────────────────────────────────
+
+export async function getProtocols(status?: string) {
+  const qs = status ? `?status=${status}` : '';
+  return apiCall(`/protocols${qs}`);
+}
+
+export async function getProtocol(id: string) {
+  return apiCall(`/protocols/${id}`);
+}
+
+export async function replyToProtocol(id: string, message: string) {
+  return apiCall(`/protocols/${id}/reply`, 'POST', { message });
+}
+
+export async function approveProtocol(id: string) {
+  return apiCall(`/protocols/${id}/approve`, 'POST', {});
+}
+
+export async function rejectProtocol(id: string, reason?: string) {
+  return apiCall(`/protocols/${id}/reject`, 'POST', { reason });
+}
+
 // ── Creatives ─────────────────────────────────────────────────────────────────
 
 export async function generateCreative(
@@ -252,4 +279,101 @@ export async function getExportUrl() {
   const { getToken } = await auth();
   const token = await getToken();
   return { url: `${API_URL}/account/export`, token };
+}
+
+export async function getSocialSettings() {
+  return apiCall('/social/settings');
+}
+
+export async function updateSocialSettings(settings: object) {
+  return apiCall('/social/settings', 'PUT', settings);
+}
+
+export async function getSocialPosts(params?: { status?: string; platform?: string }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set('status', params.status);
+  if (params?.platform) q.set('platform', params.platform);
+  return apiCall(`/social/posts${q.toString() ? `?${q}` : ''}`);
+}
+
+export async function approveSocialPost(id: string, editedContent?: string) {
+  return apiCall(`/social/posts/${id}/approve`, 'POST', { edited_content: editedContent });
+}
+
+export async function rejectSocialPost(id: string, reason?: string) {
+  return apiCall(`/social/posts/${id}/reject`, 'POST', { reason });
+}
+
+export async function generateSocialContent() {
+  return apiCall('/social/generate', 'POST');
+}
+
+export async function getSocialAnalytics() {
+  return apiCall('/social/analytics');
+}
+
+export async function getSocialComments(params?: { status?: string; sentiment?: string }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set('status', params.status);
+  if (params?.sentiment) q.set('sentiment', params.sentiment);
+  return apiCall(`/social/comments${q.toString() ? `?${q}` : ''}`);
+}
+
+export async function sendSocialCommentReply(id: string, replyText: string) {
+  return apiCall(`/social/comments/${id}/send`, 'POST', { reply_text: replyText });
+}
+
+export async function ignoreSocialComment(id: string) {
+  return apiCall(`/social/comments/${id}/ignore`, 'POST');
+}
+
+export async function hideSocialComment(id: string) {
+  return apiCall(`/social/comments/${id}/hide`, 'POST');
+}
+
+// ── Export (returns raw text/csv or text/html) ────────────────────────────────
+
+async function apiRaw(path: string): Promise<{ content: string; contentType: string } | null> {
+  const { getToken } = await auth();
+  const token = await getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) return null;
+  const content = await res.text();
+  const contentType = res.headers.get('content-type') ?? 'text/plain';
+  return { content, contentType };
+}
+
+export async function exportAnalyticsCSV(period: 7 | 30 | 90 = 30) {
+  return apiRaw(`/export/analytics?period=${period}&format=csv`);
+}
+
+export async function exportAnalyticsHTML(period: 7 | 30 | 90 = 30) {
+  return apiRaw(`/export/analytics?period=${period}&format=html`);
+}
+
+export async function exportCampaignsCSV() {
+  return apiRaw('/export/campaigns?format=csv');
+}
+
+export async function exportCampaignsHTML() {
+  return apiRaw('/export/campaigns?format=html');
+}
+
+export async function exportSocialCSV() {
+  return apiRaw('/export/social?format=csv');
+}
+
+export async function exportSocialHTML() {
+  return apiRaw('/export/social?format=html');
+}
+
+export async function exportMarketingPlanHTML() {
+  return apiRaw('/export/marketing-plan?format=html');
+}
+
+export async function exportInvoiceHTML() {
+  return apiRaw('/export/invoice?format=html');
 }

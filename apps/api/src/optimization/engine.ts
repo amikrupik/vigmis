@@ -5,13 +5,18 @@
 // 1. Load all active campaigns for all tenants
 // 2. Fetch metrics from platform APIs (or use stored metrics)
 // 3. Evaluate each campaign using rules engine
-// 4. Apply approved actions (auto-mode) or create approval requests (manual mode)
-// 5. Log everything to audit_log
+// 4. Conservative mode: create Decision Protocols for client approval
+//    Auto mode: apply immediately + log
+// 5. Log everything to audit_log + decision_protocols
 
 import { db } from '@vigmis/db';
-import { evaluateCampaign, getBenchmarkForStagnation } from './rules.js';
+import { evaluateCampaign, getBenchmarkForStagnation, type CustomBenchmarkOverride } from './rules.js';
+import { hasActiveAbTest, evaluateAbTests } from './ab-engine.js';
+import { checkBenchmarkRecalibration } from './recalibration.js';
+import { sendTrackingGuide } from '../services/tracking-guide.js';
 import { pauseMetaCampaign, resumeMetaCampaign } from '@vigmis/ad-connectors';
 import { sendTenantNotification } from '../services/notify.js';
+import { createProtocol } from '../routes/protocols.js';
 import type { CampaignMetrics } from './rules.js';
 
 export interface OptimizationRun {
@@ -20,6 +25,20 @@ export interface OptimizationRun {
   actionsApplied: number;
   approvalsPending: number;
   errors: string[];
+}
+
+// Check platform token health — returns days until expiry (null = no expiry set, negative = expired)
+async function checkTokenHealth(tenantId: string, platform: string): Promise<{ ok: boolean; daysLeft: number | null }> {
+  const { data } = await db
+    .from('platform_tokens')
+    .select('expires_at')
+    .eq('tenant_id', tenantId)
+    .eq('platform', platform)
+    .maybeSingle();
+
+  if (!data?.expires_at) return { ok: true, daysLeft: null };
+  const daysLeft = (new Date(data.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return { ok: daysLeft >= 0, daysLeft: Math.floor(daysLeft) };
 }
 
 // Fetch Meta campaign insights
@@ -37,7 +56,6 @@ async function fetchMetaMetrics(
 
     if (!data) return null;
 
-    // Import decryptToken
     const { decryptToken } = await import('@vigmis/db');
     const accessToken = decryptToken(data.access_token);
 
@@ -104,9 +122,8 @@ async function checkStagnation(
   minCtr: number,
 ): Promise<boolean> {
   if (daysRunning < 30) return false;
-  if (ctr >= minCtr * 0.6) return false; // not that bad
+  if (ctr >= minCtr * 0.6) return false;
 
-  // Already sent a stagnation notice for this campaign recently?
   const { data: recent } = await db
     .from('audit_log')
     .select('id')
@@ -116,9 +133,8 @@ async function checkStagnation(
     .gte('created_at', new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString())
     .limit(1);
 
-  if (recent?.length) return false; // already notified recently
+  if (recent?.length) return false;
 
-  // How many scale_down actions have been applied to this campaign?
   const { data: downActions } = await db
     .from('audit_log')
     .select('id')
@@ -127,7 +143,7 @@ async function checkStagnation(
     .contains('payload', { campaignId: campaign.id })
     .limit(10);
 
-  if ((downActions?.length ?? 0) < 3) return false; // not enough evidence of repeated attempts
+  if ((downActions?.length ?? 0) < 3) return false;
 
   return true;
 }
@@ -175,6 +191,140 @@ function buildStagnationMessage(campaign: any, daysRunning: number, ctr: number,
   ].join('\n');
 }
 
+// Proactive growth recommendations — runs once per tenant after campaign loop.
+// Suggests strategic scale-ups and platform expansion when conditions are right.
+async function checkProactiveGrowth(
+  tenantId: string,
+  campaigns: any[],
+  result: OptimizationRun,
+  customBenchmarks?: Record<string, CustomBenchmarkOverride>,
+): Promise<void> {
+  const activeCampaigns = campaigns.filter(c => c.status === 'active');
+  if (!activeCampaigns.length) return;
+
+  // Don't spam — check if we already suggested growth in the last 14 days
+  const { data: recentGrowth } = await db
+    .from('decision_protocols')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('type', ['campaign_scale', 'general_advice'])
+    .gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+    .limit(1);
+
+  if (recentGrowth?.length) return;
+
+  const platforms = [...new Set(activeCampaigns.map((c: any) => c.platform as string))];
+
+  // Strategic scale suggestion: campaign outperforming for 7+ consecutive days
+  for (const campaign of activeCampaigns) {
+    const daysRunning = Math.floor(
+      (Date.now() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysRunning < 14) continue;
+
+    const { data: snapshots } = await db
+      .from('audit_log')
+      .select('payload')
+      .eq('tenant_id', tenantId)
+      .eq('action', 'optimization.metrics_snapshot')
+      .contains('payload', { campaignId: campaign.id })
+      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(7);
+
+    if (!snapshots || snapshots.length < 5) continue;
+
+    const bench = getBenchmarkForStagnation(campaign.platform, campaign.campaign_type ?? 'default', customBenchmarks) as any;
+    const avgCtr = snapshots.reduce((s: number, l: any) => s + ((l.payload as any).ctr ?? 0), 0) / snapshots.length;
+
+    // Only suggest scale if consistently above goodCtr (not just at minimum)
+    if (!bench.goodCtr || avgCtr < bench.goodCtr) continue;
+
+    const currentDaily = campaign.daily_budget_usd as number;
+    const suggestedDaily = Math.round(currentDaily * 1.3 * 100) / 100;
+    const monthlyIncrease = Math.round((suggestedDaily - currentDaily) * 30);
+
+    await createProtocol({
+      tenantId,
+      type: 'campaign_scale',
+      title: `Growth opportunity: "${campaign.name}" is outperforming — ready to scale?`,
+      recommendation: [
+        `"${campaign.name}" on ${campaign.platform} has maintained a CTR of ${(avgCtr * 100).toFixed(2)}% over the past 7 days — well above the ${(bench.goodCtr * 100).toFixed(1)}% target.`,
+        ``,
+        `When a campaign performs this consistently, increasing the budget is often the highest-ROI action available. More spend reaches more of the same high-quality audience that is already responding.`,
+        ``,
+        `Current daily budget: $${currentDaily} (~$${Math.round(currentDaily * 30)}/month).`,
+        `Suggested new daily budget: $${suggestedDaily} (+30%, ~$${monthlyIncrease}/month additional).`,
+        ``,
+        `This is your decision. If budget allows, this is a good time to accelerate. If you'd prefer to hold the current budget, Vigmis will continue optimizing as-is — no action needed.`,
+        ``,
+        `You can discuss this with Vigmis before deciding. Just reply with any questions.`,
+      ].join('\n'),
+      approvalText: `I approve increasing the daily budget of "${campaign.name}" from $${currentDaily} to $${suggestedDaily}.`,
+      approvalSummary: `Scale "${campaign.name}" +30% to $${suggestedDaily}/day`,
+      actionPayload: {
+        campaignId: campaign.id,
+        newBudgetUsd: suggestedDaily,
+      },
+      campaignId: campaign.id,
+      platform: campaign.platform,
+    });
+
+    result.approvalsPending++;
+    break; // One scale suggestion per run
+  }
+
+  // Platform expansion: only on one platform for 21+ days
+  if (platforms.length === 1) {
+    const oldestCampaign = activeCampaigns.reduce((oldest: any, c: any) =>
+      new Date(c.created_at) < new Date(oldest.created_at) ? c : oldest
+    );
+    const oldestDays = Math.floor(
+      (Date.now() - new Date(oldestCampaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (oldestDays < 21) return;
+
+    // Don't suggest Google expansion if already on Google
+    const currentPlatform = platforms[0];
+    if (currentPlatform === 'google') return;
+
+    const { data: recentExpansion } = await db
+      .from('decision_protocols')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('type', 'general_advice')
+      .ilike('title', '%Google%')
+      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .limit(1);
+
+    if (recentExpansion?.length) return;
+
+    await createProtocol({
+      tenantId,
+      type: 'general_advice',
+      title: `Consider adding Google Search — your campaigns have been running for ${oldestDays} days`,
+      recommendation: [
+        `Your campaigns on ${currentPlatform} have been running for ${oldestDays} days. This is a good time to consider whether Google Search is a fit for your business.`,
+        ``,
+        `Here's the key difference: ${currentPlatform === 'meta' ? 'Meta' : 'TikTok'} is a discovery channel — people see your ad while scrolling, without actively searching. Google Search captures people who are already looking for what you offer. Different intent, different conversion dynamics.`,
+        ``,
+        `Running both together often produces compounding results: ${currentPlatform === 'meta' ? 'Meta' : 'TikTok'} builds awareness, Google captures the demand it creates.`,
+        ``,
+        `Before recommending this for your specific business, a few things to assess:`,
+        `1. Do people search for your product or service category on Google?`,
+        `2. Is your current budget large enough to split between two platforms effectively? (Rule of thumb: at least $500/month per platform to get meaningful data)`,
+        `3. Do you have the bandwidth to manage a new channel launch right now?`,
+        ``,
+        `Reply here to discuss further — Vigmis will ask a few specific questions and give you an honest assessment before suggesting next steps.`,
+      ].join('\n'),
+      approvalText: `I'd like to explore adding Google Search to my advertising strategy. Vigmis can begin planning.`,
+      approvalSummary: 'Google Search expansion — approved to plan',
+    });
+
+    result.approvalsPending++;
+  }
+}
+
 export async function runOptimizationForTenant(tenantId: string): Promise<OptimizationRun> {
   const result: OptimizationRun = {
     tenantId,
@@ -184,7 +334,6 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
     errors: [],
   };
 
-  // Load active campaigns
   const { data: campaigns } = await db
     .from('campaigns')
     .select('*')
@@ -193,40 +342,91 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
 
   if (!campaigns?.length) return result;
 
-  // Load client settings to check optimization mode
   const { data: settings } = await db
     .from('client_settings')
-    .select('risk_level, management_percentage')
+    .select('risk_level, management_percentage, has_parallel_campaigns, strategy_plan')
     .eq('tenant_id', tenantId)
     .single();
 
-  const autoMode = settings?.risk_level !== 'conservative'; // conservative = manual approval
+  // Conservative = manual approval via Decision Protocols
+  const autoMode = settings?.risk_level !== 'conservative';
+  // Parallel campaigns: user is running other campaigns outside Vigmis on the same platforms.
+  // In this case we never suggest scaling up — budget may already be split externally.
+  const hasParallelCampaigns = (settings as any)?.has_parallel_campaigns === true;
+  // AI-generated client-specific benchmarks from onboarding analysis (override static defaults)
+  const customBenchmarks: Record<string, CustomBenchmarkOverride> | undefined =
+    (settings as any)?.strategy_plan?.custom_benchmarks ?? undefined;
+
+  // ── Platform token health check ──────────────────────────────────────────────
+  const connectedPlatforms = [...new Set(campaigns.map((c: any) => c.platform as string))];
+  for (const platform of connectedPlatforms) {
+    const health = await checkTokenHealth(tenantId, platform);
+    if (!health.ok) {
+      // Token expired — create a protocol once (check if already sent in last 7 days)
+      const { data: existing } = await db.from('decision_protocols')
+        .select('id').eq('tenant_id', tenantId).eq('type', 'general_advice')
+        .ilike('title', `%${platform}%token expired%`)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+      if (!existing?.length) {
+        await createProtocol({
+          tenantId,
+          type: 'general_advice',
+          title: `Action required: ${platform} connection expired`,
+          recommendation: `Your ${platform} API connection has expired. Vigmis can no longer fetch metrics or apply optimizations for your ${platform} campaigns.\n\nTo fix this: go to Settings → Connected Platforms → Reconnect ${platform}.\n\nUntil reconnected, your campaigns will continue running at their current settings but will not be optimized.`,
+          approvalText: `I have reconnected my ${platform} account.`,
+          approvalSummary: `${platform} reconnected`,
+          platform,
+        });
+        await sendTenantNotification(
+          tenantId,
+          `Action required: ${platform} connection expired`,
+          `Your ${platform} connection has expired. Vigmis cannot optimize your campaigns until you reconnect. Go to Settings → Connected Platforms.`,
+          'critical',
+          'Reconnect in Settings',
+        ).catch(() => {});
+      }
+      // Skip optimization for campaigns on this platform
+    } else if (health.daysLeft !== null && health.daysLeft <= 5) {
+      // Expiring soon — warn but continue
+      const { data: existing } = await db.from('decision_protocols')
+        .select('id').eq('tenant_id', tenantId).eq('type', 'general_advice')
+        .ilike('title', `%${platform}%expiring%`)
+        .gte('created_at', new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+      if (!existing?.length) {
+        await sendTenantNotification(
+          tenantId,
+          `${platform} connection expiring in ${health.daysLeft} day(s)`,
+          `Your ${platform} API token expires in ${health.daysLeft} day(s). Please reconnect from Settings → Connected Platforms to avoid interruption.`,
+          'warning',
+          'Reconnect in Settings',
+        ).catch(() => {});
+      }
+    }
+  }
 
   for (const campaign of campaigns) {
     result.campaignsEvaluated++;
 
     try {
-      // Get metrics
       let metrics: { clicks: number; impressions: number; spend: number } | null = null;
 
       if (campaign.platform === 'meta' && campaign.external_id) {
         metrics = await fetchMetaMetrics(campaign.external_id, tenantId);
       }
-      // Google metrics will be added when developer token is approved
+      // Google + TikTok metrics will be wired when API access is approved
 
-      if (!metrics) {
-        metrics = { clicks: 0, impressions: 0, spend: 0 };
-      }
+      if (!metrics) metrics = { clicks: 0, impressions: 0, spend: 0 };
 
       const daysRunning = Math.max(1, Math.floor(
         (Date.now() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
       ));
 
-      // Creative fatigue: fetch audit_log for CTR trend
+      // Creative fatigue: fetch CTR trend from metric snapshots
       let recentCtr: number | undefined;
       let baselineCtr: number | undefined;
       if (daysRunning >= 7 && metrics.impressions > 0) {
-        // Use stored historical snapshots from audit_log if available
         const { data: logs } = await db
           .from('audit_log')
           .select('payload, created_at')
@@ -239,13 +439,8 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         if (logs && logs.length >= 6) {
           const recent = logs.slice(0, 3);
           const baseline = logs.slice(3, 7);
-          const avg = (arr: typeof logs) => {
-            const total = arr.reduce((s, l) => {
-              const p = l.payload as any;
-              return s + (p.ctr ?? 0);
-            }, 0);
-            return total / arr.length;
-          };
+          const avg = (arr: typeof logs) =>
+            arr.reduce((s, l) => s + ((l.payload as any).ctr ?? 0), 0) / arr.length;
           recentCtr = avg(recent);
           baselineCtr = avg(baseline);
         }
@@ -266,28 +461,60 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         baselineCtr,
       };
 
-      const action = evaluateCampaign(campaignMetrics);
+      // Skip optimization for campaigns currently in an A/B test —
+      // budget changes would corrupt the 50/50 split we set up for the test.
+      const inAbTest = await hasActiveAbTest(tenantId, campaign.id);
+      if (inAbTest) {
+        continue;
+      }
 
-      // Stagnation check — runs independently of the normal action flow
+      let action = evaluateCampaign(campaignMetrics, customBenchmarks);
+
+      // If user has parallel campaigns on the same platform, don't scale up —
+      // we don't know the full picture of their budget allocation.
+      if (hasParallelCampaigns && action.type === 'scale_up') {
+        action = {
+          type: 'no_action',
+          reason: 'Scale-up skipped: you indicated you have parallel campaigns outside Vigmis. Adjust budget manually if desired.',
+        };
+      }
+
+      // ── Stagnation check (independent of normal action flow) ─────────────────
       const ctr = metrics.impressions > 0 ? metrics.clicks / metrics.impressions : 0;
-      const bench = getBenchmarkForStagnation(campaign.platform, campaign.campaign_type ?? 'default');
+      const bench = getBenchmarkForStagnation(campaign.platform, campaign.campaign_type ?? 'default', customBenchmarks);
       const isStagnant = await checkStagnation(campaign, tenantId, daysRunning, ctr, bench.minCtr);
+
       if (isStagnant) {
         const message = buildStagnationMessage(campaign, daysRunning, ctr, bench.minCtr);
         const isDeep = daysRunning >= 60;
         const title = isDeep
           ? `Honest assessment: consider pausing paid ads for now`
           : `"${campaign.name}" — results not improving after ${daysRunning} days`;
-        const actionText = isDeep
-          ? 'Pause campaigns — no fees charged on paused campaigns'
-          : 'Open dashboard to review or rethink strategy';
+
+        await createProtocol({
+          tenantId,
+          type: 'stagnation_alert',
+          title,
+          recommendation: message,
+          approvalText: isDeep
+            ? `I acknowledge this assessment and choose to pause all campaigns for now.`
+            : `I acknowledge this assessment and will review my strategy.`,
+          approvalSummary: isDeep
+            ? 'Acknowledged — considering pause'
+            : 'Acknowledged — will review strategy',
+          actionPayload: isDeep ? { campaignId: campaign.id } : {},
+          campaignId: campaign.id,
+          platform: campaign.platform,
+        });
+
         await sendTenantNotification(
           tenantId,
           title,
           message,
           isDeep ? 'critical' : 'warning',
-          actionText,
+          'Review this assessment in your dashboard',
         ).catch(() => {});
+
         await db.from('audit_log').insert({
           tenant_id: tenantId,
           action: 'optimization.campaign_stagnant',
@@ -297,7 +524,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         });
       }
 
-      // On day 1, send the client a "learning period" explanation so they know what to expect
+      // ── Day 1: welcome + conversion tracking guide ────────────────────────────
       if (daysRunning === 1 && metrics.impressions > 0) {
         await sendTenantNotification(
           tenantId,
@@ -305,30 +532,87 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
           `Your ${campaign.platform} campaign is running. For the first ${campaign.campaign_type === 'conversions' ? '10' : '7'} days, Vigmis is collecting data before making budget changes. You'll receive alerts immediately if anything looks wrong.`,
           'info',
         ).catch(() => {});
+        // Send pixel/conversion tracking setup guide
+        await sendTrackingGuide(tenantId, campaign.id, campaign.name, campaign.platform).catch(() => {});
       }
 
-      if (action.type === 'no_action') continue;
+      if (action.type === 'no_action') {
+        // Still snapshot metrics
+        if (metrics.impressions > 0) {
+          await db.from('audit_log').insert({
+            tenant_id: tenantId,
+            action: 'optimization.metrics_snapshot',
+            platform: campaign.platform,
+            actor: 'system',
+            payload: { campaignId: campaign.id, clicks: metrics.clicks, impressions: metrics.impressions, spend: metrics.spend, ctr },
+          }).then(() => {});
+        }
+        continue;
+      }
 
-      // Auto mode: apply immediately. Manual mode: create approval request.
-      if (!autoMode && action.type !== 'pause') {
-        // Create approval request
-        await db.from('approval_request').insert({
-          tenant_id: tenantId,
-          action_type: action.type,
+      // ── Budget/status actions: conservative → protocol, auto → execute ────────
+
+      const newBudget = (action.type === 'scale_up' || action.type === 'scale_down')
+        ? Math.max(1, Math.round(campaign.daily_budget_usd * action.factor * 100) / 100)
+        : 0;
+
+      if (autoMode === false && (
+        action.type === 'scale_up' ||
+        action.type === 'scale_down' ||
+        action.type === 'pause' ||
+        action.type === 'resume'
+      )) {
+        // Conservative mode → create Decision Protocol for client approval
+        const protocolConfig = {
+          scale_up: {
+            type: 'campaign_scale' as const,
+            title: `Scale up "${campaign.name}" (+20% budget)`,
+            approvalText: `I approve increasing the daily budget of "${campaign.name}" from $${campaign.daily_budget_usd} to $${newBudget}.`,
+          },
+          scale_down: {
+            type: 'budget_change' as const,
+            title: `Reduce budget for "${campaign.name}" (-20%)`,
+            approvalText: `I approve reducing the daily budget of "${campaign.name}" from $${campaign.daily_budget_usd} to $${newBudget}.`,
+          },
+          pause: {
+            type: 'campaign_pause' as const,
+            title: `Pause campaign "${campaign.name}"`,
+            approvalText: `I approve pausing "${campaign.name}" on ${campaign.platform}.`,
+          },
+          resume: {
+            type: 'campaign_resume' as const,
+            title: `Resume campaign "${campaign.name}"`,
+            approvalText: `I approve resuming "${campaign.name}" on ${campaign.platform}.`,
+          },
+        }[action.type];
+
+        const budgetNote = newBudget
+          ? `\n\nCurrent daily budget: $${campaign.daily_budget_usd}. Proposed: $${newBudget}.`
+          : '';
+
+        await createProtocol({
+          tenantId,
+          type: protocolConfig.type,
+          title: protocolConfig.title,
+          recommendation: action.reason + budgetNote,
+          approvalText: protocolConfig.approvalText,
+          approvalSummary: protocolConfig.title,
+          actionPayload: {
+            campaignId: campaign.id,
+            newBudgetUsd: newBudget || undefined,
+          },
+          campaignId: campaign.id,
           platform: campaign.platform,
-          payload: { campaignId: campaign.id, action, metrics },
-          status: 'pending',
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         });
+
         result.approvalsPending++;
         continue;
       }
 
-      // Apply action
+      // Auto mode: execute immediately
+
       if (action.type === 'pause' && campaign.external_id) {
-        if (campaign.platform === 'meta') {
-          await pauseMetaCampaign(campaign.external_id, tenantId);
-        }
+        if (campaign.platform === 'meta') await pauseMetaCampaign(campaign.external_id, tenantId);
         await db.from('campaigns')
           .update({ status: 'paused', updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
@@ -336,9 +620,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       }
 
       if (action.type === 'resume' && campaign.external_id) {
-        if (campaign.platform === 'meta') {
-          await resumeMetaCampaign(campaign.external_id, tenantId);
-        }
+        if (campaign.platform === 'meta') await resumeMetaCampaign(campaign.external_id, tenantId);
         await db.from('campaigns')
           .update({ status: 'active', updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
@@ -346,32 +628,37 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       }
 
       if ((action.type === 'scale_up' || action.type === 'scale_down') && campaign.external_id) {
-        const factor = action.factor;
-        const newBudget = Math.max(1, Math.round(campaign.daily_budget_usd * factor * 100) / 100);
-
-        if (campaign.platform === 'meta') {
-          await updateMetaBudget(campaign.external_id, tenantId, newBudget);
-        }
+        if (campaign.platform === 'meta') await updateMetaBudget(campaign.external_id, tenantId, newBudget);
         // Google + TikTok budget updates will be wired when APIs are approved
-
         await db.from('campaigns')
           .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
         result.actionsApplied++;
       }
 
-      // Alert: notify client, no budget change
+      // ── Advisory actions: always create a protocol regardless of mode ─────────
+
       if (action.type === 'alert') {
         await sendTenantNotification(
           tenantId,
           `Campaign "${campaign.name}" needs attention`,
           action.reason,
           action.severity,
-          'Review your campaigns in the dashboard',
+          'Open your decision protocols in the dashboard',
         ).catch(() => {});
+        await createProtocol({
+          tenantId,
+          type: 'general_advice',
+          title: `${action.severity === 'critical' ? 'Alert' : 'Notice'}: "${campaign.name}" — ${action.reason.slice(0, 80)}`,
+          recommendation: action.reason,
+          approvalText: `I have reviewed this alert for "${campaign.name}" and will take action.`,
+          approvalSummary: 'Alert reviewed',
+          campaignId: campaign.id,
+          platform: campaign.platform,
+        });
         await db.from('audit_log').insert({
           tenant_id: tenantId,
-          action: `optimization.alert`,
+          action: 'optimization.alert',
           platform: campaign.platform,
           actor: 'system',
           payload: { campaignId: campaign.id, campaignName: campaign.name, reason: action.reason, severity: action.severity },
@@ -380,14 +667,24 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         continue;
       }
 
-      // Targeting review: notify client + log — AI should suggest new keywords/audiences
       if (action.type === 'needs_targeting_review') {
+        await createProtocol({
+          tenantId,
+          type: 'targeting_review',
+          title: `Targeting review needed: "${campaign.name}"`,
+          recommendation: action.reason +
+            '\n\nVigmis will analyze your current targeting and suggest specific improvements. You can discuss this here before approving any changes.',
+          approvalText: `I approve Vigmis reviewing and recommending targeting changes for "${campaign.name}" on ${campaign.platform}.`,
+          approvalSummary: 'Targeting review approved',
+          campaignId: campaign.id,
+          platform: campaign.platform,
+        });
         await sendTenantNotification(
           tenantId,
           `Targeting review needed: "${campaign.name}"`,
           action.reason,
           'warning',
-          'Vigmis will review keywords and audiences and suggest improvements',
+          'See your pending decisions in the dashboard',
         ).catch(() => {});
         await db.from('audit_log').insert({
           tenant_id: tenantId,
@@ -400,9 +697,18 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         continue;
       }
 
-      // Creative fatigue: log alert to dismissed_alerts so deliverAlert can pick it up
       if (action.type === 'needs_creative') {
-        // Log a metrics snapshot for future fatigue detection
+        await createProtocol({
+          tenantId,
+          type: 'creative_refresh',
+          title: `Creative refresh needed: "${campaign.name}"`,
+          recommendation: action.reason +
+            '\n\nVigmis can generate a new creative variation to address performance fatigue. Review and approve to proceed.',
+          approvalText: `I approve generating a new creative variation for "${campaign.name}" on ${campaign.platform}.`,
+          approvalSummary: 'Creative refresh approved',
+          campaignId: campaign.id,
+          platform: campaign.platform,
+        });
         await db.from('audit_log').insert({
           tenant_id: tenantId,
           action: 'optimization.creative_fatigue',
@@ -421,35 +727,39 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
 
       // Snapshot metrics for trend analysis
       if (metrics.impressions > 0) {
-        const ctr = metrics.clicks / metrics.impressions;
         await db.from('audit_log').insert({
           tenant_id: tenantId,
           action: 'optimization.metrics_snapshot',
           platform: campaign.platform,
           actor: 'system',
-          payload: {
-            campaignId: campaign.id,
-            clicks: metrics.clicks,
-            impressions: metrics.impressions,
-            spend: metrics.spend,
-            ctr,
-          },
-        }).then(() => {}); // fire-and-forget, don't block
+          payload: { campaignId: campaign.id, clicks: metrics.clicks, impressions: metrics.impressions, spend: metrics.spend, ctr },
+        }).then(() => {});
       }
 
-      // Log action
-      await db.from('audit_log').insert({
-        tenant_id: tenantId,
-        action: `optimization.${action.type}`,
-        platform: campaign.platform,
-        actor: 'system',
-        payload: { campaignId: campaign.id, action, metrics },
-      });
+      // Log auto-applied budget/status actions
+      if (action.type === 'scale_up' || action.type === 'scale_down' || action.type === 'pause' || action.type === 'resume') {
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: `optimization.${action.type}`,
+          platform: campaign.platform,
+          actor: 'system',
+          payload: { campaignId: campaign.id, action, metrics },
+        });
+      }
 
     } catch (err) {
       result.errors.push(`Campaign ${campaign.id}: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }
+
+  // Proactive growth recommendations (once per tenant, after all campaigns evaluated)
+  await checkProactiveGrowth(tenantId, campaigns, result, customBenchmarks).catch(() => {});
+
+  // A/B test evaluation — auto-conclude tests when statistically significant
+  await evaluateAbTests(tenantId).catch(() => {});
+
+  // 30-day benchmark recalibration — suggest updated thresholds if real data diverges
+  await checkBenchmarkRecalibration(tenantId).catch(() => {});
 
   return result;
 }

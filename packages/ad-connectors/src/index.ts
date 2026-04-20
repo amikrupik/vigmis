@@ -5,4 +5,5 @@ export { MetaAdsConnector } from './meta/auth.js';
 export { TikTokAdsConnector } from './tiktok/auth.js';
 export { createGoogleCampaign, pauseGoogleCampaign, resumeGoogleCampaign } from './google/campaigns.js';
 export { createMetaCampaign, pauseMetaCampaign, resumeMetaCampaign, listMetaCampaigns } from './meta/campaigns.js';
+export { createMetaAdSet, getMetaAdSetInsights, pauseMetaAdSet } from './meta/ab-test.js';
 export { createTikTokCampaign, pauseTikTokCampaign, resumeTikTokCampaign } from './tiktok/campaigns.js';

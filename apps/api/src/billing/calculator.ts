@@ -12,6 +12,7 @@ export interface FeeCalculation {
   feePercentage: number;      // 7 or 5
   percentageFeeUsd: number;
   subscriptionUsd: number;    // 0 (free) or 15 (pro)
+  socialServicesUsd: number;  // social posts + comment replies billed this period
   totalUsd: number;
   plan: 'free' | 'pro';
 }
@@ -80,13 +81,36 @@ export async function calculateFee(
   const feePercentage = plan === 'pro' ? 5 : 7;
   const percentageFeeUsd = Math.round(managedSpendUsd * feePercentage) / 100;
   const subscriptionUsd = plan === 'pro' ? 15 : 0;
-  const totalUsd = Math.round((percentageFeeUsd + subscriptionUsd) * 100) / 100;
+
+  // Social services: per-post and per-reply charges billed this period
+  const [postsRes, commentsRes] = await Promise.all([
+    db.from('social_posts')
+      .select('cost_usd')
+      .eq('tenant_id', tenantId)
+      .eq('billed', true)
+      .gte('published_at', period.start.toISOString())
+      .lte('published_at', period.end.toISOString()),
+    db.from('social_comments')
+      .select('cost_usd')
+      .eq('tenant_id', tenantId)
+      .eq('billed', true)
+      .gte('replied_at', period.start.toISOString())
+      .lte('replied_at', period.end.toISOString()),
+  ]);
+
+  const socialServicesUsd = Math.round(
+    ((postsRes.data ?? []).reduce((s, p) => s + (p.cost_usd ?? 0), 0) +
+      (commentsRes.data ?? []).reduce((s, c) => s + (c.cost_usd ?? 0), 0)) * 100
+  ) / 100;
+
+  const totalUsd = Math.round((percentageFeeUsd + subscriptionUsd + socialServicesUsd) * 100) / 100;
 
   return {
     managedSpendUsd,
     feePercentage,
     percentageFeeUsd,
     subscriptionUsd,
+    socialServicesUsd,
     totalUsd,
     plan,
   };

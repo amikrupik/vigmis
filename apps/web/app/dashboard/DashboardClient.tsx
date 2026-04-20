@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign, updateCampaignBudget,
-  getAnalytics, generateAdCopy, scoreCreative, discoverAudiences,
+  getAnalytics, getAnalyticsDaily, generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
   generateCreative, getCreatives, getCreativeStatus,
   createAbTest, getAbTests, concludeAbTest,
@@ -13,8 +13,16 @@ import {
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
   runOptimizationNow, getOptimizationHistory, getOptimizationSettings, saveOptimizationSettings,
   getApprovalRequests, approveRequest, rejectRequest,
+  getProtocols, getProtocol, replyToProtocol, approveProtocol, rejectProtocol,
   pauseAllCampaigns, resumeAllCampaigns,
   deleteAccount, getExportUrl,
+  getSocialSettings, updateSocialSettings, getSocialPosts, approveSocialPost, rejectSocialPost,
+  generateSocialContent, getSocialAnalytics,
+  getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
+  exportAnalyticsCSV, exportAnalyticsHTML,
+  exportCampaignsCSV, exportCampaignsHTML,
+  exportSocialCSV, exportSocialHTML,
+  exportMarketingPlanHTML, exportInvoiceHTML,
 } from './actions';
 import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
@@ -22,14 +30,25 @@ import { ClerkSignOutButton } from '../components/sign-out-button';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'settings';
+type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'protocols' | 'social' | 'settings';
 
 type Campaign = {
   id: string; platform: 'google' | 'meta' | 'tiktok';
   name: string; campaign_type: string;
   status: 'pending' | 'active' | 'paused' | 'error';
   daily_budget_usd: number; error_message: string | null;
+  created_at: string;
 };
+
+// Learning period days per campaign type (mirrors engine/rules.ts benchmarks)
+function getLearningDays(platform: string, campaignType: string): number {
+  if (campaignType === 'conversions') return 10;
+  if (platform === 'google' && campaignType === 'retargeting') return 5;
+  return 7;
+}
+function getDaysRunning(createdAt: string): number {
+  return Math.max(1, Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+}
 
 type DashboardData = {
   onboardingComplete: boolean; settings: any;
@@ -51,6 +70,8 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'campaigns', label: 'Campaigns', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
   { key: 'creative', label: 'Creative', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
   { key: 'intelligence', label: 'Intelligence', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
+  { key: 'protocols', label: 'Decisions', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
+  { key: 'social', label: 'Social', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> },
   { key: 'settings', label: 'Settings', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
 ];
 
@@ -67,6 +88,7 @@ export default function DashboardClient() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showStopModal, setShowStopModal] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [pendingProtocolCount, setPendingProtocolCount] = useState(0);
 
   async function load() {
     setLoading(true);
@@ -82,6 +104,7 @@ export default function DashboardClient() {
   useEffect(() => {
     load();
     getAlerts().then(r => setUnreadCount(r?.unread_count ?? 0));
+    getProtocols('pending').then(r => setPendingProtocolCount(r?.protocols?.length ?? 0));
   }, []);
 
   async function handleLaunch() {
@@ -170,6 +193,11 @@ export default function DashboardClient() {
             >
               {t.icon}
               {t.label}
+              {t.key === 'protocols' && pendingProtocolCount > 0 && (
+                <span className="ml-1 bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {pendingProtocolCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -201,6 +229,8 @@ export default function DashboardClient() {
         )}
         {tab === 'creative' && <CreativeTab settings={settings} />}
         {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} />}
+        {tab === 'protocols' && <ProtocolsTab />}
+        {tab === 'social' && <SocialTab />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
       </div>
 
@@ -237,79 +267,230 @@ export default function DashboardClient() {
   );
 }
 
+// ── Change indicator ──────────────────────────────────────────────────────────
+
+function ChangeTag({ pct, inverse = false }: { pct: number | null | undefined; inverse?: boolean }) {
+  if (pct === null || pct === undefined) return <span className="text-xs text-slate-400">—</span>;
+  const good = inverse ? pct < 0 : pct > 0;
+  const neutral = pct === 0;
+  return (
+    <span className={`text-xs font-bold ${neutral ? 'text-slate-400' : good ? 'text-emerald-600' : 'text-red-500'}`}>
+      {pct > 0 ? '↑' : pct < 0 ? '↓' : '→'}{Math.abs(pct).toFixed(1)}%
+    </span>
+  );
+}
+
+// ── Burn gauge (CSS-only circular indicator) ──────────────────────────────────
+
+function BurnGauge({ pctSpent, pctElapsed, status }: { pctSpent: number; pctElapsed: number; status: string }) {
+  const color = status === 'on_track' ? '#059669' : status === 'overspending' ? '#dc2626' : '#d97706';
+  const label = status === 'on_track' ? 'On Track' : status === 'overspending' ? 'Over' : 'Under';
+  const radius = 38;
+  const circ = 2 * Math.PI * radius;
+  const offset = circ - (pctSpent / 100) * circ;
+  const elapsedOffset = circ - (pctElapsed / 100) * circ;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="8" />
+        <circle cx="50" cy="50" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="2"
+          strokeDasharray={circ} strokeDashoffset={elapsedOffset}
+          strokeLinecap="round" transform="rotate(-90 50 50)" opacity="0.6" />
+        <circle cx="50" cy="50" r={radius} fill="none" stroke={color} strokeWidth="8"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" transform="rotate(-90 50 50)" />
+        <text x="50" y="46" textAnchor="middle" fontSize="14" fontWeight="800" fill="#0f172a">{pctSpent.toFixed(0)}%</text>
+        <text x="50" y="60" textAnchor="middle" fontSize="9" fill="#64748b">spent</text>
+      </svg>
+      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${status === 'on_track' ? 'bg-emerald-100 text-emerald-700' : status === 'overspending' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{label}</span>
+    </div>
+  );
+}
+
+// ── Platform health dot ───────────────────────────────────────────────────────
+
+function PlatformDot({ platform, health }: { platform: string; health: { active: number; paused: number; error: number } | undefined }) {
+  if (!health) return null;
+  const color = health.error > 0 ? 'bg-red-500' : health.active === 0 ? 'bg-slate-300' : health.paused > 0 ? 'bg-amber-400' : 'bg-emerald-500';
+  const label = health.error > 0 ? 'Issue' : health.active === 0 ? 'Idle' : 'Active';
+  return (
+    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
+      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${color} shadow-sm`} />
+      <span className={`text-xs font-bold uppercase ${PLATFORM_BADGE[platform]?.split(' ')[1] ?? 'text-slate-600'}`}>{platform}</span>
+      <span className="text-xs text-slate-400">{health.active}▶ {health.paused}⏸</span>
+    </div>
+  );
+}
+
+// ── Export menu ───────────────────────────────────────────────────────────────
+
+function downloadCSV(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function openPrintWindow(html: string) {
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+}
+
+function ExportMenu({ items }: { items: { label: string; action: () => Promise<void> }[] }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(action: () => Promise<void>) {
+    setOpen(false);
+    setBusy(true);
+    try { await action(); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        disabled={busy}
+        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
+      >
+        {busy ? <span className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" /> : (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        )}
+        Export
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+            {items.map(item => (
+              <button key={item.label} onClick={() => run(item.action)} className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [pacing, setPacing] = useState<any>(null);
+  const [daily, setDaily] = useState<any>(null);
 
   useEffect(() => {
     getAlerts().then(r => setAlerts(r?.alerts ?? []));
-    getBudgetPacing().then(setPacing);
+    getAnalyticsDaily().then(setDaily);
   }, []);
 
+  const pacing = daily?.pacing;
+  const platformHealth = daily?.platform_health ?? {};
+  const recentActions = daily?.recent_actions ?? [];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Disclaimer */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 flex items-start gap-2">
         <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        <span><strong>Disclaimer:</strong> Vigmis provides AI-driven campaign management on a best-effort basis. Results are not guaranteed. You retain full control and can pause all campaigns at any time. Vigmis is not liable for ad spend outcomes.</span>
+        <span><strong>Disclaimer:</strong> Vigmis provides AI-driven campaign management on a best-effort basis. Results are not guaranteed. You retain full control and can pause all campaigns at any time.</span>
       </div>
 
-      {/* Stats + Emergency Stop */}
-      <div className="flex items-start gap-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-          <StatCard label="Active Campaigns" value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
-          <StatCard label="Daily Budget" value={`$${totalDailyBudget.toFixed(0)}`} sub="active spend" color="blue" />
-          <StatCard label="Managed / Month" value={`$${managedBudget}`} sub="of ad budget" color="purple" />
-          <StatCard label="Monthly Fee" value={`~$${feeEstimate}`} sub="Free tier (7%)" color="gray" />
+      {/* Platform health bar */}
+      {campaigns.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-slate-500 mr-1">Platform Status</span>
+          {(['google', 'meta', 'tiktok'] as const).map(p => (
+            platformHealth[p] ? <PlatformDot key={p} platform={p} health={platformHealth[p]} /> : null
+          ))}
+          {activeCampaigns > 0 && (
+            <button onClick={onEmergencyStop} className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
+              Emergency Stop
+            </button>
+          )}
         </div>
-        {activeCampaigns > 0 && (
-          <button
-            onClick={onEmergencyStop}
-            className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors mt-0.5"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-            </svg>
-            Emergency Stop
-          </button>
-        )}
-      </div>
+      )}
 
-      {/* Active Alerts */}
-      {alerts.filter(a => !a.dismissed).length > 0 && (
+      {/* Today's live KPIs */}
+      {daily && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Today at a Glance</p>
+              <p className="text-sm text-slate-500 mt-0.5">vs yesterday · {daily.is_mock && <span className="italic">simulated</span>}</p>
+            </div>
+            {pacing && <BurnGauge pctSpent={pacing.pct_spent} pctElapsed={pacing.pct_elapsed} status={pacing.status} />}
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+            {[
+              { label: 'Spend', val: `$${daily.today.spend.toFixed(0)}`, chg: daily.changes?.spend },
+              { label: 'ROAS', val: `${daily.today.roas.toFixed(1)}x`, chg: daily.changes?.roas },
+              { label: 'Conv.', val: String(daily.today.conversions), chg: daily.changes?.conversions },
+              { label: 'CPA', val: `$${daily.today.conversions > 0 ? (daily.today.spend / daily.today.conversions).toFixed(0) : '—'}`, chg: daily.changes?.cpa, inv: true },
+              { label: 'CTR', val: `${daily.today.ctr.toFixed(1)}%`, chg: daily.changes?.ctr },
+              { label: 'Impr.', val: daily.today.impressions > 0 ? `${(daily.today.impressions / 1000).toFixed(1)}k` : '—', chg: daily.changes?.impressions },
+            ].map(({ label, val, chg, inv }) => (
+              <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
+                <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
+                <p className="text-lg font-black text-slate-900">{val}</p>
+                <div className="mt-0.5"><ChangeTag pct={chg} inverse={inv} /></div>
+              </div>
+            ))}
+          </div>
+          {pacing && (
+            <p className="text-xs text-slate-400 mt-3">
+              <span className="font-semibold">Burn rate:</span> ${pacing.spend_today?.toFixed(2)} spent of ${pacing.budget_today?.toFixed(0)} daily budget ({pacing.pct_elapsed?.toFixed(0)}% of day elapsed)
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Alerts */}
+      {alerts.filter((a: any) => !a.dismissed).length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-700">Active Alerts</p>
-          {alerts.filter(a => !a.dismissed).map((alert: any) => (
+          {alerts.filter((a: any) => !a.dismissed).map((alert: any) => (
             <AlertCard key={alert.id} alert={alert} onDismiss={async () => {
               await dismissAlert(alert.id);
-              setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, dismissed: true } : a));
+              setAlerts(prev => prev.map((a: any) => a.id === alert.id ? { ...a, dismissed: true } : a));
             }} />
           ))}
         </div>
       )}
 
-      {/* Budget Pacing */}
-      {pacing && (
+      {/* Stats strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Active Campaigns" value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
+        <StatCard label="Daily Budget" value={`$${totalDailyBudget.toFixed(0)}`} sub="active spend" color="blue" />
+        <StatCard label="Managed / Month" value={`$${managedBudget}`} sub="of ad budget" color="purple" />
+        <StatCard label="Monthly Fee" value={`~$${feeEstimate}`} sub="7% of managed" color="gray" />
+      </div>
+
+      {/* Vigmis AI Actions (last 24h) */}
+      {recentActions.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-slate-800">Budget Pacing — Day {pacing.day_of_month} of {pacing.days_in_month}</p>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-              pacing.status === 'on_track' ? 'bg-emerald-100 text-emerald-700' :
-              pacing.status === 'overspending' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-            }`}>{pacing.status === 'on_track' ? 'On Track' : pacing.status === 'overspending' ? 'Overspending' : 'Underspending'}</span>
+          <p className="text-sm font-semibold text-slate-700 mb-3">Vigmis AI Actions — last 24h</p>
+          <div className="space-y-2">
+            {recentActions.slice(0, 5).map((a: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 py-1.5 border-b border-slate-50 last:border-0">
+                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 text-sm">
+                  {a.action.includes('scale') ? '📈' : a.action.includes('pause') ? '⏸' : a.action.includes('resume') ? '▶️' : '🤖'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-800 capitalize">{a.action.replace(/_/g, ' ')}</p>
+                  {a.campaign && <p className="text-xs text-slate-400 truncate">{a.campaign}</p>}
+                </div>
+                <span className="text-xs text-slate-300 flex-shrink-0">{new Date(a.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
           </div>
-          <div className="h-2 bg-slate-100 rounded-full mb-2">
-            <div className="h-2 bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, pacing.month_progress_pct)}%` }} />
-          </div>
-          <div className="flex justify-between text-xs text-slate-400 mb-3">
-            <span>${pacing.actual_spend_to_date} spent</span>
-            <span>${pacing.expected_monthly_usd} total budget</span>
-          </div>
-          <p className="text-xs text-slate-500">{pacing.recommendation}</p>
-          {pacing.is_mock && <p className="text-xs text-slate-400 mt-2 italic">* Connect Google + Meta to see real spend data</p>}
         </div>
       )}
 
@@ -329,23 +510,30 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, er
         </div>
       )}
 
-      {/* Recent campaigns (mini) */}
+      {/* Campaigns mini list */}
       {campaigns.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-bold text-slate-900">Campaigns</h2>
             <button onClick={onViewAll} className="text-xs text-indigo-600 font-medium">View all →</button>
           </div>
           <div className="divide-y divide-slate-50">
-            {campaigns.slice(0, 4).map((c: Campaign) => (
-              <div key={c.id} className="px-6 py-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md ${PLATFORM_BADGE[c.platform] ?? 'bg-slate-100 text-slate-500'}`}>{c.platform}</span>
-                  <span className="text-sm font-medium text-slate-800 truncate">{c.name}</span>
+            {campaigns.slice(0, 5).map((c: Campaign) => {
+              const daysRunning = c.created_at ? getDaysRunning(c.created_at) : 999;
+              const learningDays = getLearningDays(c.platform, c.campaign_type);
+              const isLearning = c.status === 'active' && daysRunning < learningDays;
+              const daysLeft = Math.max(0, learningDays - daysRunning);
+              return (
+                <div key={c.id} className="px-5 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-md flex-shrink-0 ${PLATFORM_BADGE[c.platform] ?? 'bg-slate-100 text-slate-500'}`}>{c.platform}</span>
+                    <span className="text-sm font-medium text-slate-800 truncate">{c.name}</span>
+                    {isLearning && <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">Learning · {daysLeft}d</span>}
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STATUS_STYLES[c.status]}`}>{c.status}</span>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${STATUS_STYLES[c.status]}`}>{c.status}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -357,126 +545,238 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, er
 
 function AnalyticsTab() {
   const [period, setPeriod] = useState<7 | 30 | 90>(30);
+  const [compare, setCompare] = useState(true);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<string>('roas');
 
   useEffect(() => {
     setLoading(true);
-    getAnalytics(period).then(d => { setData(d); setLoading(false); });
-  }, [period]);
+    getAnalytics(period, compare).then(d => { setData(d); setLoading(false); });
+  }, [period, compare]);
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
   if (!data) return <div className="text-center py-20 text-slate-400">No data available</div>;
 
-  const { summary, trend, by_platform, campaigns: campaignMetrics } = data;
-  const maxSpend = trend.length ? Math.max(...trend.map((d: any) => d.spend), 0.01) : 1;
+  const { summary, trend, by_platform, campaigns: campaignMetrics, changes, top_performers, bottom_performers } = data;
+  const maxSpend = trend?.length ? Math.max(...trend.map((d: any) => d.spend), 0.01) : 1;
+  const maxConv = trend?.length ? Math.max(...trend.map((d: any) => d.conversions), 0.01) : 1;
+
+  const sorted = [...(campaignMetrics ?? [])].sort((a: any, b: any) => {
+    if (sortBy === 'roas') return b.roas - a.roas;
+    if (sortBy === 'spend') return b.spend - a.spend;
+    if (sortBy === 'cpa') return a.cpa - b.cpa;
+    if (sortBy === 'conversions') return b.conversions - a.conversions;
+    return 0;
+  });
+
+  const kpis = [
+    { label: 'Total Spend', val: `$${summary.spend.toFixed(0)}`, chg: changes?.spend },
+    { label: 'Conv. Value', val: `$${summary.convValue.toFixed(0)}`, chg: changes?.convValue },
+    { label: 'Conversions', val: String(summary.conversions), chg: changes?.conversions },
+    { label: 'ROAS', val: `${summary.roas.toFixed(1)}x`, chg: changes?.roas, good: summary.roas >= 2 },
+    { label: 'CPA', val: `$${summary.cpa.toFixed(0)}`, chg: changes?.cpa, inv: true },
+    { label: 'CTR', val: `${summary.ctr.toFixed(2)}%`, chg: changes?.ctr, good: summary.ctr >= 1.5 },
+    { label: 'Clicks', val: summary.clicks.toLocaleString(), chg: changes?.clicks },
+    { label: 'Impressions', val: `${(summary.impressions / 1000).toFixed(1)}k`, chg: changes?.impressions },
+  ];
 
   return (
     <div className="space-y-6">
       {data.is_mock && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 flex items-center gap-2">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span><strong>Simulated data</strong> — metrics shown are projections based on your budget. Real performance data (ROAS, CTR, CPA) will appear once Google and Meta API access is confirmed.</span>
+          <span><strong>Simulated data</strong> — projections based on your budget. Real ROAS/CPA will appear once Google and Meta API access is approved.</span>
         </div>
       )}
 
-      {/* Period selector */}
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-slate-900 text-lg">Performance Overview</h2>
-        <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-          {([7, 30, 90] as const).map(p => (
-            <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 text-sm font-semibold transition-colors ${period === p ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
-              {p}d
-            </button>
+      {/* Controls */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="font-bold text-slate-900 text-lg">Performance Analytics</h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
+            <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} className="rounded" />
+            Compare to prior period
+          </label>
+          <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            {([7, 30, 90] as const).map(p => (
+              <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 text-sm font-semibold transition-colors ${period === p ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                {p}d
+              </button>
+            ))}
+          </div>
+          <ExportMenu items={[
+            { label: '⬇ Download CSV (Excel)', action: async () => { const r = await exportAnalyticsCSV(period); if (r) downloadCSV(r.content, `vigmis-analytics-${period}d.csv`); } },
+            { label: '🖨 Export PDF Report', action: async () => { const r = await exportAnalyticsHTML(period); if (r) openPrintWindow(r.content); } },
+          ]} />
+        </div>
+      </div>
+
+      {/* KPI grid with WoW arrows */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {kpis.map(({ label, val, chg, good, inv }) => (
+          <div key={label} className={`bg-white border rounded-xl p-4 shadow-sm ${good === true ? 'border-emerald-200' : good === false ? 'border-red-100' : 'border-slate-200'}`}>
+            <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
+            <p className={`text-2xl font-black ${good === true ? 'text-emerald-600' : good === false ? 'text-red-500' : 'text-slate-900'}`}>{val}</p>
+            {compare && <div className="mt-1"><ChangeTag pct={chg} inverse={inv} /></div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Conversion funnel */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <p className="text-sm font-semibold text-slate-700 mb-4">Conversion Funnel</p>
+        <div className="space-y-2">
+          {[
+            { label: 'Impressions', val: summary.impressions, color: 'bg-slate-300', pct: 100 },
+            { label: 'Clicks', val: summary.clicks, color: 'bg-indigo-400', pct: summary.impressions > 0 ? (summary.clicks / summary.impressions * 100) : 0, rate: `${summary.ctr.toFixed(2)}% CTR` },
+            { label: 'Conversions', val: summary.conversions, color: 'bg-indigo-600', pct: summary.clicks > 0 ? (summary.conversions / summary.clicks * 100) : 0, rate: `${summary.clicks > 0 ? (summary.conversions / summary.clicks * 100).toFixed(1) : 0}% CVR` },
+            { label: 'Conv. Value', val: `$${summary.convValue.toFixed(0)}`, color: 'bg-emerald-500', pct: summary.conversions > 0 ? Math.min(100, summary.convValue / summary.spend * 20) : 0, rate: `$${summary.conversions > 0 ? (summary.convValue / summary.conversions).toFixed(0) : 0} avg` },
+          ].map((row, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-24 text-right">
+                <p className="text-xs font-semibold text-slate-600">{row.label}</p>
+                <p className="text-sm font-black text-slate-900">{typeof row.val === 'number' ? row.val.toLocaleString() : row.val}</p>
+              </div>
+              <div className="flex-1">
+                <div className="h-7 bg-slate-100 rounded-lg overflow-hidden">
+                  <div className={`h-7 ${row.color} rounded-lg transition-all duration-500`} style={{ width: `${Math.max(2, row.pct)}%` }} />
+                </div>
+              </div>
+              {row.rate && <span className="text-xs text-slate-400 w-20">{row.rate}</span>}
+            </div>
           ))}
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <KpiCard label="Total Spend" value={`$${summary.spend.toFixed(0)}`} />
-        <KpiCard label="Conversions" value={String(summary.conversions)} />
-        <KpiCard label="Avg CPA" value={`$${summary.cpa.toFixed(2)}`} />
-        <KpiCard label="ROAS" value={`${summary.roas.toFixed(1)}x`} good={summary.roas >= 2} />
-        <KpiCard label="Avg CTR" value={`${summary.ctr.toFixed(2)}%`} good={summary.ctr >= 1.5} />
-      </div>
-
-      {/* Spend trend chart */}
-      {trend.length > 0 && (
+      {/* Dual chart: Spend + Conversions */}
+      {trend?.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700 mb-4">Daily Spend — last {period} days</p>
-          <div className="flex items-end gap-0.5 h-24">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-slate-700">Daily Trend — last {period} days</p>
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-indigo-500 rounded-sm inline-block" />Spend</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-sm inline-block" />Conversions</span>
+            </div>
+          </div>
+          <div className="flex items-end gap-px h-28">
             {trend.map((d: any, i: number) => (
-              <div key={i} className="flex-1 flex flex-col justify-end group relative">
-                <div
-                  className="bg-indigo-500 hover:bg-indigo-600 rounded-sm transition-colors"
-                  style={{ height: `${Math.max(2, (d.spend / maxSpend) * 96)}px` }}
-                />
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
-                  {d.date}: ${d.spend}
+              <div key={i} className="flex-1 flex flex-col justify-end gap-px group relative">
+                <div className="bg-emerald-400 hover:bg-emerald-500 rounded-t-sm transition-colors" style={{ height: `${Math.max(2, (d.conversions / maxConv) * 40)}px` }} />
+                <div className="bg-indigo-500 hover:bg-indigo-600 rounded-t-sm transition-colors" style={{ height: `${Math.max(2, (d.spend / maxSpend) * 60)}px` }} />
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                  {d.date}<br />${d.spend} · {d.conversions} conv
                 </div>
               </div>
             ))}
           </div>
           <div className="flex justify-between text-xs text-slate-400 mt-2">
-            <span>{trend[0]?.date}</span>
-            <span>{trend[trend.length - 1]?.date}</span>
+            <span>{trend[0]?.date}</span><span>{trend[trend.length - 1]?.date}</span>
           </div>
         </div>
       )}
 
       {/* Platform breakdown */}
-      {Object.keys(by_platform).length > 0 && (
+      {Object.keys(by_platform ?? {}).length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-700 mb-4">Platform Breakdown</p>
-          <div className="space-y-4">
+          <div className="space-y-5">
             {Object.entries(by_platform).map(([platform, p]: [string, any]) => (
               <div key={platform}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${PLATFORM_BADGE[platform] ?? 'bg-slate-100 text-slate-500'}`}>{platform}</span>
-                  </div>
-                  <div className="flex gap-6 text-xs text-slate-500">
-                    <span>Spend: <strong className="text-slate-800">${p.spend}</strong></span>
-                    <span>CTR: <strong className="text-slate-800">{p.ctr}%</strong></span>
-                    <span>ROAS: <strong className="text-slate-800">{p.roas}x</strong></span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${PLATFORM_BADGE[platform] ?? 'bg-slate-100 text-slate-500'}`}>{platform}</span>
+                  <div className="flex gap-4 text-xs">
+                    <span className="text-slate-500">Spend <strong className="text-slate-800">${p.spend}</strong></span>
+                    <span className="text-slate-500">CTR <strong className="text-slate-800">{p.ctr}%</strong></span>
+                    <span className="text-slate-500">ROAS <strong className={`${p.roas >= 2 ? 'text-emerald-600' : p.roas >= 1 ? 'text-amber-600' : 'text-red-500'}`}>{p.roas}x</strong></span>
+                    {compare && p.changes && <ChangeTag pct={p.changes?.roas} />}
                   </div>
                 </div>
-                <div className="h-1.5 bg-slate-100 rounded-full">
-                  <div className={`h-1.5 rounded-full ${platform === 'google' ? 'bg-blue-500' : platform === 'meta' ? 'bg-violet-500' : 'bg-slate-600'}`} style={{ width: `${p.spend_pct}%` }} />
+                <div className="h-2 bg-slate-100 rounded-full">
+                  <div className={`h-2 rounded-full ${platform === 'google' ? 'bg-blue-500' : platform === 'meta' ? 'bg-violet-500' : 'bg-slate-500'}`} style={{ width: `${p.spend_pct}%` }} />
                 </div>
+                <p className="text-xs text-slate-400 mt-1">{p.spend_pct}% of total spend</p>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Campaign table */}
-      {campaignMetrics?.length > 0 && (
+      {/* Top + Bottom performers */}
+      {(top_performers?.length > 0 || bottom_performers?.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          {top_performers?.length > 0 && (
+            <div className="bg-white border border-emerald-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
+                <p className="text-sm font-bold text-emerald-800">⭐ Top Performers</p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {top_performers.map((c: any, i: number) => (
+                  <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-black text-slate-400 w-4">{i + 1}</span>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${PLATFORM_BADGE[c.platform] ?? ''}`}>{c.platform}</span>
+                      <span className="text-xs font-medium text-slate-700 truncate">{c.name.replace('VIGMIS_', '').replace(/_/g, ' ').toLowerCase()}</span>
+                    </div>
+                    <span className="text-sm font-black text-emerald-600 flex-shrink-0">{c.roas}x</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {bottom_performers?.length > 0 && (
+            <div className="bg-white border border-red-100 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-5 py-3 bg-red-50 border-b border-red-100">
+                <p className="text-sm font-bold text-red-700">⚠️ Needs Attention</p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {bottom_performers.map((c: any, i: number) => (
+                  <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${PLATFORM_BADGE[c.platform] ?? ''}`}>{c.platform}</span>
+                      <span className="text-xs font-medium text-slate-700 truncate">{c.name.replace('VIGMIS_', '').replace(/_/g, ' ').toLowerCase()}</span>
+                    </div>
+                    <span className={`text-sm font-black ${c.roas >= 1 ? 'text-amber-600' : 'text-red-500'} flex-shrink-0`}>{c.roas}x</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Campaign table with sort */}
+      {sorted?.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <p className="text-sm font-semibold text-slate-700">Campaign Performance</p>
+          <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-700">All Campaigns</p>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="roas">Sort: ROAS ↓</option>
+              <option value="spend">Sort: Spend ↓</option>
+              <option value="conversions">Sort: Conversions ↓</option>
+              <option value="cpa">Sort: CPA ↑</option>
+            </select>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {['Campaign', 'Platform', 'Spend', 'Impressions', 'CTR', 'Conversions', 'CPA', 'ROAS'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                  {['Campaign', 'Platform', 'Spend', 'Impr.', 'CTR', 'Conv.', 'CPA', 'ROAS'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {campaignMetrics.map((c: any) => (
+                {sorted.map((c: any) => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-800 truncate max-w-[180px]">{c.name}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800 truncate max-w-[160px]">{c.name.replace('VIGMIS_', '').replace(/_/g, ' ').toLowerCase()}</td>
                     <td className="px-4 py-3"><span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${PLATFORM_BADGE[c.platform] ?? 'bg-slate-100'}`}>{c.platform}</span></td>
-                    <td className="px-4 py-3 text-slate-600">${c.spend}</td>
-                    <td className="px-4 py-3 text-slate-600">{c.impressions.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-slate-600">{c.ctr}%</td>
-                    <td className="px-4 py-3 text-slate-600">{c.conversions}</td>
-                    <td className="px-4 py-3 text-slate-600">${c.cpa}</td>
-                    <td className={`px-4 py-3 font-semibold ${c.roas >= 2 ? 'text-emerald-600' : c.roas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>{c.roas}x</td>
+                    <td className="px-4 py-3 text-slate-700 font-semibold">${c.spend}</td>
+                    <td className="px-4 py-3 text-slate-500">{(c.impressions / 1000).toFixed(1)}k</td>
+                    <td className="px-4 py-3 text-slate-500">{c.ctr}%</td>
+                    <td className="px-4 py-3 text-slate-700 font-semibold">{c.conversions}</td>
+                    <td className="px-4 py-3 text-slate-500">${c.cpa}</td>
+                    <td className={`px-4 py-3 font-black text-base ${c.roas >= 2 ? 'text-emerald-600' : c.roas >= 1 ? 'text-amber-600' : 'text-red-500'}`}>{c.roas}x</td>
                   </tr>
                 ))}
               </tbody>
@@ -512,12 +812,20 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="font-bold text-slate-900 text-lg">All Campaigns</h2>
-        <div className="flex gap-3 text-xs text-slate-400">
-          <span className="text-emerald-600 font-semibold">{activeCampaigns} active</span>
-          {pausedCampaigns > 0 && <span>{pausedCampaigns} paused</span>}
-          {errorCampaigns > 0 && <span className="text-red-500 font-semibold">{errorCampaigns} error</span>}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-3 text-xs text-slate-400">
+            <span className="text-emerald-600 font-semibold">{activeCampaigns} active</span>
+            {pausedCampaigns > 0 && <span>{pausedCampaigns} paused</span>}
+            {errorCampaigns > 0 && <span className="text-red-500 font-semibold">{errorCampaigns} error</span>}
+          </div>
+          <ExportMenu items={[
+            { label: '⬇ Download CSV (Excel)', action: async () => { const r = await exportCampaignsCSV(); if (r) downloadCSV(r.content, 'vigmis-campaigns.csv'); } },
+            { label: '🖨 Export PDF Report', action: async () => { const r = await exportCampaignsHTML(); if (r) openPrintWindow(r.content); } },
+            { label: '🖨 Marketing Plan PDF', action: async () => { const r = await exportMarketingPlanHTML(); if (r) openPrintWindow(r.content); } },
+            { label: '🖨 Invoice PDF', action: async () => { const r = await exportInvoiceHTML(); if (r) openPrintWindow(r.content); } },
+          ]} />
         </div>
       </div>
       {campaigns.length === 0 ? (
@@ -1405,6 +1713,276 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   );
 }
 
+// ── Protocols Tab — Decision Protocols full UI ────────────────────────────────
+
+const PROTOCOL_TYPE_LABELS: Record<string, string> = {
+  strategy_approval: 'Strategy Approval',
+  budget_change: 'Budget Change',
+  campaign_pause: 'Campaign Pause',
+  campaign_resume: 'Campaign Resume',
+  campaign_scale: 'Scale Recommendation',
+  creative_refresh: 'Creative Refresh',
+  targeting_review: 'Targeting Review',
+  stagnation_alert: 'Performance Alert',
+  general_advice: 'Vigmis Advice',
+};
+
+const PROTOCOL_STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  in_discussion: 'bg-blue-100 text-blue-800',
+  approved: 'bg-emerald-100 text-emerald-800',
+  rejected: 'bg-slate-100 text-slate-500',
+  expired: 'bg-red-100 text-red-600',
+};
+
+function ProtocolsTab() {
+  const [protocols, setProtocols] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replying, setReplying] = useState(false);
+  const [actioning, setActioning] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const res = await getProtocols(statusFilter || undefined);
+    setProtocols(res?.protocols ?? []);
+    setLoading(false);
+  }
+
+  async function openProtocol(id: string) {
+    const res = await getProtocol(id);
+    setSelected(res);
+    setReplyText('');
+    setRejectReason('');
+    setShowRejectInput(false);
+    setMsg('');
+  }
+
+  async function handleReply() {
+    if (!replyText.trim() || !selected) return;
+    setReplying(true);
+    const res = await replyToProtocol(selected.id, replyText);
+    if (res) {
+      setSelected((prev: any) => ({ ...prev, conversation: res.conversation, status: 'in_discussion' }));
+      setProtocols(prev => prev.map(p => p.id === selected.id ? { ...p, status: 'in_discussion' } : p));
+      setReplyText('');
+    }
+    setReplying(false);
+  }
+
+  async function handleApprove() {
+    if (!selected) return;
+    setActioning(true);
+    const res = await approveProtocol(selected.id);
+    if (res?.success) {
+      setSelected((prev: any) => ({ ...prev, status: 'approved' }));
+      setProtocols(prev => prev.map(p => p.id === selected.id ? { ...p, status: 'approved' } : p));
+      setMsg('Approved. Action has been executed.');
+    }
+    setActioning(false);
+  }
+
+  async function handleReject() {
+    if (!selected) return;
+    setActioning(true);
+    const res = await rejectProtocol(selected.id, rejectReason || undefined);
+    if (res?.success) {
+      setSelected((prev: any) => ({ ...prev, status: 'rejected' }));
+      setProtocols(prev => prev.map(p => p.id === selected.id ? { ...p, status: 'rejected' } : p));
+      setShowRejectInput(false);
+      setMsg('Rejected.');
+    }
+    setActioning(false);
+  }
+
+  const pendingCount = protocols.filter(p => p.status === 'pending' || p.status === 'in_discussion').length;
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-bold text-slate-900 text-lg">Decision Protocols</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Every Vigmis recommendation, documented with full conversation and audit trail.</p>
+        </div>
+        {pendingCount > 0 && (
+          <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+            {pendingCount} pending decision{pendingCount > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex gap-2 flex-wrap">
+        {['', 'pending', 'in_discussion', 'approved', 'rejected'].map(s => (
+          <button
+            key={s}
+            onClick={() => { setStatusFilter(s); setTimeout(load, 0); }}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${statusFilter === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-500 hover:border-slate-400'}`}
+          >
+            {s === '' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-slate-400">Loading...</p>
+      ) : protocols.length === 0 ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center text-sm text-slate-400">
+          No protocols yet. Vigmis creates a protocol for every recommendation it makes.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Protocol list */}
+          <div className="md:col-span-1 space-y-2">
+            {protocols.map((p: any) => (
+              <button
+                key={p.id}
+                onClick={() => openProtocol(p.id)}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-colors ${selected?.id === p.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${PROTOCOL_STATUS_STYLES[p.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                    {p.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{p.title}</p>
+                <p className="text-xs text-slate-400 mt-1">{PROTOCOL_TYPE_LABELS[p.type] ?? p.type} · {new Date(p.created_at).toLocaleDateString()}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Protocol detail */}
+          <div className="md:col-span-2">
+            {!selected ? (
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-sm text-slate-400 text-center">
+                Select a protocol to view details
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${PROTOCOL_STATUS_STYLES[selected.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                      {selected.status.replace('_', ' ')}
+                    </span>
+                    <span className="text-xs text-slate-400">{PROTOCOL_TYPE_LABELS[selected.type] ?? selected.type}</span>
+                    {selected.platform && <span className="text-xs text-slate-400 capitalize">· {selected.platform}</span>}
+                  </div>
+                  <h3 className="font-bold text-slate-900">{selected.title}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Created {new Date(selected.created_at).toLocaleString()} · Expires {new Date(selected.expires_at).toLocaleDateString()}</p>
+                </div>
+
+                {/* Conversation thread */}
+                <div className="px-5 py-4 space-y-4 max-h-80 overflow-y-auto">
+                  {(selected.conversation ?? []).map((msg: any, i: number) => (
+                    <div key={i} className={`flex ${msg.role === 'client' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                        msg.role === 'client'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-800'
+                      }`}>
+                        <p className={`text-xs font-semibold mb-1 ${msg.role === 'client' ? 'text-indigo-200' : 'text-slate-500'}`}>
+                          {msg.role === 'vigmis' ? 'Vigmis' : 'You'}
+                        </p>
+                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <p className={`text-xs mt-1.5 ${msg.role === 'client' ? 'text-indigo-300' : 'text-slate-400'}`}>
+                          {new Date(msg.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                {(selected.status === 'pending' || selected.status === 'in_discussion') && (
+                  <div className="px-5 py-4 border-t border-slate-100 space-y-4">
+                    {/* Reply */}
+                    <div className="flex gap-2">
+                      <textarea
+                        value={replyText}
+                        onChange={e => setReplyText(e.target.value)}
+                        placeholder="Ask a question or share your thoughts..."
+                        rows={2}
+                        className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                      <button
+                        onClick={handleReply}
+                        disabled={replying || !replyText.trim()}
+                        className="bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
+                      >
+                        {replying ? '...' : 'Send'}
+                      </button>
+                    </div>
+
+                    {/* Formal approval */}
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-semibold text-emerald-800">Formal approval</p>
+                      <p className="text-sm text-emerald-900 italic">"{selected.approval_text}"</p>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={handleApprove}
+                          disabled={actioning}
+                          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors"
+                        >
+                          {actioning ? 'Processing...' : 'Approve & Execute'}
+                        </button>
+                        {!showRejectInput ? (
+                          <button
+                            onClick={() => setShowRejectInput(true)}
+                            className="border border-slate-200 text-slate-600 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                          >
+                            Reject
+                          </button>
+                        ) : (
+                          <div className="flex gap-2 w-full">
+                            <input
+                              type="text"
+                              value={rejectReason}
+                              onChange={e => setRejectReason(e.target.value)}
+                              placeholder="Reason (optional)"
+                              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                            />
+                            <button
+                              onClick={handleReject}
+                              disabled={actioning}
+                              className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
+                            >
+                              Confirm Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {msg && <p className={`text-sm font-medium ${msg.includes('Rejected') ? 'text-slate-500' : 'text-emerald-700'}`}>{msg}</p>}
+                  </div>
+                )}
+
+                {(selected.status === 'approved' || selected.status === 'rejected') && (
+                  <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+                    <p className="text-xs text-slate-500">
+                      {selected.status === 'approved' ? 'Approved' : 'Rejected'} on {selected.resolved_at ? new Date(selected.resolved_at).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ settings, connected }: any) {
@@ -1527,9 +2105,21 @@ function SettingsTab({ settings, connected }: any) {
   }
 
   const RISK_OPTIONS = [
-    { value: 'conservative', label: 'Manual (Conservative)', desc: 'All changes need your approval' },
-    { value: 'moderate',     label: 'Auto (Moderate)',       desc: 'AI applies safe changes automatically' },
-    { value: 'aggressive',   label: 'Auto (Aggressive)',     desc: 'AI maximizes performance aggressively' },
+    {
+      value: 'conservative',
+      label: 'Manual — I approve every change',
+      desc: 'Vigmis sends you a decision protocol for each change. Campaign runs unchanged until you approve. Recommended only if you check the dashboard daily.',
+    },
+    {
+      value: 'moderate',
+      label: 'Auto (Recommended)',
+      desc: 'Vigmis applies safe, data-driven optimizations automatically. Every action is documented and you can review the full log anytime.',
+    },
+    {
+      value: 'aggressive',
+      label: 'Auto (Aggressive)',
+      desc: 'Vigmis moves faster — larger budget swings, quicker scaling decisions. Higher upside potential with higher variance.',
+    },
   ] as const;
 
   const ACTION_LABELS: Record<string, string> = {
@@ -1559,7 +2149,10 @@ function SettingsTab({ settings, connected }: any) {
               <span className={`text-sm font-semibold text-slate-800 ${item.capitalize ? 'capitalize' : ''}`}>{item.value}</span>
             </div>
           ))}
-          <a href="/onboarding" className="block text-center text-sm text-indigo-600 hover:text-indigo-700 font-semibold pt-2">Edit Settings →</a>
+          <div className="pt-3 flex gap-2 border-t border-slate-100">
+            <a href="/onboarding" className="flex-1 text-center text-sm text-indigo-600 hover:text-indigo-700 font-semibold">Edit Settings →</a>
+            <a href="/onboarding?rethink=true" className="flex-1 text-center text-sm text-amber-600 hover:text-amber-700 font-semibold">Rethink Strategy →</a>
+          </div>
         </div>
       )}
 
@@ -1612,6 +2205,14 @@ function SettingsTab({ settings, connected }: any) {
                 <p className="text-xs text-slate-400 mt-0.5">{opt.desc}</p>
               </button>
             ))}
+          </div>
+        )}
+
+        {riskLevel === 'conservative' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1.5">
+            <p className="font-semibold text-sm">Important: manual mode has a cost</p>
+            <p>When Vigmis detects a needed change (e.g. a campaign is burning budget with low results), it will create a pending protocol and wait for your approval. <strong>Until you approve, the campaign continues at current settings.</strong></p>
+            <p>This works well if you log in daily. If you're less available, Auto mode gives better results — every action is still logged and you can see the full audit trail at any time.</p>
           </div>
         )}
 
@@ -1856,6 +2457,7 @@ function SettingsTab({ settings, connected }: any) {
           </div>
         )}
       </div>
+
     </div>
   );
 }
@@ -1905,5 +2507,490 @@ function PlatformBadge({ name, connected }: { name: string; connected: boolean }
     <span className={`text-xs px-2 py-1 rounded-full font-semibold ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
       {name} {connected ? '✓' : '–'}
     </span>
+  );
+}
+
+// ── Social Tab ─────────────────────────────────────────────────────────────────
+
+const SOCIAL_STATUS_STYLES: Record<string, string> = {
+  pending_approval: 'bg-amber-100 text-amber-700',
+  approved: 'bg-blue-100 text-blue-700',
+  published: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+  failed: 'bg-red-100 text-red-700',
+  draft: 'bg-slate-100 text-slate-500',
+};
+
+const PLATFORM_SOCIAL_BADGE: Record<string, string> = {
+  facebook: 'bg-blue-50 text-blue-700',
+  instagram: 'bg-pink-50 text-pink-700',
+  tiktok: 'bg-slate-100 text-slate-700',
+};
+
+const SENTIMENT_STYLE: Record<string, string> = {
+  positive: 'bg-emerald-100 text-emerald-700',
+  question: 'bg-blue-100 text-blue-700',
+  complaint: 'bg-red-100 text-red-700',
+  spam: 'bg-slate-100 text-slate-500',
+  other: 'bg-slate-100 text-slate-500',
+};
+
+function SocialTab() {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [settings, setSocialSettings] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [generatingPost, setGeneratingPost] = useState<string | null>(null);
+  const [rejectingPost, setRejectingPost] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [editPost, setEditPost] = useState<{ id: string; content: string } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [editReply, setEditReply] = useState<{ id: string; text: string } | null>(null);
+  const [sendingReply, setSendingReply] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<'posts' | 'comments' | 'connect'>('posts');
+  const [savingConnect, setSavingConnect] = useState(false);
+  const [pageIdInput, setPageIdInput] = useState('');
+  const [igUserIdInput, setIgUserIdInput] = useState('');
+
+  async function load() {
+    setLoading(true);
+    const [postsRes, settingsRes, analyticsRes, commentsRes] = await Promise.all([
+      getSocialPosts(filterStatus ? { status: filterStatus } : undefined),
+      getSocialSettings(),
+      getSocialAnalytics(),
+      getSocialComments({ status: 'pending_approval' }),
+    ]);
+    const s = settingsRes?.settings ?? null;
+    setPosts(postsRes?.posts ?? []);
+    setSocialSettings(s);
+    setAnalytics(analyticsRes ?? null);
+    setComments(commentsRes?.comments ?? []);
+    setPageIdInput(s?.facebook_page_id ?? '');
+    setIgUserIdInput(s?.instagram_user_id ?? '');
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [filterStatus]);
+
+  async function handleApprove(id: string) {
+    setGeneratingPost(id);
+    const editContent = editPost?.id === id ? editPost.content : undefined;
+    await approveSocialPost(id, editContent);
+    setEditPost(null);
+    await load();
+    setGeneratingPost(null);
+  }
+
+  async function handleReject(id: string) {
+    await rejectSocialPost(id, rejectReason);
+    setRejectingPost(null);
+    setRejectReason('');
+    await load();
+  }
+
+  async function handleGenerate() {
+    setGenerating(true);
+    await generateSocialContent();
+    await load();
+    setGenerating(false);
+  }
+
+  async function handleSendReply(commentId: string) {
+    const text = editReply?.id === commentId ? editReply.text : comments.find(c => c.id === commentId)?.ai_draft_reply;
+    if (!text?.trim()) return;
+    setSendingReply(commentId);
+    await sendSocialCommentReply(commentId, text.trim());
+    setEditReply(null);
+    const res = await getSocialComments({ status: 'pending_approval' });
+    setComments(res?.comments ?? []);
+    setSendingReply(null);
+  }
+
+  async function handleIgnore(commentId: string) {
+    await ignoreSocialComment(commentId);
+    setComments(prev => prev.filter(c => c.id !== commentId));
+  }
+
+  async function handleHide(commentId: string) {
+    await hideSocialComment(commentId);
+    setComments(prev => prev.filter(c => c.id !== commentId));
+  }
+
+  async function handleSaveConnect() {
+    setSavingConnect(true);
+    await updateSocialSettings({ facebook_page_id: pageIdInput.trim() || null, instagram_user_id: igUserIdInput.trim() || null });
+    await load();
+    setSavingConnect(false);
+  }
+
+  const pendingPosts = posts.filter(p => p.status === 'pending_approval');
+
+  if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (!settings) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+        <div className="w-14 h-14 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto">
+          <svg className="w-7 h-7 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Social Media not enabled</h2>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Social media management wasn't enabled during onboarding.<br />
+          Contact support or use "Rethink Strategy" to add it.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Social Media</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {settings.approval_mode === 'auto' ? 'Auto-publish mode' : settings.approval_mode === 'strict' ? 'Manual approval required' : '24h review window'} ·{' '}
+            {(settings.platforms as any[]).filter(p => p.enabled !== false).map((p: any) => p.platform).join(', ')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ExportMenu items={[
+            { label: '⬇ Download CSV (Excel)', action: async () => { const r = await exportSocialCSV(); if (r) downloadCSV(r.content, 'vigmis-social.csv'); } },
+            { label: '🖨 Export PDF Report', action: async () => { const r = await exportSocialHTML(); if (r) openPrintWindow(r.content); } },
+          ]} />
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            {generating ? (
+              <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />Generating...</>
+            ) : (
+              <>+ Generate this week's posts</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Section toggle */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveSection('posts')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'posts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Posts {pendingPosts.length > 0 && <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pendingPosts.length}</span>}
+        </button>
+        <button
+          onClick={() => setActiveSection('comments')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'comments' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Comments {comments.length > 0 && <span className="ml-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{comments.length}</span>}
+        </button>
+        <button
+          onClick={() => setActiveSection('connect')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'connect' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Connect {(!settings?.facebook_page_id && !settings?.instagram_user_id) && <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">!</span>}
+        </button>
+      </div>
+
+      {/* Posts section */}
+      {activeSection === 'posts' && (
+      <div className="space-y-6">
+
+      {/* Analytics summary */}
+      {analytics?.summary && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-slate-400 font-medium mb-1">Published</p>
+            <p className="text-2xl font-bold text-slate-900">{analytics.summary.totalPublished}</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-slate-400 font-medium mb-1">Total Reach</p>
+            <p className="text-2xl font-bold text-violet-600">{analytics.summary.totalReach.toLocaleString()}</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-slate-400 font-medium mb-1">Spend This Month</p>
+            <p className="text-2xl font-bold text-slate-900">${analytics.summary.totalSpendUsd.toFixed(2)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Approval queue */}
+      {pendingPosts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-amber-200">
+            <p className="text-sm font-bold text-amber-800">{pendingPosts.length} post{pendingPosts.length !== 1 ? 's' : ''} awaiting your approval</p>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {pendingPosts.map(post => (
+              <div key={post.id} className="px-5 py-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[post.platform] ?? ''}`}>{post.platform}</span>
+                    <span className="text-xs text-slate-400 capitalize">{post.pillar?.replace(/_/g, ' ')}</span>
+                    {post.scheduled_for && (
+                      <span className="text-xs text-slate-400">· {new Date(post.scheduled_for).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-amber-600 font-semibold flex-shrink-0">${post.cost_usd}</span>
+                </div>
+
+                {post.image_url && (
+                  <img src={post.image_url} alt="Post visual" className="w-full max-h-48 object-cover rounded-lg border border-amber-100" />
+                )}
+
+                {editPost?.id === post.id ? (
+                  <textarea
+                    value={editPost!.content}
+                    onChange={e => setEditPost({ id: post.id, content: e.target.value })}
+                    rows={4}
+                    className="w-full border border-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none bg-white"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{post.content}</p>
+                )}
+
+                {post.hashtags?.length > 0 && (
+                  <p className="text-xs text-slate-400">{(post.hashtags as string[]).map(t => `#${t}`).join(' ')}</p>
+                )}
+
+                {rejectingPost === post.id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      placeholder="Reason for rejection (optional)"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setRejectingPost(null); setRejectReason(''); }} className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
+                      <button onClick={() => handleReject(post.id)} className="flex-1 bg-red-500 text-white text-sm font-semibold py-2 rounded-xl hover:bg-red-600 transition-colors">Confirm Reject</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditPost(editPost?.id === post.id ? null : { id: post.id, content: post.content })}
+                      className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      {editPost?.id === post.id ? 'Cancel edit' : 'Edit'}
+                    </button>
+                    <button onClick={() => setRejectingPost(post.id)} className="border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">Reject</button>
+                    <button
+                      onClick={() => handleApprove(post.id)}
+                      disabled={generatingPost === post.id}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                    >
+                      {generatingPost === post.id ? 'Approving...' : editPost?.id === post.id ? 'Approve with edits' : 'Approve & Schedule'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Posts list */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-slate-700">All Posts</p>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+          >
+            <option value="">All statuses</option>
+            <option value="pending_approval">Pending approval</option>
+            <option value="approved">Approved</option>
+            <option value="published">Published</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        {posts.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-slate-400">
+            No posts yet. Click "Generate this week's posts" to create content.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {posts.map(post => {
+              const postAnalytics = analytics?.posts?.find((p: any) => p.id === post.id)?.analytics;
+              return (
+                <div key={post.id} className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${PLATFORM_SOCIAL_BADGE[post.platform] ?? ''}`}>{post.platform}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${SOCIAL_STATUS_STYLES[post.status] ?? 'bg-slate-100 text-slate-500'}`}>{post.status.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400 capitalize">{post.pillar?.replace(/_/g, ' ')}</span>
+                    </div>
+                    <span className="text-xs text-slate-400 flex-shrink-0">
+                      {post.scheduled_for
+                        ? new Date(post.scheduled_for).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : post.published_at
+                        ? `Published ${new Date(post.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : '—'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-2 leading-relaxed line-clamp-2">{post.client_edit || post.content}</p>
+                  {postAnalytics && (
+                    <div className="mt-2 flex gap-4">
+                      {[
+                        { label: 'Reach', value: postAnalytics.reach?.toLocaleString() },
+                        { label: 'Likes', value: postAnalytics.likes },
+                        { label: 'Comments', value: postAnalytics.comments },
+                        { label: 'Shares', value: postAnalytics.shares },
+                        { label: 'Eng. rate', value: postAnalytics.engagement_rate ? `${(postAnalytics.engagement_rate * 100).toFixed(1)}%` : null },
+                      ].filter(x => x.value !== null && x.value !== undefined).map(x => (
+                        <div key={x.label} className="text-center">
+                          <p className="text-xs font-bold text-slate-800">{x.value}</p>
+                          <p className="text-xs text-slate-400">{x.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      </div>)}
+
+      {/* Connect section — page ID setup */}
+      {activeSection === 'connect' && (
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5 max-w-lg">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Connect your pages</h3>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              To publish posts and read comments, Vigmis needs your Facebook Page ID and Instagram User ID.
+              Find your Page ID in Facebook → Page Settings → About. Find your IG User ID via the Meta Graph API or a third-party tool.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Facebook Page ID</label>
+              <input
+                value={pageIdInput}
+                onChange={e => setPageIdInput(e.target.value)}
+                placeholder="e.g. 123456789012345"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {settings?.facebook_page_id && (
+                <p className="text-xs text-emerald-600 mt-1 font-medium">Connected: {settings.facebook_page_id}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Instagram User ID</label>
+              <input
+                value={igUserIdInput}
+                onChange={e => setIgUserIdInput(e.target.value)}
+                placeholder="e.g. 17841400000000000"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {settings?.instagram_user_id && (
+                <p className="text-xs text-emerald-600 mt-1 font-medium">Connected: {settings.instagram_user_id}</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleSaveConnect}
+            disabled={savingConnect}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+          >
+            {savingConnect ? 'Saving...' : 'Save'}
+          </button>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            These IDs are used only to publish your approved posts and fetch comments. Vigmis never posts without your approval (unless you set Auto mode).
+          </p>
+        </div>
+      )}
+
+      {/* Comments section */}
+      {activeSection === 'comments' && (
+        <div className="space-y-4">
+          {comments.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-xl px-5 py-12 text-center text-sm text-slate-400 shadow-sm">
+              No comments pending review. Vigmis checks for new comments every 4 hours.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {comments.map(comment => (
+                <div key={comment.id} className={`bg-white border rounded-xl overflow-hidden shadow-sm ${comment.sentiment === 'complaint' ? 'border-red-200' : comment.sentiment === 'question' ? 'border-blue-200' : 'border-slate-200'}`}>
+                  <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[comment.platform] ?? ''}`}>{comment.platform}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${SENTIMENT_STYLE[comment.sentiment] ?? ''}`}>{comment.sentiment}</span>
+                      {comment.author_name && <span className="text-xs text-slate-400">{comment.author_name}</span>}
+                      {comment.sentiment === 'complaint' && (
+                        <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">URGENT</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-400 flex-shrink-0">
+                      {new Date(comment.commented_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="px-5 py-4 space-y-3">
+                    <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                      <p className="text-sm text-slate-700 leading-relaxed">"{comment.text}"</p>
+                    </div>
+                    {comment.ai_recommendation && (
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        <span className="font-semibold text-indigo-600">Vigmis: </span>
+                        {comment.ai_recommendation}
+                      </p>
+                    )}
+                    {comment.sentiment !== 'spam' && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-slate-500">Suggested reply</p>
+                        {editReply?.id === comment.id ? (
+                          <textarea
+                            value={editReply!.text}
+                            onChange={e => setEditReply({ id: comment.id, text: e.target.value })}
+                            rows={3}
+                            className="w-full border border-indigo-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                          />
+                        ) : (
+                          <p className="text-sm text-slate-700 bg-indigo-50 rounded-lg px-3 py-2.5 leading-relaxed">
+                            {comment.ai_draft_reply || <span className="text-slate-400 italic">No draft</span>}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      {comment.sentiment === 'spam' ? (
+                        <>
+                          <button onClick={() => handleHide(comment.id)} className="flex-1 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold py-2 rounded-xl transition-colors">Hide comment</button>
+                          <button onClick={() => handleIgnore(comment.id)} className="border border-slate-200 text-slate-500 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors">Ignore</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => setEditReply(editReply?.id === comment.id ? null : { id: comment.id, text: comment.ai_draft_reply ?? '' })} className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors">
+                            {editReply?.id === comment.id ? 'Cancel' : 'Edit reply'}
+                          </button>
+                          <button onClick={() => handleIgnore(comment.id)} className="border border-slate-200 text-slate-400 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors">No reply needed</button>
+                          <button
+                            onClick={() => handleSendReply(comment.id)}
+                            disabled={sendingReply === comment.id || (!comment.ai_draft_reply && editReply?.id !== comment.id)}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                          >
+                            {sendingReply === comment.id ? 'Sending...' : 'Send reply ($0.05)'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

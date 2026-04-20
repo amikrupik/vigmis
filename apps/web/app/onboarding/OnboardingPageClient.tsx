@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import ChatDrawer from '../dashboard/ChatDrawer';
-import type { OnboardingSettings, AnalysisResult } from './actions';
-import { runAnalysis, discussStrategy } from './actions';
+import type { OnboardingSettings, AnalysisResult, WebsiteCheck } from './actions';
+import { runAnalysis, discussStrategy, checkWebsite } from './actions';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-type Step = 'connect' | 'chat' | 'analysis' | 'strategy' | 'creative' | 'saving';
+type Step = 'connect' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'saving';
 type CreativeChoice = 'avatar' | 'cinematic' | 'animation' | 'upload' | 'skip' | null;
 
 const STEPS: { key: Step; label: string }[] = [
@@ -23,7 +23,7 @@ const STEPS: { key: Step; label: string }[] = [
 ];
 
 const STEP_INDEX: Record<Step, number> = {
-  connect: 0, chat: 1, analysis: 2, strategy: 3, creative: 4, saving: 5,
+  connect: 0, chat: 1, analysis: 2, website_check: 2, strategy: 3, creative: 4, saving: 5,
 };
 
 const ANALYSIS_STEPS = [
@@ -52,11 +52,13 @@ const PLATFORM_BAR: Record<string, string> = {
 interface Props {
   initialConnected?: string;
   initialError?: string;
+  rethinkMode?: boolean;
 }
 
-export default function OnboardingPageClient({ initialConnected, initialError }: Props) {
+export default function OnboardingPageClient({ initialConnected, initialError, rethinkMode }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('connect');
+  const [showRethinkWarning, setShowRethinkWarning] = useState(rethinkMode === true);
   const [connected, setConnected] = useState({
     google: initialConnected === 'google',
     meta: initialConnected === 'meta',
@@ -80,6 +82,11 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [hasParallelCampaigns, setHasParallelCampaigns] = useState(false);
+  const [socialEnabled, setSocialEnabled] = useState(false);
+  const [socialPlatforms, setSocialPlatforms] = useState<('facebook' | 'instagram' | 'tiktok')[]>(['facebook', 'instagram']);
+  const [socialApprovalMode, setSocialApprovalMode] = useState<'auto' | 'review' | 'strict'>('review');
+  const [websiteCheck, setWebsiteCheck] = useState<WebsiteCheck | null>(null);
+  const [websiteNotes, setWebsiteNotes] = useState('');
 
   async function handleConnect(platform: 'google' | 'meta') {
     try {
@@ -96,13 +103,29 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
     await runAnalysisFlow(settings);
   }
 
-  async function runAnalysisFlow(settings: OnboardingSettings, feedback?: string) {
+  async function runAnalysisFlow(settings: OnboardingSettings, feedback?: string, skipWebsiteCheck = false) {
     setStep('analysis');
     setAnalysisStep(0);
     try {
+      // Phase 1: Quick website understanding (skip on re-runs / feedback revisions)
+      if (!skipWebsiteCheck && settings.website_url && !feedback) {
+        const check = await checkWebsite(settings.website_url);
+        setWebsiteCheck(check);
+        // If unclear or inadequate — pause and show the check to the user
+        if (!check.adequate || check.unclear.length > 0) {
+          setStep('website_check');
+          return;
+        }
+        // If adequate with no questions — continue directly with notes from check
+      }
+
+      // Phase 2: Full strategy analysis
       const timer1 = setTimeout(() => setAnalysisStep(1), 1500);
       const timer2 = setTimeout(() => setAnalysisStep(2), 4000);
-      const result = await runAnalysis(settings, feedback);
+      const settingsWithNotes = websiteNotes.trim()
+        ? { ...settings, open_notes: [settings.open_notes, `Website clarification: ${websiteNotes.trim()}`].filter(Boolean).join('\n') }
+        : settings;
+      const result = await runAnalysis(settingsWithNotes, feedback);
       clearTimeout(timer1);
       clearTimeout(timer2);
       setAnalysisStep(3);
@@ -144,6 +167,12 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
           conversation: pendingConversation,
           strategy_plan: analysisResult.strategy,
           creative_choice: choice,
+          social_opt_in: socialEnabled ? {
+            enabled: true,
+            platforms: socialPlatforms,
+            approval_mode: socialApprovalMode,
+            content_pillars: analysisResult.strategy.social_plan?.content_pillars,
+          } : undefined,
         }),
       });
       if (!res.ok) throw new Error('Failed to save settings');
@@ -187,6 +216,40 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
       </div>
     </header>
   );
+
+  // ── Rethink Strategy warning modal ───────────────────────────────────────────
+  if (showRethinkWarning) {
+    return (
+      <div className="flex flex-col flex-1">
+        {header}
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-white border border-amber-200 rounded-2xl p-8 shadow-lg space-y-5">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <div>
+                <h2 className="font-bold text-slate-900 text-lg">Rethink your strategy</h2>
+                <p className="text-slate-500 text-sm mt-1">This will restart the strategy interview from scratch. Your campaigns will keep running at their current settings — Vigmis won't touch them until you complete and approve a new plan.</p>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+              <p className="font-semibold">Before you continue:</p>
+              <p>· Your current strategy and approval will be replaced</p>
+              <p>· Active campaigns are NOT paused automatically</p>
+              <p>· You'll need to re-approve the new plan before Vigmis applies changes</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowRethinkWarning(false)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2.5 rounded-xl transition-colors text-sm">
+                Yes, rethink my strategy
+              </button>
+              <button onClick={() => router.push('/dashboard')} className="flex-1 border border-slate-200 text-slate-600 font-semibold px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Connect ───────────────────────────────────────────────────────────────────
   if (step === 'connect') {
@@ -326,6 +389,109 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
                 className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Skip — I'll connect later
+              </button>
+            </div>
+          </div>
+        </div>
+        <ChatDrawer />
+      </div>
+    );
+  }
+
+  // ── Website check ─────────────────────────────────────────────────────────────
+  if (step === 'website_check' && websiteCheck && pendingSettings) {
+    return (
+      <div className="flex flex-col flex-1">
+        {header}
+        <div className="flex-1 overflow-y-auto p-6 py-10">
+          <div className="max-w-xl mx-auto space-y-5">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
+                Website Review
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Let's make sure we understand your business</h2>
+              <p className="text-slate-500 text-sm mt-1">Vigmis scanned your website. Here's what we understood — please confirm or add details.</p>
+            </div>
+
+            {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
+
+            {/* What we understood */}
+            <div className={`border rounded-xl p-5 space-y-3 ${websiteCheck.adequate ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                {websiteCheck.adequate ? 'What Vigmis understood from your website' : 'Website information is incomplete'}
+              </p>
+              {websiteCheck.summary && (
+                <p className="text-sm text-slate-800 leading-relaxed">{websiteCheck.summary}</p>
+              )}
+              {!websiteCheck.adequate && !websiteCheck.summary && (
+                <p className="text-sm text-amber-700">We couldn't extract enough information from your website to build a confident strategy.</p>
+              )}
+              {websiteCheck.what_they_sell && (
+                <div className="grid grid-cols-2 gap-2">
+                  {websiteCheck.hero_product && (
+                    <div className="bg-white rounded-lg p-3 border border-white/60">
+                      <p className="text-xs text-slate-400 mb-0.5">Main product / service</p>
+                      <p className="text-sm font-semibold text-slate-800">{websiteCheck.hero_product}</p>
+                    </div>
+                  )}
+                  {websiteCheck.target_audience && (
+                    <div className="bg-white rounded-lg p-3 border border-white/60">
+                      <p className="text-xs text-slate-400 mb-0.5">Target audience</p>
+                      <p className="text-sm font-semibold text-slate-800">{websiteCheck.target_audience}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Questions from Vigmis */}
+            {websiteCheck.unclear.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 shadow-sm">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Vigmis needs a few clarifications</p>
+                <ul className="space-y-1.5">
+                  {websiteCheck.unclear.map((q, i) => (
+                    <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+                      <span className="text-amber-500 font-bold flex-shrink-0 mt-0.5">?</span>
+                      {q}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Client's answer / notes */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">
+                {websiteCheck.unclear.length > 0
+                  ? 'Your answers / clarifications'
+                  : 'Anything to add or correct? (optional)'}
+              </label>
+              <textarea
+                value={websiteNotes}
+                onChange={e => setWebsiteNotes(e.target.value)}
+                placeholder={websiteCheck.unclear.length > 0
+                  ? 'Answer the questions above — this helps Vigmis build a better strategy...'
+                  : 'e.g. Our hero product is the Premium plan. We target small business owners, not individuals...'}
+                rows={4}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setStep('chat'); setWebsiteCheck(null); setWebsiteNotes(''); }}
+                className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Back to chat
+              </button>
+              <button
+                onClick={() => runAnalysisFlow(pendingSettings, undefined, true)}
+                disabled={websiteCheck.unclear.length > 0 && !websiteNotes.trim()}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                {websiteCheck.unclear.length > 0 && !websiteNotes.trim()
+                  ? 'Please answer above to continue'
+                  : 'Build my strategy →'}
               </button>
             </div>
           </div>
@@ -538,6 +704,91 @@ export default function OnboardingPageClient({ initialConnected, initialError }:
                 <p className="text-xs text-slate-400 mt-3">Organic channels reduce ad dependency over time and improve campaign quality scores.</p>
               </div>
             )}
+
+            {/* Social Media Management opt-in */}
+            {(() => {
+              const sp = strategy.social_plan;
+              if (!sp) return null;
+              const allPlatforms: ('facebook' | 'instagram' | 'tiktok')[] = ['facebook', 'instagram', 'tiktok'];
+              const platformCost: Record<string, number> = { facebook: 1, instagram: 1, tiktok: 3 };
+              const estimatedCost = socialEnabled
+                ? socialPlatforms.reduce((s, p) => s + (platformCost[p] ?? 1) * 4, 0)
+                : 0;
+              return (
+                <div className={`border-2 rounded-xl overflow-hidden transition-all ${socialEnabled ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                  <div className="px-5 py-4 flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-slate-900">Social Media Management</p>
+                        {sp.recommended && (
+                          <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">AI Recommended</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{sp.rationale}</p>
+                      {sp.synergy_with_ads && (
+                        <p className="text-xs text-violet-600 mt-1 leading-relaxed">{sp.synergy_with_ads}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSocialEnabled(v => !v)}
+                      className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${socialEnabled ? 'bg-violet-600' : 'bg-slate-200'}`}
+                      aria-label="Toggle social media management"
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${socialEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  {socialEnabled && (
+                    <div className="border-t border-violet-200 px-5 py-4 space-y-4">
+                      <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select platforms</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {allPlatforms.map(p => {
+                            const on = socialPlatforms.includes(p);
+                            return (
+                              <button
+                                key={p}
+                                onClick={() => setSocialPlatforms(prev =>
+                                  on ? prev.filter(x => x !== p) : [...prev, p]
+                                )}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all capitalize ${on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                              >
+                                {p} {on ? `· $${platformCost[p]}/post` : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approval mode</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            { value: 'auto', label: 'Auto', desc: 'Posts go live automatically' },
+                            { value: 'review', label: 'Review', desc: '24h window to approve' },
+                            { value: 'strict', label: 'Strict', desc: 'Manual approval required' },
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setSocialApprovalMode(opt.value)}
+                              className={`border rounded-xl px-3 py-2.5 text-left transition-all ${socialApprovalMode === opt.value ? 'border-violet-500 bg-violet-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                            >
+                              <p className={`text-xs font-bold ${socialApprovalMode === opt.value ? 'text-violet-700' : 'text-slate-700'}`}>{opt.label}</p>
+                              <p className="text-xs text-slate-400 mt-0.5 leading-snug">{opt.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-violet-100 rounded-xl p-3 flex items-center justify-between">
+                        <p className="text-xs text-slate-500">Estimated cost — 1 post/week per platform</p>
+                        <p className="text-sm font-bold text-violet-700">~${estimatedCost}/mo</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Feedback / discussion / CTA */}
             {showFeedback ? (

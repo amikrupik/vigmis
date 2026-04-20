@@ -1,48 +1,28 @@
-// Billing routes
+// Billing routes — powered by Paddle Billing (2023 API)
 //
 // GET  /billing/status        — current plan + fee estimate
-// POST /billing/checkout      — start Stripe Checkout (upgrade to Pro)
-// POST /billing/portal        — Stripe Customer Portal (manage subscription)
-// POST /billing/webhook       — Stripe webhook events
+// POST /billing/checkout      — create Paddle checkout → return hosted URL
+// POST /billing/portal        — Paddle customer portal → return URL
+// POST /billing/webhook       — Paddle webhook events
 // POST /billing/invoice       — generate monthly invoice (cron)
+// GET  /billing/invoices      — invoice history
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
-import { getStripe } from '../billing/stripe.js';
+import {
+  getOrCreatePaddleCustomer,
+  createPaddleCheckout,
+  createPaddlePortalSession,
+  verifyPaddleWebhook,
+} from '../billing/paddle.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
-async function getOrCreateStripeCustomer(tenantId: string, clerkUserId: string): Promise<string> {
-  const stripe = getStripe();
-
-  // Check if already exists
-  const { data: existing } = await db
-    .from('billing_customers')
-    .select('stripe_customer_id')
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
-
-  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
-
-  // Create in Stripe
-  const customer = await stripe.customers.create({
-    metadata: { tenantId, clerkUserId },
-  });
-
-  // Upsert billing_customers row
-  await db.from('billing_customers').upsert(
-    { tenant_id: tenantId, stripe_customer_id: customer.id, plan: 'free', updated_at: new Date().toISOString() },
-    { onConflict: 'tenant_id' },
-  );
-
-  return customer.id;
-}
-
 export async function billingRoutes(app: FastifyInstance) {
 
-  // ── Status ────────────────────────────────────────────────────────────────
+  // ── Status ─────────────────────────────────────────────────────────────────
   app.get('/billing/status', { preHandler: authenticate }, async (request, reply) => {
     const period = currentMonth();
     const fee = await calculateFee(request.tenantId, period);
@@ -64,78 +44,70 @@ export async function billingRoutes(app: FastifyInstance) {
     });
   });
 
-  // ── Checkout (upgrade to Pro) ─────────────────────────────────────────────
+  // ── Checkout (upgrade to Pro) ──────────────────────────────────────────────
   app.post('/billing/checkout', { preHandler: authenticate }, async (request, reply) => {
-    const stripe = getStripe();
-    const customerId = await getOrCreateStripeCustomer(request.tenantId, request.clerkUserId);
+    // Fetch tenant email from Clerk user record
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('email')
+      .eq('id', request.tenantId)
+      .single();
 
-    // Create or retrieve Pro price ($15/month)
-    let priceId = process.env.STRIPE_PRO_PRICE_ID;
+    const email = tenant?.email ?? `tenant+${request.tenantId}@vigmis.com`;
+    const customerId = await getOrCreatePaddleCustomer(request.tenantId, email);
+    const checkoutUrl = await createPaddleCheckout(
+      customerId,
+      request.tenantId,
+      `${WEB_URL}/billing?success=true`,
+    );
 
-    if (!priceId) {
-      // Create the product/price on the fly (first time setup)
-      const product = await stripe.products.create({ name: 'Vigmis Pro' });
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: 1500, // $15.00
-        currency: 'usd',
-        recurring: { interval: 'month' },
-      });
-      priceId = price.id;
-      // In production: save this to env or DB so it's reused
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${WEB_URL}/billing?success=true`,
-      cancel_url: `${WEB_URL}/billing?canceled=true`,
-      metadata: { tenantId: request.tenantId },
-    });
-
-    return reply.send({ url: session.url });
+    return reply.send({ url: checkoutUrl });
   });
 
-  // ── Customer Portal (manage/cancel subscription) ──────────────────────────
+  // ── Customer Portal (manage / cancel subscription) ─────────────────────────
   app.post('/billing/portal', { preHandler: authenticate }, async (request, reply) => {
-    const stripe = getStripe();
-    const customerId = await getOrCreateStripeCustomer(request.tenantId, request.clerkUserId);
+    const { data: billing } = await db
+      .from('billing_customers')
+      .select('paddle_customer_id')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${WEB_URL}/billing`,
-    });
-
-    return reply.send({ url: session.url });
-  });
-
-  // ── Stripe Webhook ────────────────────────────────────────────────────────
-  app.post('/billing/webhook', async (request, reply) => {
-    const stripe = getStripe();
-    const sig = request.headers['stripe-signature'] as string;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    let event;
-    try {
-      const rawBody = ((request as any).rawBody ?? JSON.stringify(request.body)) as string | Buffer;
-      event = webhookSecret
-        ? stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
-        : request.body as any;
-    } catch {
-      return reply.code(400).send({ error: 'Webhook signature invalid' });
+    const customerId = (billing as any)?.paddle_customer_id;
+    if (!customerId) {
+      // Not yet a Paddle customer — send to billing page
+      return reply.send({ url: `${WEB_URL}/billing` });
     }
 
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as any;
-        const tenantId = session.metadata?.tenantId;
-        if (tenantId && session.subscription) {
+    const portalUrl = await createPaddlePortalSession(customerId);
+    return reply.send({ url: portalUrl });
+  });
+
+  // ── Paddle Webhook ─────────────────────────────────────────────────────────
+  app.post('/billing/webhook', async (request, reply) => {
+    const signature = request.headers['paddle-signature'] as string | null;
+    const rawBody = ((request as any).rawBody ?? JSON.stringify(request.body)) as string;
+
+    const valid = await verifyPaddleWebhook(rawBody, signature);
+    if (!valid) return reply.code(400).send({ error: 'Invalid webhook signature' });
+
+    const event = request.body as any;
+    const eventType = event.event_type as string;
+    const data = event.data as any;
+
+    switch (eventType) {
+      case 'transaction.completed': {
+        // New subscription payment succeeded
+        const tenantId = data.custom_data?.tenantId;
+        const subscriptionId = data.subscription_id;
+        const customerId = data.customer_id;
+
+        if (tenantId && subscriptionId) {
           await db.from('billing_customers').upsert(
             {
               tenant_id: tenantId,
+              paddle_customer_id: customerId,
               plan: 'pro',
-              subscription_id: session.subscription,
+              subscription_id: subscriptionId,
               subscription_status: 'active',
               updated_at: new Date().toISOString(),
             },
@@ -145,23 +117,50 @@ export async function billingRoutes(app: FastifyInstance) {
         break;
       }
 
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object as any;
+      case 'subscription.activated': {
+        const tenantId = data.custom_data?.tenantId;
+        if (tenantId) {
+          await db.from('billing_customers').upsert(
+            {
+              tenant_id: tenantId,
+              paddle_customer_id: data.customer_id,
+              plan: 'pro',
+              subscription_id: data.id,
+              subscription_status: 'active',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'tenant_id' },
+          );
+        }
+        break;
+      }
+
+      case 'subscription.canceled': {
         const { data: billing } = await db
           .from('billing_customers')
           .select('tenant_id')
-          .eq('subscription_id', sub.id)
+          .eq('subscription_id', data.id)
           .maybeSingle();
 
         if (billing) {
-          const plan = sub.status === 'active' ? 'pro' : 'free';
           await db.from('billing_customers')
-            .update({
-              plan,
-              subscription_status: sub.status,
-              updated_at: new Date().toISOString(),
-            })
+            .update({ plan: 'free', subscription_status: 'canceled', updated_at: new Date().toISOString() })
+            .eq('tenant_id', billing.tenant_id);
+        }
+        break;
+      }
+
+      case 'subscription.updated': {
+        const { data: billing } = await db
+          .from('billing_customers')
+          .select('tenant_id')
+          .eq('subscription_id', data.id)
+          .maybeSingle();
+
+        if (billing) {
+          const plan = data.status === 'active' ? 'pro' : 'free';
+          await db.from('billing_customers')
+            .update({ plan, subscription_status: data.status, updated_at: new Date().toISOString() })
             .eq('tenant_id', billing.tenant_id);
         }
         break;
@@ -171,7 +170,7 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send({ received: true });
   });
 
-  // ── List invoices ────────────────────────────────────────────────────────────
+  // ── Invoice list ───────────────────────────────────────────────────────────
   app.get('/billing/invoices', { preHandler: authenticate }, async (request, reply) => {
     const { data: invoices } = await db
       .from('billing_invoices')
@@ -183,7 +182,7 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send({ invoices: invoices ?? [] });
   });
 
-  // ── Generate monthly invoice (cron) ──────────────────────────────────────
+  // ── Generate monthly invoice (cron) ────────────────────────────────────────
   app.post('/billing/invoice', async (request, reply) => {
     const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
     if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
