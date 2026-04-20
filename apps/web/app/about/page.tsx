@@ -53,7 +53,7 @@ export default function AboutPage() {
           <h3 className="text-xl font-bold text-slate-900 mb-2">Start with a free marketing analysis</h3>
           <p className="text-slate-500 text-sm mb-6">AI strategy, competitor research & campaign plan — free. Then 7% only when campaigns are live.</p>
           <Link href="/sign-up" className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl transition-colors">
-            Get your free analysis →
+            Get Started →
           </Link>
         </div>
       </main>

@@ -38,7 +38,7 @@ export default async function Home() {
           <Link href="/contact" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">Contact</Link>
           <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-            Free analysis →
+            Get Started →
           </Link>
         </div>
       </nav>
@@ -57,7 +57,7 @@ export default async function Home() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-10">
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
-            Get your free marketing analysis →
+            Get your free analysis →
           </Link>
           <Link href="/sign-in" className="border border-slate-200 text-slate-700 hover:border-slate-300 font-semibold px-8 py-4 rounded-2xl text-base transition-colors">
             Sign in
@@ -117,7 +117,7 @@ export default async function Home() {
                 ))}
               </ul>
               <Link href="/sign-up" className="block w-full border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold py-3 rounded-xl transition-colors text-center text-sm">
-                Get your free analysis →
+                Get Started →
               </Link>
             </div>
 
@@ -141,7 +141,7 @@ export default async function Home() {
                 ))}
               </ul>
               <Link href="/sign-up" className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors text-center text-sm">
-                Get your free analysis →
+                Get Started →
               </Link>
             </div>
           </div>
