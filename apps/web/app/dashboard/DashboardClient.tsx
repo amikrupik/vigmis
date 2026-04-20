@@ -1414,6 +1414,13 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
       </div>
 
       {/* Territory */}
+      {subTab === 'territory' && !territory && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center space-y-2">
+          <svg className="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" /></svg>
+          <p className="text-sm font-semibold text-slate-700">Territory data loading…</p>
+          <p className="text-xs text-slate-400">We detect your market from your campaign settings.</p>
+        </div>
+      )}
       {subTab === 'territory' && territory && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
@@ -1464,6 +1471,12 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               {audiencesLoading ? 'Discovering...' : 'Discover Audiences'}
             </button>
           </div>
+          {audiences.length === 0 && !audiencesLoading && (
+            <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
+              <p className="text-sm font-semibold text-slate-600">No audiences discovered yet</p>
+              <p className="text-xs text-slate-400">Click "Discover Audiences" to find profitable segments for your campaigns.</p>
+            </div>
+          )}
           {audiences.length > 0 && (
             <div className="grid md:grid-cols-2 gap-3">
               {audiences.map((a: any) => (
@@ -1571,6 +1584,12 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
             </button>
           </div>
 
+          {abTests.length === 0 && (
+            <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
+              <p className="text-sm font-semibold text-slate-600">No A/B tests running</p>
+              <p className="text-xs text-slate-400">Create your first test above — Vigmis will monitor CTR and declare a winner automatically.</p>
+            </div>
+          )}
           {abTests.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-slate-100"><p className="font-bold text-slate-900 text-sm">Active Tests</p></div>
@@ -2102,6 +2121,10 @@ function SettingsTab({ settings, connected }: any) {
   }
 
   async function handleTestAlert() {
+    if (!emailEnabled && !whatsappEnabled) {
+      setAlertMsg('Enable at least one channel before sending a test.');
+      return;
+    }
     setTestSending(true);
     setAlertMsg('');
     try {
@@ -2391,15 +2414,17 @@ function SettingsTab({ settings, connected }: any) {
                 placeholder="+972501234567"
                 value={alertWhatsApp}
                 onChange={e => setAlertWhatsApp(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-indigo-400'}`}
               />
-              <p className="text-xs text-slate-400">Include country code (e.g. +972 for Israel)</p>
+              <p className={`text-xs ${alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'text-red-500' : 'text-slate-400'}`}>
+                {alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'Must start with + and country code (e.g. +972501234567)' : 'Include country code (e.g. +972 for Israel)'}
+              </p>
             </div>
 
             <div className="flex gap-3 pt-1">
               <button
                 onClick={handleSaveAlerts}
-                disabled={alertSaving}
+                disabled={alertSaving || (whatsappEnabled && !!alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp))}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
               >
                 {alertSaving ? 'Saving...' : 'Save Settings'}

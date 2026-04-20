@@ -218,6 +218,15 @@ export default function BillingClient() {
         )}
 
         {/* Invoice History */}
+        {invoices.length === 0 && !loading && (
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Invoice History</h2>
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm space-y-1">
+              <p className="text-sm font-semibold text-slate-600">No invoices yet</p>
+              <p className="text-xs text-slate-400">Your first invoice will appear here at the end of the month.</p>
+            </div>
+          </div>
+        )}
         {invoices.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Invoice History</h2>
