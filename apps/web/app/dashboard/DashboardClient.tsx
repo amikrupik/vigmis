@@ -58,7 +58,10 @@ type DashboardData = {
 
 const STATUS_STYLES: Record<string, string> = {
   active: 'bg-emerald-100 text-emerald-700', paused: 'bg-amber-100 text-amber-700',
-  pending: 'bg-slate-100 text-slate-500', error: 'bg-red-100 text-red-700',
+  pending: 'bg-blue-100 text-blue-700', error: 'bg-red-100 text-red-700',
+};
+const STATUS_LABELS: Record<string, string> = {
+  active: 'active', paused: 'paused', pending: 'activating…', error: 'error',
 };
 const PLATFORM_BADGE: Record<string, string> = {
   google: 'text-blue-600 bg-blue-50', meta: 'text-violet-600 bg-violet-50', tiktok: 'text-slate-700 bg-slate-100',
@@ -134,9 +137,10 @@ export default function DashboardClient() {
   if (!data) return null;
 
   const { campaigns, connected, settings } = data;
-  const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
-  const pausedCampaigns = campaigns.filter(c => c.status === 'paused').length;
-  const errorCampaigns  = campaigns.filter(c => c.status === 'error').length;
+  const activeCampaigns  = campaigns.filter(c => c.status === 'active').length;
+  const pausedCampaigns  = campaigns.filter(c => c.status === 'paused').length;
+  const errorCampaigns   = campaigns.filter(c => c.status === 'error').length;
+  const pendingCampaigns = campaigns.filter(c => c.status === 'pending').length;
   const totalDailyBudget = campaigns.filter(c => c.status === 'active').reduce((s, c) => s + c.daily_budget_usd, 0);
   const managedBudget = settings ? Math.round((settings.budget_monthly_ils / 3.7) * ((settings.management_percentage ?? 100) / 100)) : 0;
   const feeEstimate = Math.round(managedBudget * 0.07);
@@ -211,6 +215,7 @@ export default function DashboardClient() {
           <OverviewTab
             campaigns={campaigns} settings={settings}
             activeCampaigns={activeCampaigns} pausedCampaigns={pausedCampaigns}
+            pendingCampaigns={pendingCampaigns}
             errorCampaigns={errorCampaigns} totalDailyBudget={totalDailyBudget}
             managedBudget={managedBudget} feeEstimate={feeEstimate}
             onViewAll={() => setTab('campaigns')}
@@ -381,7 +386,7 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
+function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
 
@@ -462,6 +467,14 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, er
               setAlerts(prev => prev.map((a: any) => a.id === alert.id ? { ...a, dismissed: true } : a));
             }} />
           ))}
+        </div>
+      )}
+
+      {/* Pending campaigns banner */}
+      {pendingCampaigns > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+          <div className="w-4 h-4 border-2 border-blue-400 border-t-blue-600 rounded-full animate-spin flex-shrink-0" />
+          <span className="text-blue-800 font-medium">{pendingCampaigns} campaign{pendingCampaigns > 1 ? 's' : ''} activating on the ad platform — this usually takes a few minutes.</span>
         </div>
       )}
 
@@ -591,15 +604,18 @@ function AnalyticsTab() {
     return 0;
   });
 
+  const safeRoas = isFinite(summary.roas) && summary.roas >= 0 ? summary.roas : null;
+  const safeCpa = isFinite(summary.cpa) && summary.cpa > 0 ? summary.cpa : null;
+  const safeCtr = isFinite(summary.ctr) ? summary.ctr : 0;
   const kpis = [
-    { label: 'Total Spend', val: `$${summary.spend.toFixed(0)}`, chg: changes?.spend },
-    { label: 'Conv. Value', val: `$${summary.convValue.toFixed(0)}`, chg: changes?.convValue },
-    { label: 'Conversions', val: String(summary.conversions), chg: changes?.conversions },
-    { label: 'ROAS', val: `${summary.roas.toFixed(1)}x`, chg: changes?.roas, good: summary.roas >= 2 },
-    { label: 'CPA', val: `$${summary.cpa.toFixed(0)}`, chg: changes?.cpa, inv: true },
-    { label: 'CTR', val: `${summary.ctr.toFixed(2)}%`, chg: changes?.ctr, good: summary.ctr >= 1.5 },
-    { label: 'Clicks', val: summary.clicks.toLocaleString(), chg: changes?.clicks },
-    { label: 'Impressions', val: `${(summary.impressions / 1000).toFixed(1)}k`, chg: changes?.impressions },
+    { label: 'Total Spend', val: `$${(summary.spend ?? 0).toFixed(0)}`, chg: changes?.spend },
+    { label: 'Conv. Value', val: `$${(summary.convValue ?? 0).toFixed(0)}`, chg: changes?.convValue },
+    { label: 'Conversions', val: String(summary.conversions ?? 0), chg: changes?.conversions },
+    { label: 'ROAS', val: safeRoas !== null ? `${safeRoas.toFixed(1)}x` : '—', chg: changes?.roas, good: safeRoas !== null && safeRoas >= 2 },
+    { label: 'CPA', val: safeCpa !== null ? `$${safeCpa.toFixed(0)}` : '—', chg: changes?.cpa, inv: true },
+    { label: 'CTR', val: `${safeCtr.toFixed(2)}%`, chg: changes?.ctr, good: safeCtr >= 1.5 },
+    { label: 'Clicks', val: (summary.clicks ?? 0).toLocaleString(), chg: changes?.clicks },
+    { label: 'Impressions', val: `${((summary.impressions ?? 0) / 1000).toFixed(1)}k`, chg: changes?.impressions },
   ];
 
   return (
@@ -802,8 +818,8 @@ function AnalyticsTab() {
                     <td className="px-4 py-3 text-slate-500">{(c.impressions / 1000).toFixed(1)}k</td>
                     <td className="px-4 py-3 text-slate-500">{c.ctr}%</td>
                     <td className="px-4 py-3 text-slate-700 font-semibold">{c.conversions}</td>
-                    <td className="px-4 py-3 text-slate-500">${c.cpa}</td>
-                    <td className={`px-4 py-3 font-black text-base ${c.roas >= 2 ? 'text-emerald-600' : c.roas >= 1 ? 'text-amber-600' : 'text-red-500'}`}>{c.roas}x</td>
+                    <td className="px-4 py-3 text-slate-500">{c.cpa > 0 && isFinite(c.cpa) ? `$${c.cpa}` : '—'}</td>
+                    <td className={`px-4 py-3 font-black text-base ${!isFinite(c.roas) || c.roas < 0 ? 'text-slate-400' : c.roas >= 2 ? 'text-emerald-600' : c.roas >= 1 ? 'text-amber-600' : 'text-red-500'}`}>{isFinite(c.roas) && c.roas >= 0 ? `${c.roas}x` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -821,10 +837,20 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [budgetInput, setBudgetInput] = useState('');
   const [budgetSaving, setBudgetSaving] = useState(false);
+  const [budgetConfirm, setBudgetConfirm] = useState<{ id: string; oldVal: number; newVal: number } | null>(null);
 
-  async function handleBudgetSave(id: string) {
+  function requestBudgetSave(id: string, oldVal: number) {
     const val = parseFloat(budgetInput);
     if (isNaN(val) || val < 1) return;
+    if (Math.abs(val - oldVal) / oldVal > 0.25 || val >= 500) {
+      setBudgetConfirm({ id, oldVal, newVal: val });
+    } else {
+      confirmBudgetSave(id, val);
+    }
+  }
+
+  async function confirmBudgetSave(id: string, val: number) {
+    setBudgetConfirm(null);
     setBudgetSaving(true);
     try {
       await updateCampaignBudget(id, val);
@@ -839,12 +865,27 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
 
   return (
     <div className="space-y-4">
+      {/* Budget change confirmation modal */}
+      {budgetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4 space-y-4">
+            <h3 className="font-bold text-slate-900">Confirm budget change</h3>
+            <p className="text-sm text-slate-600">Daily budget: <span className="line-through text-slate-400">${budgetConfirm.oldVal}</span> → <strong className={budgetConfirm.newVal > budgetConfirm.oldVal ? 'text-emerald-600' : 'text-amber-600'}>${budgetConfirm.newVal}/day</strong></p>
+            <p className="text-xs text-slate-400">This will take effect immediately on your ad platform.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setBudgetConfirm(null)} className="flex-1 border border-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancel</button>
+              <button onClick={() => confirmBudgetSave(budgetConfirm.id, budgetConfirm.newVal)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="font-bold text-slate-900 text-lg">All Campaigns</h2>
         <div className="flex items-center gap-3">
           <div className="flex gap-3 text-xs text-slate-400">
             <span className="text-emerald-600 font-semibold">{activeCampaigns} active</span>
             {pausedCampaigns > 0 && <span>{pausedCampaigns} paused</span>}
+            {campaigns.filter((c: any) => c.status === 'pending').length > 0 && <span className="text-blue-600 font-semibold">{campaigns.filter((c: any) => c.status === 'pending').length} activating</span>}
             {errorCampaigns > 0 && <span className="text-red-500 font-semibold">{errorCampaigns} error</span>}
           </div>
           <ExportMenu items={[
@@ -882,14 +923,14 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                           type="number"
                           value={budgetInput}
                           onChange={e => setBudgetInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleBudgetSave(c.id); if (e.key === 'Escape') setEditingBudget(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter') requestBudgetSave(c.id, c.daily_budget_usd); if (e.key === 'Escape') setEditingBudget(null); }}
                           className="w-20 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                           min={1}
                           step={1}
                           autoFocus
                         />
                         <span className="text-xs text-slate-400">/day</span>
-                        <button onClick={() => handleBudgetSave(c.id)} disabled={budgetSaving} className="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded font-medium disabled:opacity-50">
+                        <button onClick={() => requestBudgetSave(c.id, c.daily_budget_usd)} disabled={budgetSaving} className="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded font-medium disabled:opacity-50">
                           {budgetSaving ? '...' : 'Save'}
                         </button>
                         <button onClick={() => setEditingBudget(null)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
@@ -911,9 +952,9 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_STYLES[c.status]}`}>{c.status}</span>
-                  {c.status === 'active' && <button onClick={() => onAction(c.id, 'pause')} disabled={isPending} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Pause</button>}
-                  {c.status === 'paused' && <button onClick={() => onAction(c.id, 'resume')} disabled={isPending} className="text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Resume</button>}
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_STYLES[c.status] ?? 'bg-slate-100 text-slate-500'}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
+                  {c.status === 'active' && <button onClick={() => onAction(c.id, 'pause')} disabled={isPending} aria-label={`Pause ${c.name}`} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Pause</button>}
+                  {c.status === 'paused' && <button onClick={() => onAction(c.id, 'resume')} disabled={isPending} aria-label={`Resume ${c.name}`} className="text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Resume</button>}
                 </div>
               </div>
             ))}
@@ -1309,6 +1350,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   const [budgetRec, setBudgetRec] = useState<any>(null);
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [shiftConfirm, setShiftConfirm] = useState(false);
 
   // CRO Audit
   const [croAudit, setCroAudit] = useState<any>(null);
@@ -1708,9 +1750,20 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                       </div>
                     </div>
                   ))}
-                  <button onClick={handleApplyShifts} disabled={applying} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
-                    {applying ? 'Applying...' : 'Apply Budget Shifts →'}
-                  </button>
+                  {shiftConfirm ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                      <p className="text-sm font-semibold text-amber-900">Apply all {budgetRec.recommended_shifts.length} budget changes now?</p>
+                      <p className="text-xs text-amber-700">Changes take effect immediately on your ad platforms.</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => setShiftConfirm(false)} className="flex-1 border border-amber-300 text-amber-800 font-semibold py-2 rounded-xl text-sm hover:bg-amber-100 transition-colors">Cancel</button>
+                        <button onClick={() => { setShiftConfirm(false); handleApplyShifts(); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">Apply Shifts</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShiftConfirm(true)} disabled={applying} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold py-3 rounded-xl text-sm transition-colors">
+                      {applying ? 'Applying...' : 'Apply Budget Shifts →'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1949,6 +2002,11 @@ function ProtocolsTab() {
                   </div>
                   <h3 className="font-bold text-slate-900">{selected.title}</h3>
                   <p className="text-xs text-slate-400 mt-0.5">Created {new Date(selected.created_at).toLocaleString()} · Expires {new Date(selected.expires_at).toLocaleDateString()}</p>
+                  {(selected.status === 'pending' || selected.status === 'in_discussion') && (new Date(selected.expires_at).getTime() - Date.now()) < 4 * 3600_000 && (
+                    <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-semibold">
+                      ⚠ Expires in {Math.max(0, Math.round((new Date(selected.expires_at).getTime() - Date.now()) / 3600_000))}h — approve or reject now or this decision will be skipped.
+                    </div>
+                  )}
                 </div>
 
                 {/* Conversation thread */}

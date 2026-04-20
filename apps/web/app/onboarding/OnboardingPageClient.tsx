@@ -125,7 +125,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const settingsWithNotes = websiteNotes.trim()
         ? { ...settings, open_notes: [settings.open_notes, `Website clarification: ${websiteNotes.trim()}`].filter(Boolean).join('\n') }
         : settings;
-      const result = await runAnalysis(settingsWithNotes, feedback);
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 60_000)
+      );
+      const result = await Promise.race([runAnalysis(settingsWithNotes, feedback), timeout]);
       clearTimeout(timer1);
       clearTimeout(timer2);
       setAnalysisStep(3);
@@ -133,7 +136,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       setAnalysisResult(result);
       setStep('strategy');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed');
+      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
       setStep('chat');
     }
   }

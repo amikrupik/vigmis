@@ -11,12 +11,19 @@ type Message = {
 };
 
 function ActionBadge({ action }: { action: ExecutedAction }) {
-  const label: Record<string, string> = {
+  const successLabel: Record<string, string> = {
     pause_campaign: 'Paused campaign',
     resume_campaign: 'Resumed campaign',
     update_budget: 'Budget updated',
     pause_all: 'All campaigns paused',
     resume_all: 'All campaigns resumed',
+  };
+  const failLabel: Record<string, string> = {
+    pause_campaign: 'Failed to pause campaign',
+    resume_campaign: 'Failed to resume campaign',
+    update_budget: 'Budget update failed',
+    pause_all: 'Failed to pause all campaigns',
+    resume_all: 'Failed to resume all campaigns',
   };
 
   return (
@@ -26,7 +33,7 @@ function ActionBadge({ action }: { action: ExecutedAction }) {
           ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           : <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />}
       </svg>
-      <span className="font-medium">{label[action.type] ?? action.type}</span>
+      <span className="font-medium">{action.success ? (successLabel[action.type] ?? action.type) : (failLabel[action.type] ?? `Failed: ${action.type}`)}</span>
       {action.campaign_name && <span className="opacity-70">— {action.campaign_name}</span>}
       {action.detail && <span className="opacity-70">({action.detail})</span>}
     </div>
@@ -117,7 +124,15 @@ export default function ChatDrawer() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {messages.length === 0 && !isPending && (
+          {!historyLoaded && open && (
+            <div className="flex justify-center py-8">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+                Loading history…
+              </div>
+            </div>
+          )}
+          {historyLoaded && messages.length === 0 && !isPending && (
             <div className="py-8 space-y-4">
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
