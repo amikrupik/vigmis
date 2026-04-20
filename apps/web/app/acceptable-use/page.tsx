@@ -7,7 +7,7 @@ export default function AcceptableUsePage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} /></Link>
+        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} /></Link>
       </nav>
 
       <main className="flex-1 max-w-3xl mx-auto px-6 py-16">

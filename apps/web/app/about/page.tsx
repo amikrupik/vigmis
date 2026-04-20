@@ -7,7 +7,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} /></Link>
+        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} /></Link>
         <div className="flex items-center gap-4">
           <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">Get started →</Link>
@@ -50,8 +50,8 @@ export default function AboutPage() {
         </div>
 
         <div className="mt-16 bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center">
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Start with a free marketing analysis</h3>
-          <p className="text-slate-500 text-sm mb-6">AI strategy, competitor research & campaign plan — free. Then 7% only when campaigns are live.</p>
+          <h3 className="text-xl font-bold text-slate-900 mb-2">Start your AI marketing analysis</h3>
+          <p className="text-slate-500 text-sm mb-6">AI strategy, competitor research & campaign plan — included. Then 7% only when campaigns are live.</p>
           <Link href="/sign-up" className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl transition-colors">
             Get Started →
           </Link>

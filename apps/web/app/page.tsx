@@ -32,7 +32,7 @@ export default async function Home() {
     <div className="min-h-screen bg-white flex flex-col">
       {/* Nav */}
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur z-20">
-        <Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} priority />
+        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority />
         <div className="flex items-center gap-4">
           <Link href="/about" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">About</Link>
           <Link href="/contact" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">Contact</Link>
@@ -57,7 +57,7 @@ export default async function Home() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-10">
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
-            Get your free analysis →
+            Get Started →
           </Link>
           <Link href="/sign-in" className="border border-slate-200 text-slate-700 hover:border-slate-300 font-semibold px-8 py-4 rounded-2xl text-base transition-colors">
             Sign in
@@ -161,7 +161,7 @@ export default async function Home() {
       {/* Footer */}
       <footer className="border-t border-slate-100 px-6 py-8">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Image src="/logo_nav.png" alt="Vigmis" width={126} height={28} />
+          <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} />
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
             <Link href="/about" className="hover:text-slate-600">About</Link>
             <Link href="/faq" className="hover:text-slate-600">FAQ</Link>

@@ -187,7 +187,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const header = (
     <header className="border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0">
       <div className="max-w-2xl mx-auto flex items-center gap-6">
-        <Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} priority className="flex-shrink-0" />
+        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority className="flex-shrink-0" />
         <div className="flex-1 flex items-center min-w-0">
           {STEPS.map((s, i) => (
             <Fragment key={s.key}>

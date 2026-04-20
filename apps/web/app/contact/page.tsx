@@ -8,7 +8,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={162} height={36} /></Link>
+        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} /></Link>
         <div className="flex items-center gap-4">
           <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">Get started →</Link>
