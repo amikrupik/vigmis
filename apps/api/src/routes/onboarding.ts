@@ -16,28 +16,37 @@ const ONBOARDING_SYSTEM_PROMPT = `You are the Vigmis onboarding assistant — an
 
 Your job: gather the client's advertising needs through a natural conversation. Default language is English. If the client writes in Hebrew, switch to Hebrew and stay in Hebrew for the rest of the conversation.
 
-You MUST cover these 7 topics before concluding:
-1. website — the client's website URL (e.g. https://example.com). Ask for it at the start.
-2. budget — monthly advertising budget. Ask for a number. Accept any currency, convert to ILS mentally (1 USD ≈ 3.7 ILS).
-3. management_percentage — what percentage of the budget should Vigmis manage (10%, 25%, 50%, or 100%). Explain briefly: "Vigmis takes a fee only on the portion it manages."
-4. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
-5. geography — which cities/regions/countries to target AND which to exclude.
-6. exclusions — what the system must NEVER do: audiences to avoid, topics, tone, legal constraints.
-7. open_notes — any other important rules (business hours, seasonal pauses, dayparting, etc.).
+You MUST cover these 10 topics before concluding:
+1. business_type — what type of business: "ecommerce" (online store with many products), "hero_product" (one flagship product drives most revenue), "lead_gen" (generates leads/inquiries), "saas" (software subscription), or "general_store" (brick & mortar / local service). Ask this FIRST.
+2. website — the client's website URL (e.g. https://example.com).
+3. budget — monthly advertising budget. Accept any currency, convert to ILS mentally (1 USD ≈ 3.7 ILS).
+4. management_percentage — what percentage of the budget should Vigmis manage (10%, 25%, 50%, or 100%). Explain briefly: "Vigmis takes a fee only on the portion it manages."
+5. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
+6. margin_pct — ONLY if goal is "purchases" or business_type is "ecommerce" or "hero_product": ask "What is your gross margin percentage? (e.g. if you sell for $100 and product costs $40, margin is 60%)". This lets Vigmis calculate your actual profit, not just revenue.
+7. hero_product — ONLY if business_type is "hero_product": ask for the name of their flagship product and its specific margin if different from overall margin.
+8. geography — which cities/regions/countries to target AND which to exclude.
+9. exclusions — what the system must NEVER do: audiences to avoid, topics, tone, legal constraints.
+10. open_notes — any other important rules (business hours, seasonal pauses, dayparting, etc.).
 
 Rules:
 - Ask ONE question at a time. Keep it short and conversational.
-- Start by asking for their website URL.
+- Start by asking what type of business they are (topic 1).
+- Skip margin_pct if goal is "traffic" or "awareness" AND business_type is "lead_gen" or "saas" or "general_store".
+- Skip hero_product unless business_type is "hero_product".
 - If an answer is vague, ask a natural follow-up to clarify.
 - Mirror the client's language exactly.
-- When all 7 topics are clearly answered, output a SUMMARY block (exact format, always in English for parsing):
+- When all required topics are clearly answered, output a SUMMARY block (exact format, always in English for parsing):
 
 [SUMMARY]
 {
+  "business_type": "ecommerce",
   "website_url": "https://example.com",
   "budget_monthly_ils": 10000,
   "management_percentage": 50,
-  "goal": "leads",
+  "goal": "purchases",
+  "margin_pct": 45,
+  "hero_product_name": null,
+  "hero_product_margin_pct": null,
   "geo_include": ["Jerusalem", "Tel Aviv"],
   "geo_exclude": ["tourists", "under 25"],
   "exclusions": "Never mention prices. Avoid secular tone.",
@@ -49,13 +58,16 @@ Rules:
 }
 [/SUMMARY]
 
-Only output the SUMMARY block when all 7 topics are covered.`;
+Only output the SUMMARY block when all required topics are covered.`;
 
 const TOPIC_KEYWORDS: Record<string, string[]> = {
+  business_type:         ['business_type'],
   website:               ['website_url'],
   budget:                ['budget_monthly_ils'],
   management_percentage: ['management_percentage'],
   goal:                  ['goal'],
+  margin_pct:            ['margin_pct'],
+  hero_product:          ['hero_product_name'],
   geography:             ['geo_include', 'geo_exclude'],
   exclusions:            ['exclusions'],
   open_notes:            ['open_notes', 'dayparting_rules'],
@@ -89,10 +101,14 @@ const ConversationMessageSchema = z.object({
 });
 
 const SaveSettingsSchema = z.object({
+  business_type: z.enum(['ecommerce', 'hero_product', 'lead_gen', 'saas', 'general_store']).default('ecommerce'),
   website_url: z.string().url().optional(),
   management_percentage: z.number().int().min(1).max(100).default(100),
   budget_monthly_ils: z.number().int().positive(),
   goal: z.enum(['leads', 'purchases', 'traffic', 'awareness']),
+  margin_pct: z.number().min(0).max(100).optional().nullable(),
+  hero_product_name: z.string().optional().nullable(),
+  hero_product_margin_pct: z.number().min(0).max(100).optional().nullable(),
   geo_include: z.array(z.string()).min(1),
   geo_exclude: z.array(z.string()).default([]),
   exclusions: z.string().optional(),
@@ -146,6 +162,9 @@ export async function onboardingRoutes(app: FastifyInstance) {
         {
           tenant_id: request.tenantId,
           ...data,
+          margin_pct:              data.margin_pct ?? null,
+          hero_product_name:       data.hero_product_name ?? null,
+          hero_product_margin_pct: data.hero_product_margin_pct ?? null,
           confirmed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },

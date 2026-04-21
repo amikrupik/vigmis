@@ -101,6 +101,14 @@ export async function getAnalyticsDaily() {
   return apiCall('/analytics/daily');
 }
 
+export async function getConversionIntelligence(period: 7 | 30 | 90 = 30) {
+  return apiCall(`/track/true-roas?period=${period}`);
+}
+
+export async function getTrackingStatus() {
+  return apiCall('/track/status');
+}
+
 // ── Intelligence ──────────────────────────────────────────────────────────────
 
 export async function generateAdCopy(platform: string, goal: string, websiteContext: string, territory?: string) {

@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import ChatDrawer from '../dashboard/ChatDrawer';
-import type { OnboardingSettings, AnalysisResult, WebsiteCheck } from './actions';
-import { runAnalysis, discussStrategy, checkWebsite } from './actions';
+import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
+import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-type Step = 'connect' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'saving';
+type Step = 'connect' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'tracking' | 'saving';
 type CreativeChoice = 'avatar' | 'cinematic' | 'animation' | 'upload' | 'skip' | null;
 
 const STEPS: { key: Step; label: string }[] = [
@@ -20,10 +20,11 @@ const STEPS: { key: Step; label: string }[] = [
   { key: 'analysis', label: 'Analysis' },
   { key: 'strategy', label: 'Strategy' },
   { key: 'creative', label: 'Creative' },
+  { key: 'tracking', label: 'Tracking' },
 ];
 
 const STEP_INDEX: Record<Step, number> = {
-  connect: 0, chat: 1, analysis: 2, website_check: 2, strategy: 3, creative: 4, saving: 5,
+  connect: 0, chat: 1, analysis: 2, website_check: 2, strategy: 3, creative: 4, tracking: 5, saving: 6,
 };
 
 const ANALYSIS_STEPS = [
@@ -87,6 +88,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [socialApprovalMode, setSocialApprovalMode] = useState<'auto' | 'review' | 'strict'>('review');
   const [websiteCheck, setWebsiteCheck] = useState<WebsiteCheck | null>(null);
   const [websiteNotes, setWebsiteNotes] = useState('');
+  const [pixelSnippet, setPixelSnippet] = useState<PixelSnippet | null>(null);
+  const [pixelCopied, setPixelCopied] = useState(false);
+  const [pixelVerifying, setPixelVerifying] = useState(false);
+  const [pixelVerified, setPixelVerified] = useState(false);
+  const [shopifyDomain, setShopifyDomain] = useState('');
+  const [shopifyConnecting, setShopifyConnecting] = useState(false);
 
   async function handleConnect(platform: 'google' | 'meta') {
     try {
@@ -156,6 +163,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   }
 
   async function handleCreativeDone(choice: CreativeChoice) {
+    setCreativeChoice(choice);
+    // Load pixel snippet then go to tracking step
+    const snippet = await getPixelSnippet().catch(() => null);
+    setPixelSnippet(snippet);
+    setStep('tracking');
+  }
+
+  async function handleTrackingDone(skipTracking = false) {
     if (!pendingSettings || !analysisResult) return;
     setStep('saving');
     setError(null);
@@ -169,7 +184,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           has_parallel_campaigns: hasParallelCampaigns,
           conversation: pendingConversation,
           strategy_plan: analysisResult.strategy,
-          creative_choice: choice,
+          creative_choice: creativeChoice,
+          tracking_verified: pixelVerified && !skipTracking,
           social_opt_in: socialEnabled ? {
             enabled: true,
             platforms: socialPlatforms,
@@ -182,7 +198,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
-      setStep('creative');
+      setStep('tracking');
     }
   }
 
@@ -1077,7 +1093,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 Skip for now
               </button>
               <button
-                onClick={() => handleCreativeDone(creativeChoice)}
+                onClick={() => creativeChoice && handleCreativeDone(creativeChoice)}
                 disabled={!creativeChoice}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
@@ -1088,6 +1104,192 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <p className="text-xs text-center text-slate-400">
               You can always add or change creative assets from the dashboard
             </p>
+          </div>
+        </div>
+        <ChatDrawer />
+      </div>
+    );
+  }
+
+  // ── Tracking Setup ────────────────────────────────────────────────────────────
+  if (step === 'tracking') {
+    const isEcommerce = pendingSettings?.goal === 'purchases' ||
+      pendingSettings?.business_type === 'ecommerce' ||
+      pendingSettings?.business_type === 'hero_product';
+
+    async function handleCopySnippet() {
+      if (!pixelSnippet) return;
+      await navigator.clipboard.writeText(pixelSnippet.snippet).catch(() => null);
+      setPixelCopied(true);
+      setTimeout(() => setPixelCopied(false), 2500);
+    }
+
+    async function handleVerifyPixel() {
+      setPixelVerifying(true);
+      const result = await verifyPixel();
+      setPixelVerifying(false);
+      if (result.verified) {
+        setPixelVerified(true);
+      } else {
+        setError(result.message ?? 'No pixel events detected yet. Make sure the snippet is on every page.');
+      }
+    }
+
+    async function handleShopifyConnect() {
+      if (!shopifyDomain.trim()) return;
+      setShopifyConnecting(true);
+      const result = await startShopifyConnect(shopifyDomain.trim());
+      setShopifyConnecting(false);
+      if (result.auth_url) {
+        window.location.href = result.auth_url;
+      } else {
+        setError(result.error ?? 'Failed to start Shopify connection');
+      }
+    }
+
+    return (
+      <div className="flex flex-col flex-1">
+        {header}
+        <div className="flex-1 overflow-y-auto p-6 py-8">
+          <div className="max-w-xl mx-auto space-y-5">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
+                Conversion Intelligence
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">Install your tracking pixel</h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Vigmis measures your <strong>actual business results</strong>, not just what the ad platforms claim.
+                Without this, you only see platform ROAS — which is often 2–3× inflated.
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>
+            )}
+
+            {/* Why this matters */}
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-2">
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Why this matters</p>
+              <p className="text-sm text-slate-700 leading-relaxed">
+                Ad platforms like Meta and Google each claim credit for the same sale. The result: your reported ROAS is <strong>artificially inflated by 30–200%</strong>.
+                Vigmis measures what actually happened on your website — the real number.
+              </p>
+              {pendingSettings?.margin_pct && (
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  With your {pendingSettings.margin_pct}% margin, Vigmis will show your <strong>actual profit per campaign</strong>, not just revenue.
+                </p>
+              )}
+            </div>
+
+            {/* Pixel snippet */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-700">Step 1 — Paste this on every page of your website</p>
+                <span className="text-xs text-slate-400">Before &lt;/head&gt;</span>
+              </div>
+              <div className="p-4">
+                {pixelSnippet ? (
+                  <div className="space-y-3">
+                    <pre className="bg-slate-900 text-emerald-400 text-xs p-4 rounded-xl overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+                      {pixelSnippet.snippet}
+                    </pre>
+                    <button
+                      onClick={handleCopySnippet}
+                      className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                        pixelCopied
+                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          : 'bg-slate-900 hover:bg-slate-800 text-white'
+                      }`}
+                    >
+                      {pixelCopied ? '✓ Copied to clipboard!' : 'Copy snippet'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-sm">Loading snippet...</div>
+                )}
+              </div>
+            </div>
+
+            {/* Verify installation */}
+            <div className={`border rounded-xl p-5 space-y-3 ${pixelVerified ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'} shadow-sm`}>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-700">Step 2 — Verify installation</p>
+                {pixelVerified && <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">✓ Verified</span>}
+              </div>
+              {pixelVerified ? (
+                <p className="text-sm text-emerald-700">Pixel is firing correctly. Vigmis is now tracking real conversions on your website.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    After pasting the snippet, visit your website and come back here to verify it's working.
+                  </p>
+                  <button
+                    onClick={handleVerifyPixel}
+                    disabled={pixelVerifying || !pixelSnippet}
+                    className="w-full border border-indigo-200 text-indigo-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-indigo-50 disabled:opacity-40 transition-colors"
+                  >
+                    {pixelVerifying ? 'Checking...' : 'Check if pixel is working →'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Shopify connect (for ecommerce) */}
+            {isEcommerce && (
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-700">Step 3 — Connect Shopify (optional)</p>
+                    <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">Recommended</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">Direct order data = more accurate True ROAS than pixel alone</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Connect your Shopify store so Vigmis receives actual order data with exact revenue per campaign — the gold standard for attribution.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={shopifyDomain}
+                      onChange={e => setShopifyDomain(e.target.value)}
+                      placeholder="yourstore.myshopify.com"
+                      className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleShopifyConnect}
+                      disabled={!shopifyDomain.trim() || shopifyConnecting}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
+                    >
+                      {shopifyConnecting ? 'Connecting...' : 'Connect →'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400">WooCommerce, Wix, and custom integrations coming soon.</p>
+                </div>
+              </div>
+            )}
+
+            {/* CTA */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => handleTrackingDone(true)}
+                className="flex-1 border border-slate-200 text-slate-500 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Skip for now
+              </button>
+              <button
+                onClick={() => handleTrackingDone(false)}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                {pixelVerified ? 'Launch my campaigns →' : "I've installed the pixel →"}
+              </button>
+            </div>
+
+            {!pixelVerified && (
+              <p className="text-xs text-center text-slate-400">
+                You can always install tracking later from the dashboard — campaigns will start even without it.
+              </p>
+            )}
           </div>
         </div>
         <ChatDrawer />

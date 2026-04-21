@@ -6,26 +6,33 @@ import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export type Topic =
+  | 'business_type'
   | 'website'
   | 'budget'
   | 'management_percentage'
   | 'goal'
+  | 'margin_pct'
+  | 'hero_product'
   | 'geography'
   | 'exclusions'
   | 'open_notes';
 
 export interface OnboardingSettings {
+  business_type: 'ecommerce' | 'hero_product' | 'lead_gen' | 'saas' | 'general_store';
   website_url: string;
   budget_monthly_ils: number;
   management_percentage: number;
   goal: 'leads' | 'purchases' | 'traffic' | 'awareness';
+  margin_pct?: number | null;
+  hero_product_name?: string | null;
+  hero_product_margin_pct?: number | null;
   geo_include: string[];
   geo_exclude: string[];
   exclusions: string;
   open_notes: string;
   risk_level: 'conservative' | 'balanced' | 'aggressive';
   dayparting_rules: Array<{ day: number; start_hour: number; end_hour: number }>;
-  has_parallel_campaigns?: boolean; // campaigns running outside Vigmis on same platforms
+  has_parallel_campaigns?: boolean;
 }
 
 export interface ChatResponse {
@@ -140,4 +147,75 @@ export async function runAnalysis(settings: OnboardingSettings, feedback?: strin
   }
 
   return res.json();
+}
+
+// ── Tracking / Conversion Intelligence ───────────────────────────────────────
+
+export interface TrackingStatus {
+  pixel_active: boolean;
+  last_event_at: string | null;
+  tracking_verified: boolean;
+  shopify_connected: boolean;
+  shopify_shop: string | null;
+  events_30d: number;
+  margin_pct: number | null;
+  business_type: string;
+  snippet_url: string;
+}
+
+export async function getTrackingStatus(): Promise<TrackingStatus | null> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}/track/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+export interface PixelSnippet {
+  snippet: string;
+  pid: string;
+}
+
+export async function getPixelSnippet(): Promise<PixelSnippet | null> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}/track/snippet`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+export async function verifyPixel(): Promise<{ verified: boolean; message?: string }> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}/track/verify`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return { verified: false };
+    return res.json();
+  } catch { return { verified: false }; }
+}
+
+export async function startShopifyConnect(shop: string): Promise<{ auth_url?: string; error?: string }> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}/track/shopify/connect`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: data.error ?? 'Failed to start Shopify connection' };
+    }
+    return res.json();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Connection failed' };
+  }
 }

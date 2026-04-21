@@ -6,16 +6,19 @@ import type { Topic, OnboardingSettings } from '../onboarding/actions';
 import type { ConversationMessage } from '@vigmis/db';
 
 const TOPIC_LABELS: Record<Topic, string> = {
+  business_type: 'Business Type',
   website: 'Website',
   budget: 'Budget',
   management_percentage: '% Managed',
   goal: 'Goal',
+  margin_pct: 'Margin %',
+  hero_product: 'Hero Product',
   geography: 'Geography',
   exclusions: 'Restrictions',
   open_notes: 'Notes',
 };
 
-const ALL_TOPICS: Topic[] = ['website', 'budget', 'management_percentage', 'goal', 'geography', 'exclusions', 'open_notes'];
+const ALL_TOPICS: Topic[] = ['business_type', 'website', 'budget', 'management_percentage', 'goal', 'margin_pct', 'hero_product', 'geography', 'exclusions', 'open_notes'];
 
 interface Props {
   onConfirm: (settings: OnboardingSettings, conversation: ConversationMessage[]) => void;
@@ -25,7 +28,7 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const [history, setHistory] = useState<ConversationMessage[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm Vigmis — your AI marketing manager. To build you the right campaign, I need a few details. Let's start — what's your website URL?",
+      content: "Hi! I'm Vigmis — your AI marketing manager. To build the right campaign for you, I need a few details. First — what type of business do you have? (e.g. online store, local service, lead generation, SaaS, or a business focused on one flagship product)",
       timestamp: new Date().toISOString(),
     },
   ]);

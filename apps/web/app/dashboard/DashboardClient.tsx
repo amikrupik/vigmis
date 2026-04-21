@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign, updateCampaignBudget,
-  getAnalytics, getAnalyticsDaily, generateAdCopy, scoreCreative, discoverAudiences,
+  getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
+  generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
   generateCreative, getCreatives, getCreativeStatus,
   createAbTest, getAbTests, concludeAbTest,
@@ -389,10 +390,14 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
+  const [convIntel, setConvIntel] = useState<any>(null);
+  const [trackingStatus, setTrackingStatus] = useState<any>(null);
 
   useEffect(() => {
     getAlerts().then(r => setAlerts(r?.alerts ?? []));
     getAnalyticsDaily().then(setDaily);
+    getConversionIntelligence(30).then(setConvIntel);
+    getTrackingStatus().then(setTrackingStatus);
   }, []);
 
   const pacing = daily?.pacing;
@@ -453,6 +458,100 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
             <p className="text-xs text-slate-400 mt-3">
               <span className="font-semibold">Burn rate:</span> ${pacing.spend_today?.toFixed(2)} spent of ${pacing.budget_today?.toFixed(0)} daily budget ({pacing.pct_elapsed?.toFixed(0)}% of day elapsed)
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Conversion Intelligence — True ROAS vs Platform ROAS */}
+      {convIntel && (
+        <div className={`border-2 rounded-2xl p-5 shadow-sm ${
+          convIntel.data_source === 'none'
+            ? 'border-slate-200 bg-white'
+            : 'border-indigo-200 bg-indigo-50'
+        }`}>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Conversion Intelligence — last 30 days</p>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {convIntel.data_source === 'shopify'
+                  ? 'Source: Shopify orders (most accurate)'
+                  : convIntel.data_source === 'pixel'
+                  ? 'Source: Vigmis pixel events'
+                  : 'Install tracking pixel to see real conversion data'}
+              </p>
+            </div>
+            {convIntel.data_source !== 'none' && (
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                convIntel.data_source === 'shopify' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+              }`}>
+                {convIntel.conversions_tracked} orders tracked
+              </span>
+            )}
+          </div>
+
+          {convIntel.data_source === 'none' ? (
+            <div className="flex items-center gap-4">
+              <div className="flex-1 text-sm text-slate-500 leading-relaxed">
+                Without tracking, you're relying on what the ad platforms tell you — which is often <strong>2–3× inflated</strong> due to multi-platform attribution.
+              </div>
+              <a
+                href="/onboarding?rethink=true"
+                className="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+              >
+                Install pixel →
+              </a>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl p-4 border border-indigo-100 text-center">
+                <p className="text-xs text-slate-400 font-medium mb-1">Platform ROAS</p>
+                <p className="text-2xl font-black text-slate-400">{convIntel.platform_roas.toFixed(1)}x</p>
+                <p className="text-xs text-slate-300 mt-1">What platforms claim</p>
+              </div>
+              <div className={`rounded-xl p-4 border text-center ${
+                convIntel.true_roas !== null
+                  ? convIntel.true_roas >= convIntel.platform_roas * 0.7
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-red-50 border-red-200'
+                  : 'bg-white border-slate-200'
+              }`}>
+                <p className="text-xs text-slate-500 font-medium mb-1">True ROAS</p>
+                <p className={`text-2xl font-black ${
+                  convIntel.true_roas !== null
+                    ? convIntel.true_roas >= convIntel.platform_roas * 0.7 ? 'text-emerald-700' : 'text-red-700'
+                    : 'text-slate-300'
+                }`}>
+                  {convIntel.true_roas !== null ? `${convIntel.true_roas.toFixed(1)}x` : '—'}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">Based on real orders</p>
+              </div>
+              {convIntel.true_profit !== null ? (
+                <div className={`rounded-xl p-4 border text-center ${
+                  convIntel.true_profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                }`}>
+                  <p className="text-xs text-slate-500 font-medium mb-1">True Profit</p>
+                  <p className={`text-2xl font-black ${convIntel.true_profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {convIntel.true_profit >= 0 ? '+' : ''}{convIntel.true_profit >= 1000 ? `$${(convIntel.true_profit / 1000).toFixed(1)}k` : `$${convIntel.true_profit.toFixed(0)}`}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">{convIntel.margin_pct}% margin applied</p>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center">
+                  <p className="text-xs text-amber-600 font-medium mb-1">True Profit</p>
+                  <p className="text-xl font-black text-amber-400">—</p>
+                  <p className="text-xs text-amber-500 mt-1">Add margin% in settings</p>
+                </div>
+              )}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+                <p className="text-xs text-slate-400 font-medium mb-1">Revenue Tracked</p>
+                <p className="text-2xl font-black text-slate-900">
+                  {convIntel.revenue_tracked >= 1000
+                    ? `$${(convIntel.revenue_tracked / 1000).toFixed(1)}k`
+                    : `$${convIntel.revenue_tracked.toFixed(0)}`}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">vs ${convIntel.spend.toFixed(0)} spend</p>
+              </div>
+            </div>
           )}
         </div>
       )}

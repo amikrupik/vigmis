@@ -205,6 +205,30 @@ export async function analyticsRoutes(app: FastifyInstance) {
     const active = campaignMetrics.filter(c => c.status === 'active');
     const sorted = [...active].sort((a, b) => b.roas - a.roas);
 
+    // True ROAS from conversion_events (real data if pixel is installed)
+    const since = new Date(Date.now() - days * 86400_000).toISOString();
+    const [purchaseEventsRes, settingsRes] = await Promise.all([
+      db.from('conversion_events')
+        .select('value, currency')
+        .eq('tenant_id', request.tenantId)
+        .eq('event_type', 'purchase')
+        .gte('created_at', since),
+      db.from('client_settings')
+        .select('margin_pct, business_type, shopify_domain')
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle(),
+    ]);
+
+    const purchases = purchaseEventsRes.data ?? [];
+    const marginPct = settingsRes.data?.margin_pct ?? null;
+    const revenueTracked = purchases.reduce((s, e) => s + (e.value ?? 0), 0);
+    const trueRoas = summary.spend > 0 && revenueTracked > 0
+      ? parseFloat((revenueTracked / summary.spend).toFixed(2))
+      : null;
+    const trueProfit = marginPct && summary.spend > 0 && revenueTracked > 0
+      ? parseFloat((revenueTracked * (marginPct / 100) - summary.spend).toFixed(2))
+      : null;
+
     return reply.send({
       is_mock: true,
       period: days,
@@ -216,6 +240,15 @@ export async function analyticsRoutes(app: FastifyInstance) {
       campaigns: campaignMetrics,
       top_performers: sorted.slice(0, 3),
       bottom_performers: sorted.slice(-3).reverse(),
+      conversion_intelligence: {
+        platform_roas:       summary.roas,
+        true_roas:           trueRoas,
+        true_profit:         trueProfit,
+        revenue_tracked:     parseFloat(revenueTracked.toFixed(2)),
+        conversions_tracked: purchases.length,
+        margin_pct:          marginPct,
+        data_source:         settingsRes.data?.shopify_domain ? 'shopify' : purchases.length > 0 ? 'pixel' : 'none',
+      },
     });
   });
 

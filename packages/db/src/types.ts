@@ -74,6 +74,8 @@ export interface StrategyPlan {
   social_plan?: SocialPlan;
 }
 
+export type BusinessType = 'ecommerce' | 'hero_product' | 'lead_gen' | 'saas' | 'general_store';
+
 export interface ClientSettings {
   id: string;
   tenant_id: string;
@@ -92,6 +94,60 @@ export interface ClientSettings {
   confirmed_at: string | null;
   created_at: string;
   updated_at: string;
+  // Conversion Intelligence — Round 1
+  business_type: BusinessType;
+  margin_pct: number | null;
+  hero_product_name: string | null;
+  hero_product_margin_pct: number | null;
+  shopify_domain: string | null;
+  tracking_verified: boolean;
+}
+
+export interface ConversionEvent {
+  id: string;
+  tenant_id: string;
+  event_type: 'pageview' | 'lead' | 'purchase' | 'add_to_cart' | 'initiate_checkout';
+  url: string | null;
+  referrer: string | null;
+  gclid: string | null;
+  fbclid: string | null;
+  ttclid: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  value: number | null;
+  currency: string | null;
+  order_id: string | null;
+  campaign_id: string | null;
+  platform: string | null;
+  ip_hash: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface ShopifyConnection {
+  id: string;
+  tenant_id: string;
+  shop: string;
+  access_token: string;
+  scopes: string | null;
+  webhook_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrueRoasData {
+  platform_roas: number;           // what the ad platforms claim
+  true_roas: number | null;        // calculated from actual Shopify/pixel purchase events
+  true_profit: number | null;      // (revenue × margin%) - ad spend
+  revenue_tracked: number;         // sum of purchase event values
+  conversions_tracked: number;     // count of tracked purchases
+  spend: number;                   // total ad spend in period
+  margin_pct: number | null;       // gross margin % from settings
+  data_source: 'shopify' | 'pixel' | 'none';
+  period_days: number;
 }
 
 export interface DaypartingRule {
