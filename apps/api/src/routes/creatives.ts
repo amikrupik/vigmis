@@ -5,15 +5,15 @@
 // GET  /creatives             — list all creative jobs for tenant
 //
 // Supported providers (activate by adding API keys to Railway):
-//   avatar    → HeyGen     (HEYGEN_API_KEY)   $15/video
-//   cinematic → Kling AI   (KLING_API_KEY)    $12/video
-//   animation → Pika Labs  (PIKA_API_KEY)     $8/video
+//   avatar    → HeyGen       (HEYGEN_API_KEY)       $15/video
+//   cinematic → Replicate    (REPLICATE_API_TOKEN)  $12/video  (minimax/video-01)
+//   animation → Replicate    (REPLICATE_API_TOKEN)  $8/video   (lucataco/animate-diff-v2)
 //
 // Until keys are present: jobs are queued with status "pending_setup"
 // and the user sees a friendly "coming soon" message.
 //
 // Creative assets are stored in Supabase Storage bucket "creatives".
-// TODO: create the "creatives" bucket in Supabase dashboard.
+// TODO: create the "creatives" bucket in Supabase → Storage → New Bucket → Public.
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
@@ -65,8 +65,8 @@ type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'pending_set
 function isProviderReady(type: CreativeType): boolean {
   switch (type) {
     case 'avatar':    return !!process.env.HEYGEN_API_KEY;
-    case 'cinematic': return !!process.env.KLING_API_KEY;
-    case 'animation': return !!process.env.PIKA_API_KEY;
+    case 'cinematic': return !!process.env.REPLICATE_API_TOKEN;
+    case 'animation': return !!process.env.REPLICATE_API_TOKEN;
   }
 }
 
@@ -142,121 +142,94 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
   return { status: 'processing' };
 }
 
-// ── Kling AI — Cinematic ─────────────────────────────────────────────────────
-// Docs: https://klingai.com/api-reference (partner API, apply at klingai.com/api)
-// POST https://api.klingai.com/v1/videos/text2video
+// ── Replicate — Cinematic + Animation ────────────────────────────────────────
+// Docs: https://replicate.com/docs/reference/http
+// Cinematic: minimax/video-01 — photorealistic, cinematic quality, ~$0.05/video
+// Animation: lucataco/animate-diff-v2 — smooth motion graphics, ~$0.03/video
 
-async function submitKlingJob(brief: {
-  prompt: string;
-  negative_prompt?: string;
-  duration?: number;  // seconds: 5 or 10
-  aspect_ratio?: string;
-}): Promise<{ jobId: string }> {
-  const apiKey = process.env.KLING_API_KEY!;
+const REPLICATE_API = 'https://api.replicate.com/v1';
 
-  const res = await fetch('https://api.klingai.com/v1/videos/text2video', {
+// Replicate model identifiers (owner/name — latest version resolved automatically)
+const REPLICATE_MODELS = {
+  cinematic: 'minimax/video-01',
+  animation: 'lucataco/animate-diff-v2',
+};
+
+async function submitReplicateJob(
+  model: string,
+  input: Record<string, unknown>,
+): Promise<{ jobId: string }> {
+  const token = process.env.REPLICATE_API_TOKEN!;
+
+  const res = await fetch(`${REPLICATE_API}/models/${model}/predictions`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
+      'Prefer': 'wait=5',   // wait up to 5s for fast models before falling back to polling
     },
-    body: JSON.stringify({
-      model: 'kling-v1',
-      prompt: brief.prompt,
-      negative_prompt: brief.negative_prompt ?? 'low quality, blurry, watermark',
-      cfg_scale: 0.5,
-      mode: 'std',
-      duration: brief.duration ?? 5,
-      aspect_ratio: brief.aspect_ratio ?? '16:9',
-    }),
+    body: JSON.stringify({ input }),
   });
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Kling API error: ${body}`);
+    throw new Error(`Replicate API error (${res.status}): ${body}`);
   }
 
-  const json = await res.json() as { data?: { task_id: string }; message?: string };
-  if (!json.data?.task_id) {
-    throw new Error(`Kling: ${json.message ?? 'No task_id returned'}`);
-  }
+  const json = await res.json() as { id?: string; error?: string; status?: string };
+  if (!json.id) throw new Error(`Replicate: ${json.error ?? 'No prediction ID returned'}`);
 
-  return { jobId: json.data.task_id };
+  return { jobId: json.id };
 }
 
-async function checkKlingStatus(jobId: string): Promise<{ status: JobStatus; url?: string }> {
-  const apiKey = process.env.KLING_API_KEY!;
-  const res = await fetch(`https://api.klingai.com/v1/videos/text2video/${jobId}`, {
-    headers: { 'Authorization': `Bearer ${apiKey}` },
+async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus; url?: string }> {
+  const token = process.env.REPLICATE_API_TOKEN!;
+
+  const res = await fetch(`${REPLICATE_API}/predictions/${jobId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
   });
 
   if (!res.ok) return { status: 'processing' };
 
   const json = await res.json() as {
-    data?: {
-      task_status: string;
-      task_result?: { videos?: Array<{ url: string }> };
-    }
+    status?: string;
+    output?: string | string[];
+    error?: string;
   };
 
-  const s = json.data?.task_status;
-  if (s === 'succeed') {
-    return { status: 'completed', url: json.data?.task_result?.videos?.[0]?.url };
+  if (json.status === 'succeeded') {
+    const url = Array.isArray(json.output) ? json.output[0] : json.output;
+    return { status: 'completed', url: url ?? undefined };
   }
-  if (s === 'failed') return { status: 'failed' };
+  if (json.status === 'failed' || json.status === 'canceled') {
+    return { status: 'failed' };
+  }
   return { status: 'processing' };
 }
 
-// ── Pika Labs — Animation ────────────────────────────────────────────────────
-// Docs: https://pika.art/api (partner API, apply at pika.art/api)
-// POST https://api.pika.art/v1/generate
-
-async function submitPikaJob(brief: {
+async function submitCinematicJob(brief: {
   prompt: string;
-  style?: string;
+  negative_prompt?: string;
   duration?: number;
 }): Promise<{ jobId: string }> {
-  const apiKey = process.env.PIKA_API_KEY!;
-
-  const res = await fetch('https://api.pika.art/v1/generate', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      promptText: brief.prompt,
-      style: brief.style ?? 'cinematic',
-      duration: brief.duration ?? 3,
-      aspectRatio: '16:9',
-      frameRate: 24,
-    }),
+  return submitReplicateJob(REPLICATE_MODELS.cinematic, {
+    prompt: brief.prompt,
+    prompt_optimizer: true,
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Pika API error: ${body}`);
-  }
-
-  const json = await res.json() as { id?: string; error?: string };
-  if (!json.id) throw new Error(`Pika: ${json.error ?? 'No job ID returned'}`);
-
-  return { jobId: json.id };
 }
 
-async function checkPikaStatus(jobId: string): Promise<{ status: JobStatus; url?: string }> {
-  const apiKey = process.env.PIKA_API_KEY!;
-  const res = await fetch(`https://api.pika.art/v1/generate/${jobId}`, {
-    headers: { 'Authorization': `Bearer ${apiKey}` },
+async function submitAnimationJob(brief: {
+  prompt: string;
+  negative_prompt?: string;
+  num_frames?: number;
+}): Promise<{ jobId: string }> {
+  return submitReplicateJob(REPLICATE_MODELS.animation, {
+    prompt: brief.prompt,
+    negative_prompt: brief.negative_prompt ?? 'low quality, blurry, jitter, watermark',
+    num_frames: brief.num_frames ?? 16,
+    num_inference_steps: 25,
+    guidance_scale: 7.5,
   });
-
-  if (!res.ok) return { status: 'processing' };
-
-  const json = await res.json() as { status?: string; result_url?: string };
-
-  if (json.status === 'completed') return { status: 'completed', url: json.result_url };
-  if (json.status === 'failed') return { status: 'failed' };
-  return { status: 'processing' };
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────────
@@ -306,11 +279,12 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
 
     if (!providerReady) {
-      // API key not yet configured — queue for when it's set up
+      const providerName = type === 'avatar' ? 'HeyGen' : 'Replicate';
+      const envVar = type === 'avatar' ? 'HEYGEN_API_KEY' : 'REPLICATE_API_TOKEN';
       return reply.code(202).send({
         job_id: job.id,
         status: 'pending_setup',
-        message: `${type === 'avatar' ? 'HeyGen' : type === 'cinematic' ? 'Kling AI' : 'Pika'} API key not yet configured. Your brief has been saved and will be processed once the integration is active.`,
+        message: `${providerName} API key (${envVar}) not yet configured in Railway. Your brief has been saved and will be processed once the integration is active.`,
         type,
         estimated_cost_usd: type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8,
       });
@@ -324,10 +298,10 @@ export async function creativeRoutes(app: FastifyInstance) {
         const result = await submitHeyGenJob(brief as any);
         providerJobId = result.jobId;
       } else if (type === 'cinematic') {
-        const result = await submitKlingJob(brief as any);
+        const result = await submitCinematicJob(brief as any);
         providerJobId = result.jobId;
       } else {
-        const result = await submitPikaJob(brief as any);
+        const result = await submitAnimationJob(brief as any);
         providerJobId = result.jobId;
       }
 
@@ -388,10 +362,9 @@ export async function creativeRoutes(app: FastifyInstance) {
 
       if (job.type === 'avatar') {
         result = await checkHeyGenStatus(job.provider_job_id);
-      } else if (job.type === 'cinematic') {
-        result = await checkKlingStatus(job.provider_job_id);
       } else {
-        result = await checkPikaStatus(job.provider_job_id);
+        // cinematic + animation both use Replicate
+        result = await checkReplicateStatus(job.provider_job_id);
       }
 
       if (result.status === 'completed' && result.url) {
@@ -426,6 +399,63 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.send({ job_id: job.id, status: result.status, type: job.type });
     } catch {
       return reply.send({ job_id: job.id, status: job.status, type: job.type });
+    }
+  });
+
+  // GET /creatives/avatars — list available HeyGen avatars for tenant to pick from
+  app.get('/creatives/avatars', { preHandler: authenticate }, async (_request, reply) => {
+    if (!process.env.HEYGEN_API_KEY) {
+      return reply.send({ avatars: [], available: false });
+    }
+
+    try {
+      const res = await fetch('https://api.heygen.com/v2/avatars', {
+        headers: { 'X-Api-Key': process.env.HEYGEN_API_KEY },
+      });
+
+      if (!res.ok) return reply.send({ avatars: [], available: true });
+
+      const json = await res.json() as { data?: { avatars?: any[] } };
+      const avatars = (json.data?.avatars ?? []).slice(0, 20).map((a: any) => ({
+        id: a.avatar_id,
+        name: a.avatar_name,
+        preview_url: a.preview_image_url ?? null,
+        gender: a.gender ?? null,
+      }));
+
+      return reply.send({ avatars, available: true });
+    } catch {
+      return reply.send({ avatars: [], available: false });
+    }
+  });
+
+  // GET /creatives/voices — list available HeyGen voices
+  app.get('/creatives/voices', { preHandler: authenticate }, async (_request, reply) => {
+    if (!process.env.HEYGEN_API_KEY) {
+      return reply.send({ voices: [], available: false });
+    }
+
+    try {
+      const res = await fetch('https://api.heygen.com/v2/voices', {
+        headers: { 'X-Api-Key': process.env.HEYGEN_API_KEY },
+      });
+
+      if (!res.ok) return reply.send({ voices: [], available: true });
+
+      const json = await res.json() as { data?: { voices?: any[] } };
+      const voices = (json.data?.voices ?? [])
+        .filter((v: any) => v.language === 'English')
+        .slice(0, 20)
+        .map((v: any) => ({
+          id: v.voice_id,
+          name: v.display_name,
+          gender: v.gender ?? null,
+          preview_url: v.preview_audio ?? null,
+        }));
+
+      return reply.send({ voices, available: true });
+    } catch {
+      return reply.send({ voices: [], available: false });
     }
   });
 
