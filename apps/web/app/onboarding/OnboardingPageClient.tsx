@@ -81,6 +81,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [planApproved, setPlanApproved] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [aiDisclaimerAccepted, setAiDisclaimerAccepted] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [hasParallelCampaigns, setHasParallelCampaigns] = useState(false);
   const [socialEnabled, setSocialEnabled] = useState(false);
@@ -373,6 +374,20 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={aiDisclaimerAccepted}
+                  onChange={e => setAiDisclaimerAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-red-300 text-red-600 focus:ring-red-500 flex-shrink-0"
+                />
+                <span className="text-xs text-slate-700 leading-relaxed">
+                  <strong className="text-red-700">I understand that Vigmis is an automated AI system.</strong>{' '}
+                  It may contain bugs, errors, or malfunctions. I am solely responsible for independently monitoring my campaigns on Google Ads, Meta Ads Manager, and TikTok Ads. Vigmis is not liable for any lost revenue, missed sales, or ad spend resulting from system errors, campaign downtime, or AI decisions. I have read and accept the full{' '}
+                  <a href="/terms#disclaimer" target="_blank" className="text-red-600 hover:underline font-semibold">AI System Disclaimer</a>.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
                   checked={marketingOptIn}
                   onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
@@ -397,14 +412,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <div className="space-y-3">
               <button
                 onClick={() => setStep('chat')}
-                disabled={!termsAccepted || !ageConfirmed || (!connected.google && !connected.meta && !connected.tiktok)}
+                disabled={!termsAccepted || !ageConfirmed || !aiDisclaimerAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Continue →
               </button>
               <button
                 onClick={() => setStep('chat')}
-                disabled={!termsAccepted || !ageConfirmed}
+                disabled={!termsAccepted || !ageConfirmed || !aiDisclaimerAccepted}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Skip — I'll connect later
