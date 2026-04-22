@@ -306,10 +306,18 @@ function buildDigestHtml(tenantData: {
   socialPostsPublished?: number;
   socialPostsPending?: number;
   socialCommentsReplied?: number;
+  plan?: string;
 }): string {
-  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0 } = tenantData;
+  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0, plan = 'free' } = tenantData;
   const active = campaigns.filter(c => c.status === 'active');
   const totalBudget = active.reduce((s, c) => s + (c.daily_budget_usd ?? 0), 0);
+
+  // Pro upsell calculation (Free users only)
+  const monthlySpend = totalBudget * 30;
+  const freeFee = monthlySpend * 0.07;
+  const proFee = 15 + monthlySpend * 0.05;
+  const proSavings = parseFloat((freeFee - proFee).toFixed(2));
+  const showProUpsell = plan === 'free';
 
   const campaignRows = campaigns.slice(0, 8).map(c => `
     <tr style="border-bottom:1px solid #f1f5f9">
@@ -408,6 +416,29 @@ function buildDigestHtml(tenantData: {
       </div>
       ` : ''}
 
+      ${showProUpsell ? `
+      <!-- Pro upsell -->
+      <div style="margin:0 32px 24px;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);border-radius:16px;padding:24px;color:white">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em">⚡ Upgrade to Pro</p>
+            ${proSavings > 0
+              ? `<p style="margin:0 0 8px;font-size:17px;font-weight:800;color:white">Save <span style="color:#a5f3fc">$${proSavings.toFixed(0)}/month</span> on fees</p>
+                 <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.65)">You're paying $${freeFee.toFixed(0)}/mo at 7% fee. Pro cuts it to 5% — you'd pay $${proFee.toFixed(0)}/mo total (including the $15 subscription).</p>`
+              : `<p style="margin:0 0 8px;font-size:17px;font-weight:800;color:white">2× more daily optimizations</p>
+                 <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.65)">Pro checks your campaigns 6× per day instead of 3×. More opportunities caught = better ROAS over time.</p>`
+            }
+            <p style="margin:8px 0 0;font-size:12px;color:rgba(255,255,255,0.5)">Pro: 6 optimizations/day · 5% fee · $15/month</p>
+          </div>
+          <div style="flex-shrink:0;display:flex;align-items:center">
+            <a href="${WEB_URL}/dashboard/billing" style="display:inline-block;background:white;color:#312e81;font-weight:800;font-size:13px;padding:12px 22px;border-radius:12px;text-decoration:none;white-space:nowrap">
+              Upgrade to Pro →
+            </a>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
       <!-- CTA -->
       <div style="padding:0 32px 28px;text-align:center">
         <a href="https://vigmis.com/dashboard" style="display:inline-block;background:#4f46e5;color:white;font-weight:700;font-size:14px;padding:12px 28px;border-radius:12px;text-decoration:none">
@@ -452,7 +483,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const period = `${weekAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-    const [campaignsRes, alertsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes] = await Promise.all([
+    const [campaignsRes, alertsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes] = await Promise.all([
       db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', request.tenantId),
       db.from('dismissed_alerts').select('alert_id').eq('tenant_id', request.tenantId),
       db.from('audit_log')
@@ -464,6 +495,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', request.tenantId).eq('status', 'published').gte('published_at', weekAgo.toISOString()),
       db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', request.tenantId).eq('status', 'pending_approval'),
       db.from('social_comments').select('id', { count: 'exact', head: true }).eq('tenant_id', request.tenantId).eq('status', 'sent').gte('replied_at', weekAgo.toISOString()),
+      db.from('billing_customers').select('plan').eq('tenant_id', request.tenantId).maybeSingle(),
     ]);
 
     const html = buildDigestHtml({
@@ -474,6 +506,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       socialPostsPublished: socialPublishedRes.count ?? 0,
       socialPostsPending: socialPendingRes.count ?? 0,
       socialCommentsReplied: socialRepliedRes.count ?? 0,
+      plan: planRes.data?.plan ?? 'free',
     });
 
     return reply.header('Content-Type', 'text/html').send(html);
@@ -506,7 +539,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!settings.email) { skipped++; continue; }
 
       try {
-        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes] = await Promise.all([
+        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes] = await Promise.all([
           db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', settings.tenant_id),
           db.from('audit_log')
             .select('action')
@@ -517,6 +550,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'published').gte('published_at', weekAgo.toISOString()),
           db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'pending_approval'),
           db.from('social_comments').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'sent').gte('replied_at', weekAgo.toISOString()),
+          db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle(),
         ]);
 
         const html = buildDigestHtml({
@@ -527,6 +561,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           socialPostsPublished: socialPublishedRes.count ?? 0,
           socialPostsPending: socialPendingRes.count ?? 0,
           socialCommentsReplied: socialRepliedRes.count ?? 0,
+          plan: planRes.data?.plan ?? 'free',
         }).replace('{{TENANT_ID}}', settings.tenant_id);
 
         await sendDigest(settings.email, html, period);
