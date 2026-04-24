@@ -224,6 +224,7 @@ export default function DashboardClient() {
             onViewAll={() => setTab('campaigns')}
             launching={launching} onLaunch={handleLaunch}
             onEmergencyStop={() => setShowStopModal(true)}
+            onGeoTab={() => setTab('geo')}
           />
         )}
         {tab === 'analytics' && <AnalyticsTab />}
@@ -390,17 +391,19 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop }: any) {
+function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
   const [convIntel, setConvIntel] = useState<any>(null);
   const [trackingStatus, setTrackingStatus] = useState<any>(null);
+  const [geoReport, setGeoReport] = useState<any>(null);
 
   useEffect(() => {
     getAlerts().then(r => setAlerts(r?.alerts ?? []));
     getAnalyticsDaily().then(setDaily);
     getConversionIntelligence(30).then(setConvIntel);
     getTrackingStatus().then(setTrackingStatus);
+    getGeoReport().then(r => setGeoReport(r?.exists ? r : null));
   }, []);
 
   const pacing = daily?.pacing;
@@ -463,6 +466,30 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
             </p>
           )}
         </div>
+      )}
+
+      {/* AI Visibility (GEO) score card */}
+      {geoReport && (
+        <button onClick={onGeoTab} className="w-full text-left bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-indigo-300 transition-colors">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-full border-4 flex flex-col items-center justify-center flex-shrink-0 ${
+                (geoReport.score ?? 0) >= 80 ? 'border-emerald-400' : (geoReport.score ?? 0) >= 60 ? 'border-amber-400' : 'border-red-400'
+              }`}>
+                <span className={`text-lg font-black ${(geoReport.score ?? 0) >= 80 ? 'text-emerald-600' : (geoReport.score ?? 0) >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{geoReport.grade ?? 'F'}</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">AI Visibility Score</p>
+                <p className="text-base font-bold text-slate-900 mt-0.5">{geoReport.score ?? 0}/100 — How AI systems find your business</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {(geoReport.issues ?? []).filter((i: any) => i.severity === 'critical').length} critical issues ·{' '}
+                  {(geoReport.issues ?? []).filter((i: any) => i.severity === 'warning').length} warnings · Tap to view full report
+                </p>
+              </div>
+            </div>
+            <svg className="w-5 h-5 text-slate-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </div>
+        </button>
       )}
 
       {/* Conversion Intelligence — True ROAS vs Platform ROAS */}
@@ -2811,26 +2838,37 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 function GeoTab({ settings }: any) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [customUrl, setCustomUrl] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<'issues' | 'schema' | 'faq' | 'description' | 'checklist'>('issues');
 
   useEffect(() => {
-    getGeoReport().then(r => { setReport(r?.exists ? r : null); setLoading(false); });
+    getGeoReport().then(async r => {
+      if (r?.exists) {
+        setReport(r);
+        setLoading(false);
+      } else {
+        // No report yet — Vigmis runs the audit automatically
+        setLoading(false);
+        setRefreshing(true);
+        try {
+          const fresh = await runGeoAudit();
+          setReport(fresh);
+        } catch { /* ignore */ }
+        finally { setRefreshing(false); }
+      }
+    });
   }, []);
 
-  async function handleRun() {
-    setRunning(true);
+  async function handleRefresh() {
+    setRefreshing(true);
     try {
-      const r = await runGeoAudit(customUrl || undefined);
+      const r = await runGeoAudit();
       setReport(r);
     } catch { /* ignore */ }
-    finally { setRunning(false); }
+    finally { setRefreshing(false); }
   }
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
-
-  const websiteUrl = report?.website_url || settings?.website_url || '';
 
   return (
     <div className="space-y-6">
@@ -2838,40 +2876,34 @@ function GeoTab({ settings }: any) {
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">AI Visibility (GEO)</h2>
-            <p className="text-sm text-slate-500 mt-1">How well AI systems like ChatGPT, Claude, and Gemini can find and recommend your business</p>
+            <h2 className="text-xl font-bold text-slate-900">AI Visibility Report</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Vigmis analyzes how well AI systems — ChatGPT, Claude, Gemini — can find and recommend your business.
+              {report?.website_url && <span className="ml-1 text-slate-400">· {report.website_url}</span>}
+            </p>
           </div>
-          {report && <GradeCircle score={report.score ?? 0} grade={report.grade ?? 'F'} />}
+          <div className="flex items-center gap-3">
+            {report && <GradeCircle score={report.score ?? 0} grade={report.grade ?? 'F'} />}
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="text-xs font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-300 px-3 py-2 rounded-xl transition-colors disabled:opacity-40"
+            >
+              {refreshing ? 'Analyzing…' : 'Refresh'}
+            </button>
+          </div>
         </div>
-
-        {/* URL + Run button */}
-        <div className="mt-5 flex gap-3 flex-wrap items-center">
-          <input
-            type="url"
-            placeholder={websiteUrl || 'https://yourwebsite.com'}
-            value={customUrl}
-            onChange={e => setCustomUrl(e.target.value)}
-            className="flex-1 min-w-[220px] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <button
-            onClick={handleRun}
-            disabled={running}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap"
-          >
-            {running ? 'Analyzing…' : report ? 'Re-run audit' : 'Run audit'}
-          </button>
-        </div>
-        {running && (
-          <div className="mt-4 flex items-center gap-3 text-sm text-slate-500">
-            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            Crawling website and generating AI analysis… this takes ~30 seconds
+        {refreshing && (
+          <div className="mt-4 flex items-center gap-3 text-sm text-slate-500 bg-indigo-50 rounded-xl px-4 py-3">
+            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            Vigmis is scanning your website and generating your AI visibility report… (~30 seconds)
           </div>
         )}
       </div>
 
-      {!report && !running && (
+      {!report && !refreshing && (
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-10 text-center">
-          <p className="text-slate-500 text-sm">No audit yet. Enter your website URL above and click "Run audit".</p>
+          <p className="text-slate-500 text-sm">Make sure your website URL is set in Settings, then Vigmis will generate the report automatically.</p>
         </div>
       )}
 
