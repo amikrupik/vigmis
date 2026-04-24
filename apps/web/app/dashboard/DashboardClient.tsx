@@ -20,7 +20,7 @@ import {
   getSocialSettings, updateSocialSettings, getSocialPosts, approveSocialPost, rejectSocialPost,
   generateSocialContent, getSocialAnalytics,
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
-  runGeoAudit, getGeoReport,
+  runGeoAudit, getGeoReport, getHistoryTimeline,
   exportAnalyticsCSV, exportAnalyticsHTML,
   exportCampaignsCSV, exportCampaignsHTML,
   exportSocialCSV, exportSocialHTML,
@@ -32,7 +32,7 @@ import { ClerkSignOutButton } from '../components/sign-out-button';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'geo' | 'protocols' | 'social' | 'settings';
+type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'geo' | 'history' | 'protocols' | 'social' | 'settings';
 
 type Campaign = {
   id: string; platform: 'google' | 'meta' | 'tiktok';
@@ -76,6 +76,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'creative', label: 'Creative', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
   { key: 'intelligence', label: 'Intelligence', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
   { key: 'geo', label: 'AI Visibility', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg> },
+  { key: 'history', label: 'History', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
   { key: 'protocols', label: 'Decisions', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
   { key: 'social', label: 'Social', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> },
   { key: 'settings', label: 'Settings', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
@@ -239,6 +240,7 @@ export default function DashboardClient() {
         {tab === 'creative' && <CreativeTab settings={settings} />}
         {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} />}
         {tab === 'geo' && <GeoTab settings={settings} />}
+        {tab === 'history' && <HistoryTab />}
         {tab === 'protocols' && <ProtocolsTab />}
         {tab === 'social' && <SocialTab />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
@@ -2812,13 +2814,20 @@ const PRIORITY_STYLE: Record<string, string> = {
   critical: 'text-red-600 font-bold', high: 'text-amber-600 font-semibold', medium: 'text-slate-500',
 };
 
-function GradeCircle({ score, grade }: { score: number; grade: string }) {
+function GradeCircle({ score, grade, delta }: { score: number; grade: string; delta?: number | null }) {
   const color = score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-500' : 'text-red-500';
   const ring  = score >= 80 ? 'border-emerald-400' : score >= 60 ? 'border-amber-400' : 'border-red-400';
   return (
-    <div className={`w-24 h-24 rounded-full border-4 ${ring} flex flex-col items-center justify-center flex-shrink-0`}>
-      <span className={`text-3xl font-black ${color}`}>{grade}</span>
-      <span className="text-xs text-slate-400">{score}/100</span>
+    <div className="flex flex-col items-center gap-1">
+      <div className={`w-24 h-24 rounded-full border-4 ${ring} flex flex-col items-center justify-center flex-shrink-0`}>
+        <span className={`text-3xl font-black ${color}`}>{grade}</span>
+        <span className="text-xs text-slate-400">{score}/100</span>
+      </div>
+      {delta !== null && delta !== undefined && (
+        <span className={`text-xs font-bold ${delta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          {delta >= 0 ? '↑' : '↓'}{Math.abs(delta)} from last month
+        </span>
+      )}
     </div>
   );
 }
@@ -2883,7 +2892,7 @@ function GeoTab({ settings }: any) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {report && <GradeCircle score={report.score ?? 0} grade={report.grade ?? 'F'} />}
+            {report && <GradeCircle score={report.score ?? 0} grade={report.grade ?? 'F'} delta={report.score_delta ?? null} />}
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -3073,6 +3082,152 @@ function GeoTab({ settings }: any) {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+// ── History Tab ───────────────────────────────────────────────────────────────
+
+function HistoryTab() {
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    getHistoryTimeline().then(r => { setTimeline(r?.timeline ?? []); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
+
+  if (!timeline.length) return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+      <p className="text-slate-400 text-sm">No history yet — data accumulates month by month.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Account History</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Monthly snapshots of your account — performance, AI visibility, and all actions Vigmis took</p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {timeline.map((month: any) => {
+          const isOpen = expanded === month.snapshot_month;
+          const geo = month.geo;
+          const highlights: any[] = (month.highlights ?? []).slice(0, 8);
+
+          const actionGroups: Record<string, number> = {};
+          for (const h of month.highlights ?? []) {
+            const key = h.action?.split('.')[0] ?? 'other';
+            actionGroups[key] = (actionGroups[key] ?? 0) + 1;
+          }
+
+          return (
+            <div key={month.snapshot_month} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              {/* Month header */}
+              <button
+                onClick={() => setExpanded(isOpen ? null : month.snapshot_month)}
+                className="w-full flex items-center gap-4 p-5 text-left hover:bg-slate-50 transition-colors"
+              >
+                <div className="w-14 text-center flex-shrink-0">
+                  <p className="text-xs font-bold text-slate-400 uppercase">{month.snapshot_month?.slice(0, 4)}</p>
+                  <p className="text-lg font-black text-slate-800">
+                    {new Date(month.snapshot_month + '-01').toLocaleDateString('en-US', { month: 'short' })}
+                  </p>
+                </div>
+
+                <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {/* GEO score */}
+                  {geo && (
+                    <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-slate-400 font-medium">AI Score</p>
+                      <p className={`text-lg font-black ${(geo.score ?? 0) >= 80 ? 'text-emerald-600' : (geo.score ?? 0) >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                        {geo.grade}
+                      </p>
+                      {geo.score_delta !== null && geo.score_delta !== undefined && (
+                        <p className={`text-xs font-bold ${geo.score_delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {geo.score_delta >= 0 ? '+' : ''}{geo.score_delta}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {/* Campaigns */}
+                  {month.active_campaigns !== undefined && (
+                    <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-slate-400 font-medium">Campaigns</p>
+                      <p className="text-lg font-black text-slate-800">{month.active_campaigns}</p>
+                      <p className="text-xs text-slate-400">active</p>
+                    </div>
+                  )}
+                  {/* Optimizations */}
+                  {month.optimizations_count !== undefined && (
+                    <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-slate-400 font-medium">AI Actions</p>
+                      <p className="text-lg font-black text-indigo-600">{month.optimizations_count + (month.budget_changes_count ?? 0)}</p>
+                      <p className="text-xs text-slate-400">total</p>
+                    </div>
+                  )}
+                  {/* Events count */}
+                  <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                    <p className="text-xs text-slate-400 font-medium">Events</p>
+                    <p className="text-lg font-black text-slate-800">{(month.highlights ?? []).length}</p>
+                    <p className="text-xs text-slate-400">logged</p>
+                  </div>
+                </div>
+
+                <svg className={`w-5 h-5 text-slate-300 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Expanded detail */}
+              {isOpen && (
+                <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+                  {/* Action groups summary */}
+                  {Object.keys(actionGroups).length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Actions by type</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(actionGroups).map(([key, count]) => (
+                          <span key={key} className="text-xs font-semibold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
+                            {key} × {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Last 8 highlights */}
+                  {highlights.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Recent events</p>
+                      <div className="space-y-1.5">
+                        {highlights.map((h: any, i: number) => (
+                          <div key={i} className="flex items-center gap-3 text-sm">
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${h.actor === 'ai' ? 'bg-indigo-400' : 'bg-slate-400'}`} />
+                            <span className="text-slate-600">{h.action?.replace(/\./g, ' › ')}</span>
+                            <span className="ml-auto text-xs text-slate-400">{new Date(h.created_at).toLocaleDateString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Market notes if present */}
+                  {month.market_notes && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Market notes</p>
+                      <p className="text-sm text-amber-800">{month.market_notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

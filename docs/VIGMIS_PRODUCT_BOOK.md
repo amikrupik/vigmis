@@ -1,5 +1,5 @@
 # VIGMIS — ספר המוצר המלא
-### גרסה חיה | עודכן לאחרונה: 2026-04-21
+### גרסה חיה | עודכן לאחרונה: 2026-04-24
 
 > מסמך זה הוא האמת היחידה על מה Vigmis הוא, מה הוא עושה, ואיך הוא עובד.
 > כל שאלה על "מה לבנות" — התשובה כאן.
@@ -248,6 +248,52 @@
 **חשבון:** Delete Account + Export Data בSettings
 **חברה:** Taurus Management and Investments Ltd. | ח.פ. 514565118 | הרצליה
 **Status Page:** status.vigmis.com (Instatus)
+
+---
+
+# חלק ג.ב — GEO (AI Visibility) — deployed 2026-04-24
+
+## מה זה GEO
+
+**GEO = Generative Engine Optimization** — אופטימיזציה לנראות ב-AI.
+
+כשמישהו שואל ChatGPT, Claude, Gemini, Perplexity "מה הכי טוב..." — ה-AI מחזיר שמות של עסקים. Vigmis מוודא שהלקוחות שלה מופיעים שם.
+
+## מה Vigmis עושה
+
+**1. סריקה אוטומטית של האתר**
+- בדיקת Schema.org JSON-LD (הקוד שמגיד ל-AI מי אנחנו)
+- Meta description, H1/H2, Open Graph
+- FAQ signals, NAP data (שם/כתובת/טלפון), reviews schema
+
+**2. ניתוח AI + ציון GEO (0-100, כיתה A-F)**
+- Claude מנתח ומחזיר: ציון, בעיות לפי חומרה, נקודות חוזק
+
+**3. תוצרים מוכנים ללקוח**
+- JSON-LD Schema.org קוד מוכן להדבקה ב-`<head>`
+- 10 FAQ שאלה-תשובה מוכנות לאתר
+- תיאור עסקי 120 מילה מותאם לAI
+- Checklist פעולות ידניות (Google Business Profile, דירקטוריות וכו')
+
+**4. דלתא חודשי**
+- כל חודש Vigmis מריץ מחדש + מחשב שינוי מהחודש הקודם (↑8 / ↓3)
+
+## איך זה עובד (flow)
+
+1. **אונבורדינג:** ברגע שהלקוח מסיים → GEO audit רץ אוטומטית ברקע
+2. **Dashboard:** Tab "AI Visibility" מציג דוח מוכן + ציון + כרטיס בOverview
+3. **חודשי:** CRON ב-1 לחודש מרענן את כל הדוחות + שומר snapshot היסטורי
+4. **דייג'סט שבועי:** ציון GEO מופיע בכל מייל שבועי + delta מהחודש הקודם
+
+## היסטוריה (deployed 2026-04-24)
+
+- `geo_report_snapshots` — snapshot היסטורי של כל ריצת GEO (לא נמחק)
+- `monthly_snapshots` — תמונת מצב חודשית מלאה: GEO + קמפיינים + אופטימיזציות + social
+- Tab "History" — ציר זמן אינטראקטיבי עם כל החודשים, score delta, events
+
+## מה לקוח מקבל
+
+הלקוח פותח את הדשבורד ורואה דוח מוכן — לא ממלא כלום, לא לוחץ "הרץ". Vigmis עשה את העבודה.
 
 ---
 

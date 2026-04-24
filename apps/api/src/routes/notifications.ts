@@ -307,8 +307,11 @@ function buildDigestHtml(tenantData: {
   socialPostsPending?: number;
   socialCommentsReplied?: number;
   plan?: string;
+  geoScore?: number | null;
+  geoGrade?: string | null;
+  geoScoreDelta?: number | null;
 }): string {
-  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0, plan = 'free' } = tenantData;
+  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0, plan = 'free', geoScore, geoGrade, geoScoreDelta } = tenantData;
   const active = campaigns.filter(c => c.status === 'active');
   const totalBudget = active.reduce((s, c) => s + (c.daily_budget_usd ?? 0), 0);
 
@@ -363,6 +366,25 @@ function buildDigestHtml(tenantData: {
           </div>
         </div>
       </div>
+
+      <!-- AI Visibility (GEO) score -->
+      ${geoScore !== undefined && geoScore !== null ? `
+      <div style="padding:0 32px 20px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:16px">
+          <div style="width:52px;height:52px;border-radius:50%;border:3px solid ${(geoScore ?? 0) >= 80 ? '#34d399' : (geoScore ?? 0) >= 60 ? '#fbbf24' : '#f87171'};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:16px;font-weight:900;color:${(geoScore ?? 0) >= 80 ? '#059669' : (geoScore ?? 0) >= 60 ? '#d97706' : '#dc2626'}">${geoGrade ?? 'F'}</span>
+          </div>
+          <div style="flex:1">
+            <p style="margin:0;font-size:13px;font-weight:700;color:#0f172a">AI Visibility Score: ${geoScore}/100</p>
+            <p style="margin:3px 0 0;font-size:12px;color:#64748b">
+              How well ChatGPT, Claude &amp; Gemini can find your business
+              ${geoScoreDelta !== null && geoScoreDelta !== undefined ? `· <span style="font-weight:700;color:${geoScoreDelta >= 0 ? '#059669' : '#dc2626'}">${geoScoreDelta >= 0 ? '+' : ''}${geoScoreDelta} from last month</span>` : ''}
+            </p>
+          </div>
+          <a href="https://vigmis.com/dashboard" style="font-size:12px;font-weight:700;color:#4f46e5;text-decoration:none;white-space:nowrap">View report →</a>
+        </div>
+      </div>
+      ` : ''}
 
       <!-- Campaigns -->
       ${campaigns.length > 0 ? `
@@ -539,7 +561,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!settings.email) { skipped++; continue; }
 
       try {
-        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes] = await Promise.all([
+        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes] = await Promise.all([
           db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', settings.tenant_id),
           db.from('audit_log')
             .select('action')
@@ -551,6 +573,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'pending_approval'),
           db.from('social_comments').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'sent').gte('replied_at', weekAgo.toISOString()),
           db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle(),
+          db.from('geo_reports').select('score, grade').eq('tenant_id', settings.tenant_id).maybeSingle(),
         ]);
 
         const html = buildDigestHtml({
@@ -562,6 +585,8 @@ export async function notificationRoutes(app: FastifyInstance) {
           socialPostsPending: socialPendingRes.count ?? 0,
           socialCommentsReplied: socialRepliedRes.count ?? 0,
           plan: planRes.data?.plan ?? 'free',
+          geoScore: geoRes.data?.score ?? null,
+          geoGrade: geoRes.data?.grade ?? null,
         }).replace('{{TENANT_ID}}', settings.tenant_id);
 
         await sendDigest(settings.email, html, period);
@@ -810,6 +835,12 @@ export async function notificationRoutes(app: FastifyInstance) {
         skipped++;
       }
     }
+
+    // Also trigger monthly snapshots for all tenants
+    fetch(`http://localhost:${process.env.PORT ?? 4000}/history/snapshot`, {
+      method: 'POST',
+      headers: { 'x-cron-secret': process.env.CRON_SECRET ?? 'vigmis-cron', 'Content-Type': 'application/json' },
+    }).catch(() => { /* non-blocking */ });
 
     return reply.send({ sent, skipped, month: monthStr });
   });

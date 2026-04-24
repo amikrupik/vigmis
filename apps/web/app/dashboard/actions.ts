@@ -191,6 +191,12 @@ export async function getGeoReport() {
   return apiCall('/geo/report');
 }
 
+// ── History / Timeline ────────────────────────────────────────────────────────
+
+export async function getHistoryTimeline() {
+  return apiCall('/history/timeline');
+}
+
 // ── Alert Settings ────────────────────────────────────────────────────────────
 
 export async function getAlertSettings() {

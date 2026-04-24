@@ -113,12 +113,34 @@ export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string)
 
   if (!report) report = fallbackGeoReport(websiteUrl);
 
-  const { data: existing } = await db.from('geo_reports').select('id').eq('tenant_id', tenantId).maybeSingle();
+  // Upsert current report (latest always available)
+  const { data: existing } = await db.from('geo_reports').select('id, score').eq('tenant_id', tenantId).maybeSingle();
+  const prevScore: number | null = existing?.score ?? null;
+  const scoreDelta = prevScore !== null && report.score !== undefined ? report.score - prevScore : null;
+
   if (existing?.id) {
     await db.from('geo_reports').update({ website_url: websiteUrl, ...report, updated_at: new Date().toISOString() }).eq('id', existing.id);
   } else {
     await db.from('geo_reports').insert({ tenant_id: tenantId, website_url: websiteUrl, ...report });
   }
+
+  // Save historical snapshot (one per month, upsert by month)
+  const snapshotMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+  await db.from('geo_report_snapshots').upsert(
+    {
+      tenant_id: tenantId,
+      snapshot_month: snapshotMonth,
+      website_url: websiteUrl,
+      score: report.score,
+      grade: report.grade,
+      score_delta: scoreDelta,
+      issues_critical: (report.issues ?? []).filter((i: any) => i.severity === 'critical').length,
+      issues_warning:  (report.issues ?? []).filter((i: any) => i.severity === 'warning').length,
+      full_report: report,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: 'tenant_id,snapshot_month' },
+  );
 }
 
 function buildGeoPrompt(websiteUrl: string, extracted: ReturnType<typeof extractHtmlData>, settings: any): string {
