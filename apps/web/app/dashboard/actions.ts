@@ -181,6 +181,16 @@ export async function runCroAudit(website_url: string, goal: string) {
   return apiCall('/intelligence/cro-audit', 'POST', { website_url, goal });
 }
 
+// ── GEO Audit ─────────────────────────────────────────────────────────────────
+
+export async function runGeoAudit(website_url?: string) {
+  return apiCall('/geo/audit', 'POST', { website_url });
+}
+
+export async function getGeoReport() {
+  return apiCall('/geo/report');
+}
+
 // ── Alert Settings ────────────────────────────────────────────────────────────
 
 export async function getAlertSettings() {

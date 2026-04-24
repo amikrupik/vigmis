@@ -20,6 +20,7 @@ import {
   getSocialSettings, updateSocialSettings, getSocialPosts, approveSocialPost, rejectSocialPost,
   generateSocialContent, getSocialAnalytics,
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
+  runGeoAudit, getGeoReport,
   exportAnalyticsCSV, exportAnalyticsHTML,
   exportCampaignsCSV, exportCampaignsHTML,
   exportSocialCSV, exportSocialHTML,
@@ -31,7 +32,7 @@ import { ClerkSignOutButton } from '../components/sign-out-button';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'protocols' | 'social' | 'settings';
+type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'geo' | 'protocols' | 'social' | 'settings';
 
 type Campaign = {
   id: string; platform: 'google' | 'meta' | 'tiktok';
@@ -74,6 +75,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'campaigns', label: 'Campaigns', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
   { key: 'creative', label: 'Creative', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
   { key: 'intelligence', label: 'Intelligence', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
+  { key: 'geo', label: 'AI Visibility', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg> },
   { key: 'protocols', label: 'Decisions', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
   { key: 'social', label: 'Social', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> },
   { key: 'settings', label: 'Settings', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
@@ -235,6 +237,7 @@ export default function DashboardClient() {
         )}
         {tab === 'creative' && <CreativeTab settings={settings} />}
         {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} />}
+        {tab === 'geo' && <GeoTab settings={settings} />}
         {tab === 'protocols' && <ProtocolsTab />}
         {tab === 'social' && <SocialTab />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
@@ -2767,6 +2770,280 @@ const SENTIMENT_STYLE: Record<string, string> = {
   spam: 'bg-slate-100 text-slate-500',
   other: 'bg-slate-100 text-slate-500',
 };
+
+// ── GEO Tab ───────────────────────────────────────────────────────────────────
+
+const SEVERITY_STYLE: Record<string, string> = {
+  critical: 'bg-red-50 border-red-200 text-red-700',
+  warning:  'bg-amber-50 border-amber-200 text-amber-700',
+  info:     'bg-blue-50 border-blue-200 text-blue-700',
+};
+const SEVERITY_DOT: Record<string, string> = {
+  critical: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-400',
+};
+const PRIORITY_STYLE: Record<string, string> = {
+  critical: 'text-red-600 font-bold', high: 'text-amber-600 font-semibold', medium: 'text-slate-500',
+};
+
+function GradeCircle({ score, grade }: { score: number; grade: string }) {
+  const color = score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-500' : 'text-red-500';
+  const ring  = score >= 80 ? 'border-emerald-400' : score >= 60 ? 'border-amber-400' : 'border-red-400';
+  return (
+    <div className={`w-24 h-24 rounded-full border-4 ${ring} flex flex-col items-center justify-center flex-shrink-0`}>
+      <span className={`text-3xl font-black ${color}`}>{grade}</span>
+      <span className="text-xs text-slate-400">{score}/100</span>
+    </div>
+  );
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+  return (
+    <button onClick={copy} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
+      {copied ? 'Copied!' : label}
+    </button>
+  );
+}
+
+function GeoTab({ settings }: any) {
+  const [report, setReport] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [customUrl, setCustomUrl] = useState('');
+  const [activeSection, setActiveSection] = useState<'issues' | 'schema' | 'faq' | 'description' | 'checklist'>('issues');
+
+  useEffect(() => {
+    getGeoReport().then(r => { setReport(r?.exists ? r : null); setLoading(false); });
+  }, []);
+
+  async function handleRun() {
+    setRunning(true);
+    try {
+      const r = await runGeoAudit(customUrl || undefined);
+      setReport(r);
+    } catch { /* ignore */ }
+    finally { setRunning(false); }
+  }
+
+  if (loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
+
+  const websiteUrl = report?.website_url || settings?.website_url || '';
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">AI Visibility (GEO)</h2>
+            <p className="text-sm text-slate-500 mt-1">How well AI systems like ChatGPT, Claude, and Gemini can find and recommend your business</p>
+          </div>
+          {report && <GradeCircle score={report.score ?? 0} grade={report.grade ?? 'F'} />}
+        </div>
+
+        {/* URL + Run button */}
+        <div className="mt-5 flex gap-3 flex-wrap items-center">
+          <input
+            type="url"
+            placeholder={websiteUrl || 'https://yourwebsite.com'}
+            value={customUrl}
+            onChange={e => setCustomUrl(e.target.value)}
+            className="flex-1 min-w-[220px] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            onClick={handleRun}
+            disabled={running}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap"
+          >
+            {running ? 'Analyzing…' : report ? 'Re-run audit' : 'Run audit'}
+          </button>
+        </div>
+        {running && (
+          <div className="mt-4 flex items-center gap-3 text-sm text-slate-500">
+            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            Crawling website and generating AI analysis… this takes ~30 seconds
+          </div>
+        )}
+      </div>
+
+      {!report && !running && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-10 text-center">
+          <p className="text-slate-500 text-sm">No audit yet. Enter your website URL above and click "Run audit".</p>
+        </div>
+      )}
+
+      {report && (
+        <>
+          {/* Score breakdown + strengths */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <h3 className="text-sm font-bold text-slate-700 mb-3">Issues found ({(report.issues ?? []).length})</h3>
+              <div className="space-y-1">
+                {(['critical', 'warning', 'info'] as const).map(sev => {
+                  const count = (report.issues ?? []).filter((i: any) => i.severity === sev).length;
+                  return count > 0 ? (
+                    <div key={sev} className="flex items-center gap-2 text-sm">
+                      <span className={`w-2.5 h-2.5 rounded-full ${SEVERITY_DOT[sev]}`} />
+                      <span className="capitalize text-slate-600">{sev}</span>
+                      <span className="ml-auto font-bold text-slate-800">{count}</span>
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <h3 className="text-sm font-bold text-slate-700 mb-3">Strengths</h3>
+              <ul className="space-y-1.5">
+                {(report.strengths ?? []).slice(0, 4).map((s: string, i: number) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                    <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                    {s}
+                  </li>
+                ))}
+                {!(report.strengths?.length) && <li className="text-sm text-slate-400 italic">None identified yet — run the audit to see results.</li>}
+              </ul>
+            </div>
+          </div>
+
+          {/* Section tabs */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="flex border-b border-slate-200 overflow-x-auto">
+              {([
+                { key: 'issues', label: 'Issues & Fixes' },
+                { key: 'schema', label: 'Schema Code' },
+                { key: 'faq', label: 'FAQ Content' },
+                { key: 'description', label: 'Business Description' },
+                { key: 'checklist', label: 'Action Checklist' },
+              ] as const).map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setActiveSection(s.key)}
+                  className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                    activeSection === s.key ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-5">
+              {/* Issues */}
+              {activeSection === 'issues' && (
+                <div className="space-y-3">
+                  {(report.issues ?? []).length === 0 && <p className="text-sm text-slate-400 italic">No issues found — great work!</p>}
+                  {(report.issues ?? []).map((issue: any, i: number) => (
+                    <div key={i} className={`border rounded-xl p-4 ${SEVERITY_STYLE[issue.severity] ?? SEVERITY_STYLE.info}`}>
+                      <div className="flex items-start gap-3">
+                        <span className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_DOT[issue.severity] ?? SEVERITY_DOT.info}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold uppercase tracking-wide opacity-70">{issue.element}</span>
+                            <span className="text-xs font-semibold uppercase tracking-wide bg-white/60 px-2 py-0.5 rounded-full">{issue.severity}</span>
+                          </div>
+                          <p className="text-sm font-semibold mt-1">{issue.problem}</p>
+                          <p className="text-sm mt-1 opacity-80"><span className="font-semibold">Fix:</span> {issue.fix}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Schema Code */}
+              {activeSection === 'schema' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">JSON-LD Schema.org code</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Paste this inside a &lt;script type="application/ld+json"&gt; tag in your website &lt;head&gt;</p>
+                    </div>
+                    <CopyButton text={report.schema_code ?? ''} label="Copy code" />
+                  </div>
+                  <pre className="bg-slate-900 text-emerald-300 text-xs p-4 rounded-xl overflow-x-auto leading-relaxed whitespace-pre-wrap">
+                    {report.schema_code
+                      ? JSON.stringify(JSON.parse(report.schema_code), null, 2)
+                      : 'No schema generated'}
+                  </pre>
+                </div>
+              )}
+
+              {/* FAQ */}
+              {activeSection === 'faq' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">FAQ content for your website</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Add these Q&As to your website FAQ section — AI systems will use them to answer customer questions</p>
+                    </div>
+                    <CopyButton
+                      text={(report.faq ?? []).map((f: any) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n')}
+                      label="Copy all"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    {(report.faq ?? []).map((f: any, i: number) => (
+                      <div key={i} className="border border-slate-200 rounded-xl p-4">
+                        <p className="text-sm font-semibold text-slate-800">Q: {f.question}</p>
+                        <p className="text-sm text-slate-600 mt-1.5">A: {f.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Business Description */}
+              {activeSection === 'description' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">AI-optimized business description</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Use this on Google Business Profile, directory listings, and your About page</p>
+                    </div>
+                    <CopyButton text={report.business_description ?? ''} label="Copy text" />
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                    <p className="text-sm text-slate-700 leading-relaxed">{report.business_description}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Checklist */}
+              {activeSection === 'checklist' && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-700 mb-3">Manual actions you need to take</p>
+                  {(report.checklist ?? []).map((item: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3 border border-slate-200 rounded-xl p-3.5">
+                      <input type="checkbox" className="mt-0.5 w-4 h-4 accent-indigo-600 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm text-slate-700">{item.item}</p>
+                        <span className={`text-xs mt-0.5 ${PRIORITY_STYLE[item.priority] ?? 'text-slate-400'}`}>
+                          {item.priority} priority
+                        </span>
+                      </div>
+                      {item.url && (
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
+                          Open →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 text-center">
+            Last audit: {new Date(report.updated_at || report.created_at).toLocaleString()} · {report.website_url}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
 
 function SocialTab() {
   const [posts, setPosts] = useState<any[]>([]);

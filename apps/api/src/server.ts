@@ -19,6 +19,7 @@ import { protocolRoutes, expireProtocolsRoute } from './routes/protocols.js';
 import { socialRoutes } from './routes/social.js';
 import { exportRoutes } from './routes/export.js';
 import { trackingRoutes } from './routes/tracking.js';
+import { geoRoutes } from './routes/geo.js';
 
 const app = Fastify({ logger: true });
 
@@ -71,6 +72,7 @@ await app.register(expireProtocolsRoute);
 await app.register(socialRoutes);
 await app.register(exportRoutes);
 await app.register(trackingRoutes);
+await app.register(geoRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';
