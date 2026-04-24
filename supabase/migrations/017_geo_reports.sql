@@ -20,4 +20,4 @@ CREATE TABLE IF NOT EXISTS geo_reports (
 ALTER TABLE geo_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "tenant_own_geo" ON geo_reports
-  USING (tenant_id = (SELECT id FROM tenants WHERE clerk_user_id = auth.uid()));
+  USING (tenant_id = (SELECT id FROM tenants WHERE clerk_user_id = auth.uid()::text));
