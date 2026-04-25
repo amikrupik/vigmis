@@ -1,0 +1,214 @@
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033
+{\fonttbl{\f0\froman\fcharset0 Times New Roman;}{\f1\fswiss\fcharset0 Arial;}{\f2\fmodern\fcharset0 Courier New;}}
+{\colortbl;\red0\green0\blue0;\red79\green70\blue229;\red71\green85\blue105;\red15\green23\blue42;}
+{\stylesheet{\s0\f1\fs22\cf1 Normal;}{\s1\f1\fs36\b\cf4 Heading 1;}{\s2\f1\fs28\b\cf2 Heading 2;}{\s3\f1\fs24\b\cf3 Heading 3;}}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+
+{\pard\s1\f1\fs40\b\cf4\qc Vigmis\par}
+{\pard\f1\fs24\cf3\qc AI-Powered Advertising Management Platform\par}
+{\pard\f1\fs20\cf3\qc Design Documentation for Google API Access\par}
+{\pard\f1\fs18\cf3\qc Version 1.0 \endash  April 2026\par}
+{\pard\f1\fs18\cf3\qc Taurus Management and Investments Ltd.\par}
+\pard\par
+
+{\pard\brdrb\brdrs\brdrw10\brdrsp20\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 1. Application Overview\par}
+\pard\par
+{\pard\f1\fs22 Vigmis is an AI-powered digital advertising management platform designed to replace traditional advertising agencies for small and medium-sized businesses. The platform autonomously manages Google Ads and Meta Ads campaigns, optimizes budgets in real time, generates creative content, and delivers performance analytics \endash  all through a unified dashboard.\par}
+\pard\par
+{\pard\f1\fs22 The platform is built for business owners who want professional-grade advertising management without the overhead of a traditional agency. Vigmis acts as a fully automated marketing manager: launching campaigns, monitoring performance, applying data-driven optimizations, generating reports, and alerting owners to anomalies \endash  24 hours a day.\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 1.1 Core Capabilities\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab{\b Campaign Management:} Launch, pause, resume, and optimize Google Ads campaigns on behalf of the business owner.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Budget Optimization:} Automatically reallocate daily budgets across campaigns based on ROAS (Return on Ad Spend) performance.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Performance Analytics:} Collect and visualize impressions, clicks, conversions, CTR, CPA, and ROAS with 7/30/90-day comparisons.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b AI Visibility (GEO):} Audit and optimize the business\rquote s structured data to improve discoverability by AI systems (ChatGPT, Google AI Overviews, Gemini).\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Alert System:} Detect campaign anomalies, budget overruns, and performance drops and notify the owner via email and WhatsApp.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Conversion Tracking:} Measure true conversions and integrate Shopify revenue data for accurate attribution.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 2. Use of Google APIs\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 2.1 APIs Used\par}
+\pard\par
+{\pard\f1\fs22 Vigmis integrates with the following Google APIs:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab{\b Google Ads API} \endash  Primary API used to manage advertising campaigns, ad groups, ads, budgets, and retrieve performance reports.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Google OAuth 2.0} \endash  Used for secure user authentication and to obtain delegated access to the user\rquote s Google Ads account.\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 2.2 Google Ads API \endash  Specific Usage\par}
+\pard\par
+{\pard\f1\fs22 The Google Ads API is used exclusively to manage advertising campaigns for accounts that have been explicitly connected and authorized by the business owner. All API actions are performed on behalf of the authenticated user, using OAuth 2.0 refresh tokens stored securely in an encrypted database.\par}
+\pard\par
+{\pard\f1\fs22 Specific API operations used:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab{\b Campaign Service:} Create, update, enable, and pause campaigns.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Campaign Budget Service:} Create and update daily budgets.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Ad Group Service:} Create and manage ad groups within campaigns.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Ad Group Ad Service:} Create responsive search ads and responsive display ads.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Google Ads Query Language (GAQL):} Retrieve performance metrics (impressions, clicks, cost, conversions, conversion value) at campaign and ad group level.\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Customer Service:} Retrieve account metadata (customer ID, currency, timezone).\par}
+{\pard\f1\fs22\li360\bullet\tab{\b Keyword Plan Service:} Research keyword opportunities for new campaigns.\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 2.3 OAuth 2.0 Scopes Requested\par}
+\pard\par
+{\pard\f1\fs22 Vigmis requests the following OAuth scope:\par}
+\pard\par
+{\pard\f2\fs20\li720 https://www.googleapis.com/auth/adwords\par}
+\pard\par
+{\pard\f1\fs22 This scope is required to read and write Google Ads data on behalf of the authenticated user. No other Google scopes are requested.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 3. User Authorization Flow\par}
+\pard\par
+{\pard\f1\fs22 The Google connection flow within Vigmis follows standard OAuth 2.0 authorization code flow:\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 1 \endash  User Initiates Connection:} The business owner navigates to the Vigmis dashboard and clicks \ldblquote Connect Google Ads\rdblquote  in the Settings panel.\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 2 \endash  OAuth Redirect:} The user is redirected to Google\rquote s OAuth consent screen. The consent screen clearly displays:\par}
+{\pard\f1\fs22\li360\bullet\tab The name of the application requesting access: {\b Vigmis}\par}
+{\pard\f1\fs22\li360\bullet\tab The scope being requested: access to Google Ads data\par}
+{\pard\f1\fs22\li360\bullet\tab The Google account being used\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 3 \endash  User Grants Consent:} The user reviews the requested permissions and clicks \ldblquote Allow\rdblquote  to grant Vigmis access to their Google Ads account.\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 4 \endash  Token Storage:} The authorization code is exchanged for an access token and refresh token. The refresh token is encrypted using AES-256 and stored securely in the Vigmis database. The access token is never stored persistently.\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 5 \endash  Account Discovery:} Vigmis calls the Customer Service API to retrieve the user\rquote s Google Ads account ID(s) and confirm the connection is active.\par}
+\pard\par
+{\pard\f1\fs22 {\b Step 6 \endash  Ongoing Access:} Vigmis uses the refresh token to generate short-lived access tokens as needed for API calls. The user may revoke access at any time through the Vigmis Settings page or directly through their Google Account security settings.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 4. Data Handling and Privacy\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 4.1 Data Accessed\par}
+\pard\par
+{\pard\f1\fs22 Vigmis accesses the following data through the Google Ads API:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab Campaign names, statuses, and settings\par}
+{\pard\f1\fs22\li360\bullet\tab Campaign budget amounts\par}
+{\pard\f1\fs22\li360\bullet\tab Ad performance metrics (impressions, clicks, cost, conversions, ROAS)\par}
+{\pard\f1\fs22\li360\bullet\tab Ad content (headlines, descriptions) created by or for the user\par}
+{\pard\f1\fs22\li360\bullet\tab Geographic and audience targeting settings\par}
+\pard\par
+{\pard\f1\fs22 Vigmis does {\b not} access:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab Personal data of the advertiser\rquote s end customers\par}
+{\pard\f1\fs22\li360\bullet\tab Payment methods or billing information\par}
+{\pard\f1\fs22\li360\bullet\tab Data from any other Google product outside Google Ads\par}
+{\pard\f1\fs22\li360\bullet\tab Gmail, Drive, Calendar, or any personal Google account data\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 4.2 Data Storage\par}
+\pard\par
+{\pard\f1\fs22 Campaign performance data retrieved from the Google Ads API is stored in a PostgreSQL database hosted on Supabase (EU West region). The database is protected by:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab Row-Level Security (RLS) ensuring each business owner can only access their own data\par}
+{\pard\f1\fs22\li360\bullet\tab Encrypted OAuth refresh tokens (AES-256)\par}
+{\pard\f1\fs22\li360\bullet\tab TLS 1.3 in transit for all connections\par}
+{\pard\f1\fs22\li360\bullet\tab Encrypted storage at rest\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 4.3 Data Retention and Deletion\par}
+\pard\par
+{\pard\f1\fs22 Campaign performance data is retained for 12 months to support historical reporting. When a user disconnects their Google account or deletes their Vigmis account, all associated tokens and data are permanently deleted within 30 days.\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 4.4 Data Sharing\par}
+\pard\par
+{\pard\f1\fs22 Vigmis does not sell, share, or transfer any Google Ads data to third parties. Data is used exclusively to provide the advertising management services described in this document and to generate reports visible only to the authenticated account owner.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 5. Application Architecture\par}
+\pard\par
+{\pard\f1\fs22 Vigmis is built as a cloud-native SaaS application with the following architecture:\par}
+\pard\par
+{\pard\s3\f1\fs24\b\cf3 5.1 Frontend\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab {\b Framework:} Next.js 16 (App Router)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Hosting:} Vercel (Edge Network, global CDN)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Authentication:} Clerk (OAuth2 / JWT-based session management)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b UI:} Tailwind CSS, responsive design for desktop and mobile\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 5.2 Backend\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab {\b Runtime:} Node.js 22 (Fastify HTTP server)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Hosting:} Vercel Serverless Functions\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Database:} Supabase (PostgreSQL with Row-Level Security)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b AI Engine:} Anthropic Claude API (optimization decisions, content generation)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Notifications:} SendGrid (email), WhatsApp Business API\par}
+\pard\par
+
+{\pard\s3\f1\fs24\b\cf3 5.3 Google Ads Integration Layer\par}
+\pard\par
+{\pard\f1\fs22 The Google Ads API integration is handled by a dedicated service module (\f2\fs20 google-ads.ts\f1\fs22 ) within the backend. This module:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab Manages OAuth token refresh lifecycle\par}
+{\pard\f1\fs22\li360\bullet\tab Constructs and executes GAQL queries for performance data\par}
+{\pard\f1\fs22\li360\bullet\tab Submits campaign mutations (create, update, pause) via the mutate endpoint\par}
+{\pard\f1\fs22\li360\bullet\tab Handles API rate limiting with exponential backoff\par}
+{\pard\f1\fs22\li360\bullet\tab Logs all API calls and responses to an internal audit log for compliance\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 6. User Interface Design\par}
+\pard\par
+{\pard\f1\fs22 The Vigmis dashboard provides a clean, single-page interface with the following tabs:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab {\b Overview:} Summary of active campaigns, today\rquote s budget, AI optimizations applied, and alerts requiring attention.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Campaigns:} Full list of active and paused campaigns with status, platform badge, daily budget, and inline budget editing and pause/resume controls.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Analytics:} Performance charts (spend, impressions, CTR, ROAS, CPA) with 7/30/90-day period selectors and period-over-period comparison.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b AI Visibility:} GEO audit report showing the business\rquote s discoverability score for AI recommendation engines, with actionable improvement checklist.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b History:} Month-by-month timeline of all actions Vigmis took, GEO scores, campaign counts, and optimization events.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Settings:} Google Ads and Meta connection management, alert notification preferences, and account management.\par}
+\pard\par
+{\pard\f1\fs22 The Google Ads connection status is clearly visible on the Settings tab. Users see a green \ldblquote Connected\rdblquote  badge with their account ID when connected, and a prominent \ldblquote Connect Google Ads\rdblquote  button when not connected. Disconnection is a one-click operation available at any time.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 7. Automated Operations and Human Oversight\par}
+\pard\par
+{\pard\f1\fs22 Vigmis operates autonomously on behalf of the business owner with the following safeguards:\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab {\b Budget caps:} The platform never exceeds the daily budget set by the user. Budget increases require explicit approval via the Approval Requests flow.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Conservative mode:} By default, the AI operates in \ldblquote conservative\rdblquote  risk mode, making small incremental adjustments. Users may upgrade to \ldblquote moderate\rdblquote  or \ldblquote aggressive\rdblquote  modes.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Approval requests:} Budget increases above a configurable threshold are queued for owner approval before execution.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Emergency stop:} The dashboard provides a one-click \ldblquote Pause All Campaigns\rdblquote  button for immediate account-wide pause.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Full audit log:} Every action taken by the AI (campaign pause, budget change, bid adjustment) is logged with timestamp, reason, and affected campaign to the owner\rquote s account history.\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 8. Security Measures\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab All API tokens are encrypted at rest using AES-256 encryption\par}
+{\pard\f1\fs22\li360\bullet\tab HTTPS/TLS 1.3 enforced for all client-server and server-API communications\par}
+{\pard\f1\fs22\li360\bullet\tab JWT-based authentication for all API endpoints, validated on every request\par}
+{\pard\f1\fs22\li360\bullet\tab Row-Level Security (RLS) in the database prevents cross-tenant data access\par}
+{\pard\f1\fs22\li360\bullet\tab OAuth tokens are never exposed to the frontend or logged in plaintext\par}
+{\pard\f1\fs22\li360\bullet\tab Rate limiting enforced on all backend endpoints\par}
+{\pard\f1\fs22\li360\bullet\tab Cron job endpoints protected by a shared secret header\par}
+\pard\par
+
+{\pard\s2\f1\fs28\b\cf2 9. Company Information\par}
+\pard\par
+{\pard\f1\fs22\li360\bullet\tab {\b Company name:} Taurus Management and Investments Ltd.\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Product name:} Vigmis\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Website:} https://vigmis.com\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Contact email:} ami@tmgt.co.il\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Application type:} Web application (SaaS)\par}
+{\pard\f1\fs22\li360\bullet\tab {\b Intended users:} Small and medium-sized businesses who have authorized Vigmis to manage their Google Ads account\par}
+{\pard\f1\fs22\li360\bullet\tab {\b API access level requested:} Standard Access \endash  Google Ads API\par}
+\pard\par
+
+{\pard\brdrb\brdrs\brdrw10\brdrsp20\par}
+\pard\par
+{\pard\f1\fs18\cf3\qc This document was prepared for the purpose of Google API access application review.\par}
+{\pard\f1\fs18\cf3\qc Vigmis \endash  Taurus Management and Investments Ltd. \endash  April 2026\par}
+\pard\par
+}
