@@ -505,7 +505,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const period = `${weekAgo.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-    const [campaignsRes, alertsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes] = await Promise.all([
+    const [campaignsRes, alertsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes] = await Promise.all([
       db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', request.tenantId),
       db.from('dismissed_alerts').select('alert_id').eq('tenant_id', request.tenantId),
       db.from('audit_log')
@@ -518,6 +518,8 @@ export async function notificationRoutes(app: FastifyInstance) {
       db.from('social_posts').select('id', { count: 'exact', head: true }).eq('tenant_id', request.tenantId).eq('status', 'pending_approval'),
       db.from('social_comments').select('id', { count: 'exact', head: true }).eq('tenant_id', request.tenantId).eq('status', 'sent').gte('replied_at', weekAgo.toISOString()),
       db.from('billing_customers').select('plan').eq('tenant_id', request.tenantId).maybeSingle(),
+      db.from('geo_reports').select('score, grade').eq('tenant_id', request.tenantId).maybeSingle(),
+      db.from('geo_report_snapshots').select('score_delta').eq('tenant_id', request.tenantId).order('snapshot_month', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     const html = buildDigestHtml({
@@ -529,6 +531,9 @@ export async function notificationRoutes(app: FastifyInstance) {
       socialPostsPending: socialPendingRes.count ?? 0,
       socialCommentsReplied: socialRepliedRes.count ?? 0,
       plan: planRes.data?.plan ?? 'free',
+      geoScore: geoRes.data?.score ?? null,
+      geoGrade: geoRes.data?.grade ?? null,
+      geoScoreDelta: geoSnapshotRes.data?.score_delta ?? null,
     });
 
     return reply.header('Content-Type', 'text/html').send(html);
@@ -561,7 +566,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!settings.email) { skipped++; continue; }
 
       try {
-        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes] = await Promise.all([
+        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes] = await Promise.all([
           db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', settings.tenant_id),
           db.from('audit_log')
             .select('action')
@@ -574,6 +579,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           db.from('social_comments').select('id', { count: 'exact', head: true }).eq('tenant_id', settings.tenant_id).eq('status', 'sent').gte('replied_at', weekAgo.toISOString()),
           db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle(),
           db.from('geo_reports').select('score, grade').eq('tenant_id', settings.tenant_id).maybeSingle(),
+          db.from('geo_report_snapshots').select('score_delta').eq('tenant_id', settings.tenant_id).order('snapshot_month', { ascending: false }).limit(1).maybeSingle(),
         ]);
 
         const html = buildDigestHtml({
@@ -587,6 +593,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           plan: planRes.data?.plan ?? 'free',
           geoScore: geoRes.data?.score ?? null,
           geoGrade: geoRes.data?.grade ?? null,
+          geoScoreDelta: geoSnapshotRes.data?.score_delta ?? null,
         }).replace('{{TENANT_ID}}', settings.tenant_id);
 
         await sendDigest(settings.email, html, period);

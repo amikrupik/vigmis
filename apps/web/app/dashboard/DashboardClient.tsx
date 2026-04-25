@@ -2848,12 +2848,15 @@ function GeoTab({ settings }: any) {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [auditError, setAuditError] = useState(false);
   const [activeSection, setActiveSection] = useState<'issues' | 'schema' | 'faq' | 'description' | 'checklist'>('issues');
 
   useEffect(() => {
     getGeoReport().then(async r => {
       if (r?.exists) {
         setReport(r);
+        setLoading(false);
+      } else if (!settings?.website_url) {
         setLoading(false);
       } else {
         // No report yet — Vigmis runs the audit automatically
@@ -2862,7 +2865,7 @@ function GeoTab({ settings }: any) {
         try {
           const fresh = await runGeoAudit();
           setReport(fresh);
-        } catch { /* ignore */ }
+        } catch { setAuditError(true); }
         finally { setRefreshing(false); }
       }
     });
@@ -2911,8 +2914,14 @@ function GeoTab({ settings }: any) {
       </div>
 
       {!report && !refreshing && (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-10 text-center">
-          <p className="text-slate-500 text-sm">Make sure your website URL is set in Settings, then Vigmis will generate the report automatically.</p>
+        <div className={`border rounded-2xl p-10 text-center ${auditError ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+          <p className="text-slate-500 text-sm">
+            {!settings?.website_url
+              ? 'Add your website URL in Settings — Vigmis will generate the AI visibility report automatically.'
+              : auditError
+                ? 'Could not generate the AI visibility report. Click Refresh to try again.'
+                : 'Report is being generated. Refresh the page in a moment.'}
+          </p>
         </div>
       )}
 
@@ -3146,7 +3155,7 @@ function HistoryTab() {
                     <div className="bg-slate-50 rounded-xl p-2.5 text-center">
                       <p className="text-xs text-slate-400 font-medium">AI Score</p>
                       <p className={`text-lg font-black ${(geo.score ?? 0) >= 80 ? 'text-emerald-600' : (geo.score ?? 0) >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
-                        {geo.grade}
+                        {geo.grade ?? 'N/A'}
                       </p>
                       {geo.score_delta !== null && geo.score_delta !== undefined && (
                         <p className={`text-xs font-bold ${geo.score_delta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -3167,7 +3176,7 @@ function HistoryTab() {
                   {month.optimizations_count !== undefined && (
                     <div className="bg-slate-50 rounded-xl p-2.5 text-center">
                       <p className="text-xs text-slate-400 font-medium">AI Actions</p>
-                      <p className="text-lg font-black text-indigo-600">{month.optimizations_count + (month.budget_changes_count ?? 0)}</p>
+                      <p className="text-lg font-black text-indigo-600">{(month.optimizations_count ?? 0) + (month.budget_changes_count ?? 0)}</p>
                       <p className="text-xs text-slate-400">total</p>
                     </div>
                   )}

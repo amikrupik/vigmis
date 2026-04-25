@@ -220,7 +220,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
       // Fire GEO audit in background — non-blocking
       if (data.website_url) {
         const { runGeoAuditForTenant } = await import('./geo.js');
-        runGeoAuditForTenant(request.tenantId, data.website_url).catch(() => { /* background */ });
+        runGeoAuditForTenant(request.tenantId, data.website_url).catch(err => { request.log.error({ err }, 'background geo audit failed'); });
       }
 
       return reply.code(201).send({ success: true });
