@@ -59,8 +59,8 @@ export default async function Home() {
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
             Get Started →
           </Link>
-          <Link href="/sign-in" className="border border-slate-200 text-slate-700 hover:border-slate-300 font-semibold px-8 py-4 rounded-2xl text-base transition-colors">
-            Sign in
+          <Link href="/demo" className="border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold px-8 py-4 rounded-2xl text-base transition-colors">
+            Try Demo →
           </Link>
         </div>
         <p className="text-xs text-slate-400 mt-4">Free AI strategy & competitor research · Then 7% of managed spend · Cancel anytime</p>
