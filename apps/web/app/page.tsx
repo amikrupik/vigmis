@@ -49,21 +49,46 @@ export default async function Home() {
           AI-Powered Ad Management
         </div>
         <h1 className="text-5xl sm:text-6xl font-black text-slate-900 leading-tight max-w-3xl">
-          Your campaigns.<br />
-          <span className="text-indigo-600">Managed by AI.</span>
+          AI platform that creates<br />
+          <span className="text-indigo-600">and manages your ad campaigns</span>
         </h1>
         <p className="text-lg text-slate-500 mt-6 max-w-xl leading-relaxed">
-          Vigmis runs your Google, Meta, and TikTok ads — and manages your social media — autonomously. Strategy, creative, posts, comments, budget, optimization. You grow. We handle the rest.
+          Connect your Google & Meta accounts. Vigmis handles strategy, creatives, budget optimization, and reporting — automatically. You pay the ad platforms directly. We charge only a small management fee.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-10">
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
-            Get Started →
+            Get Started Free →
           </Link>
           <Link href="/demo" className="border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold px-8 py-4 rounded-2xl text-base transition-colors">
-            Try Demo →
+            Try Demo (no signup) →
           </Link>
         </div>
-        <p className="text-xs text-slate-400 mt-4">Free AI strategy & competitor research · Then 7% of managed spend · Cancel anytime</p>
+        <p className="text-xs text-slate-400 mt-4">No credit card required · Free AI strategy included · 7% of managed spend · Cancel anytime</p>
+      </section>
+
+      {/* How it works */}
+      <section className="px-6 py-16 bg-white border-t border-slate-100">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-2xl font-black text-slate-900 text-center mb-10">How it works</h2>
+          <div className="grid sm:grid-cols-3 gap-8 text-center">
+            {[
+              { step: '1', title: 'Connect your accounts', desc: 'Link your Google Ads and Meta accounts. Vigmis reads your existing setup and understands your business in minutes.' },
+              { step: '2', title: 'AI builds your strategy', desc: 'Vigmis interviews you, scans your website, researches your market, and creates a complete campaign plan — for your approval.' },
+              { step: '3', title: 'Campaigns run automatically', desc: 'Vigmis launches, monitors, and optimises your campaigns 24/7. Budget shifts to top performers. You get weekly reports.' },
+            ].map(s => (
+              <div key={s.step} className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full bg-indigo-600 text-white font-black text-lg flex items-center justify-center mb-4">{s.step}</div>
+                <h3 className="font-bold text-slate-900 mb-2">{s.title}</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-10">
+            <Link href="/demo" className="inline-flex items-center gap-2 text-indigo-600 font-bold text-sm hover:underline">
+              See it live — Try Demo (no signup required) →
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* Features */}

@@ -343,7 +343,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               </button>
             </div>
 
-            <div className="space-y-3 pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-slate-100 space-y-3">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -352,36 +352,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
                 <span className="text-xs text-slate-600 leading-relaxed">
-                  I have read and agree to the{' '}
+                  By continuing, I agree to Vigmis&apos;s{' '}
                   <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">Terms of Service</a>
                   {', '}
                   <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">Privacy Policy</a>
                   {', and '}
-                  <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">Acceptable Use Policy</a>.
-                </span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={ageConfirmed}
-                  onChange={e => setAgeConfirmed(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
-                />
-                <span className="text-xs text-slate-600">I confirm that I am 18 years of age or older.</span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={aiDisclaimerAccepted}
-                  onChange={e => setAiDisclaimerAccepted(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-red-300 text-red-600 focus:ring-red-500 flex-shrink-0"
-                />
-                <span className="text-xs text-slate-700 leading-relaxed">
-                  <strong className="text-red-700">I understand that Vigmis is an automated AI system.</strong>{' '}
-                  It may contain bugs, errors, or malfunctions. I am solely responsible for independently monitoring my campaigns on Google Ads, Meta Ads Manager, and TikTok Ads. Vigmis is not liable for any lost revenue, missed sales, or ad spend resulting from system errors, campaign downtime, or AI decisions. I have read and accept the full{' '}
-                  <a href="/terms#disclaimer" target="_blank" className="text-red-600 hover:underline font-semibold">AI System Disclaimer</a>.
+                  <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">Acceptable Use Policy</a>
+                  {' '}(including the AI system limitations described therein). I confirm I am 18 or older.
                 </span>
               </label>
 
@@ -392,7 +369,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
-                <span className="text-xs text-slate-500">I'd like to receive tips, product updates, and performance insights by email. (Optional)</span>
+                <span className="text-xs text-slate-400">Send me tips and product updates by email. (Optional)</span>
               </label>
 
               <label className="flex items-start gap-3 cursor-pointer">
@@ -402,9 +379,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   onChange={e => setHasParallelCampaigns(e.target.checked)}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-400">
                   I have active campaigns on these platforms that I am <strong>not</strong> transferring to Vigmis.
-                  <span className="text-slate-400 ml-1">(Helps us calibrate performance benchmarks correctly.)</span>
+                  <span className="ml-1">(Helps calibrate benchmarks.)</span>
                 </span>
               </label>
             </div>
@@ -412,14 +389,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <div className="space-y-3">
               <button
                 onClick={() => setStep('chat')}
-                disabled={!termsAccepted || !ageConfirmed || !aiDisclaimerAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
+                disabled={!termsAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Continue →
               </button>
               <button
                 onClick={() => setStep('chat')}
-                disabled={!termsAccepted || !ageConfirmed || !aiDisclaimerAccepted}
+                disabled={!termsAccepted}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Skip — I'll connect later
