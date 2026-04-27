@@ -1,19 +1,14 @@
-import Image from "next/image";
 import Link from "next/link";
 import ContactForm from "./ContactForm";
+import PublicNav from '../components/PublicNav';
+import PublicFooter from '../components/PublicFooter';
 
 export const metadata = { title: "Contact — Vigmis" };
 
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} /></Link>
-        <div className="flex items-center gap-4">
-          <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
-          <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">Get started →</Link>
-        </div>
-      </nav>
+      <PublicNav />
 
       <main className="flex-1 max-w-2xl mx-auto px-6 py-20">
         <h1 className="text-4xl font-black text-slate-900 mb-3">Contact Us</h1>
@@ -46,16 +41,7 @@ export default function ContactPage() {
         </div>
       </main>
 
-      <footer className="border-t border-slate-100 px-6 py-6">
-        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-          <Link href="/" className="hover:text-slate-600">Home</Link>
-          <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
-          <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
-          <Link href="/terms" className="hover:text-slate-600">Terms of Service</Link>
-          <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
-          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

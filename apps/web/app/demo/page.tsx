@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import PublicNav from '../components/PublicNav';
+import PublicFooter from '../components/PublicFooter';
 
 // ── Demo Data ─────────────────────────────────────────────────────────────────
 
@@ -352,18 +354,7 @@ export default function DemoPage() {
         </Link>
       </div>
 
-      {/* Nav */}
-      <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-20">
-        <Link href="/">
-          <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} priority />
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link href="/sign-in" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">Sign in</Link>
-          <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-            Get started free →
-          </Link>
-        </div>
-      </nav>
+      <PublicNav />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         {/* Page header */}
@@ -408,23 +399,7 @@ export default function DemoPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-100 px-6 py-8 mt-4">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} />
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-            <Link href="/about" className="hover:text-slate-600">About</Link>
-            <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
-            <Link href="/contact" className="hover:text-slate-600">Contact</Link>
-            <Link href="/privacy" className="hover:text-slate-600">Privacy</Link>
-            <Link href="/terms" className="hover:text-slate-600">Terms</Link>
-            <Link href="/refund" className="hover:text-slate-600">Refund</Link>
-            <Link href="/cookies" className="hover:text-slate-600">Cookies</Link>
-            <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
-          </div>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Taurus Management and Investments Ltd. — Vigmis</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

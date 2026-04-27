@@ -1,5 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
+import PublicNav from '../components/PublicNav';
+import PublicFooter from '../components/PublicFooter';
 
 export const metadata = { title: "Terms of Service — Vigmis" };
 
@@ -8,10 +9,7 @@ const LAST_UPDATED = "April 22, 2026";
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100">
-        <Link href="/"><Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} /></Link>
-        <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
-      </nav>
+      <PublicNav />
 
       <main className="flex-1 max-w-3xl mx-auto px-6 py-16">
         <h1 className="text-4xl font-black text-slate-900 mb-2">Terms of Service</h1>
@@ -235,19 +233,7 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <footer className="border-t border-slate-100 px-6 py-6">
-        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-          <Link href="/" className="hover:text-slate-600">Home</Link>
-          <Link href="/about" className="hover:text-slate-600">About</Link>
-          <Link href="/contact" className="hover:text-slate-600">Contact</Link>
-          <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
-          <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
-          <Link href="/cookies" className="hover:text-slate-600">Cookie Policy</Link>
-          <Link href="/refund" className="hover:text-slate-600">Refund Policy</Link>
-          <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
-          <span>© {new Date().getFullYear()} Taurus Management and Investments Ltd.</span>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

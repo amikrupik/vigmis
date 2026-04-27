@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import Image from "next/image";
 import Link from "next/link";
+import PublicNav from './components/PublicNav';
+import PublicFooter from './components/PublicFooter';
 
 export default async function Home() {
   const { userId } = await auth();
@@ -31,17 +32,7 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Nav */}
-      <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 bg-white/80 backdrop-blur z-20">
-        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority />
-        <div className="flex items-center gap-4">
-          <Link href="/about" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">About</Link>
-          <Link href="/contact" className="text-sm text-slate-500 hover:text-slate-800 font-medium hidden sm:block">Contact</Link>
-          <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
-          <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-            Get Started →
-          </Link>
-        </div>
-      </nav>
+      <PublicNav />
 
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 text-center">
@@ -184,22 +175,7 @@ export default async function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-slate-100 px-6 py-8">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} />
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-            <Link href="/about" className="hover:text-slate-600">About</Link>
-            <Link href="/faq" className="hover:text-slate-600">FAQ</Link>
-            <Link href="/contact" className="hover:text-slate-600">Contact</Link>
-            <Link href="/privacy" className="hover:text-slate-600">Privacy</Link>
-            <Link href="/terms" className="hover:text-slate-600">Terms</Link>
-            <Link href="/refund" className="hover:text-slate-600">Refund</Link>
-            <Link href="/cookies" className="hover:text-slate-600">Cookies</Link>
-            <Link href="/acceptable-use" className="hover:text-slate-600">Acceptable Use</Link>
-          </div>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} Taurus Management and Investments Ltd. — Vigmis</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
