@@ -646,7 +646,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   </div>
                   <p className="text-sm text-slate-700 leading-relaxed">{ba.verdict_explanation}</p>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       { label: 'Minimum to enter market', value: `$${ba.minimum_monthly_usd}/mo` },
                       { label: 'Recommended (learning phase)', value: `$${ba.recommended_learning_usd}/mo` },
@@ -660,7 +660,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     ))}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                     {[
                       { label: 'Est. clicks/mo', value: ba.projected_clicks_monthly.toLocaleString() },
                       { label: 'Est. leads/mo', value: ba.projected_leads_monthly.toLocaleString() },
@@ -773,7 +773,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
                       <div>
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approval mode</p>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           {([
                             { value: 'auto', label: 'Auto', desc: 'Posts go live automatically' },
                             { value: 'review', label: 'Review', desc: '24h window to approve' },

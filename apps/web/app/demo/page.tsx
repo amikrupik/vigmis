@@ -117,7 +117,7 @@ function OverviewTab({ onTab }: { onTab: (t: string) => void }) {
       </div>
 
       {/* GEO + Alert row */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button onClick={() => onTab('geo')} className="bg-white border border-slate-200 rounded-2xl p-5 text-left hover:border-indigo-300 transition-colors">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">AI Visibility Score</p>
           <div className="flex items-center gap-3">
@@ -155,7 +155,7 @@ function CampaignsTab() {
         <button disabled className="bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl opacity-60 cursor-not-allowed">Launch campaign</button>
       </div>
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto"><table className="w-full">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left text-xs font-bold text-slate-400 uppercase px-5 py-3">Campaign</th>
@@ -178,7 +178,7 @@ function CampaignsTab() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
       <p className="text-xs text-slate-400 text-center">In demo mode, campaign controls are disabled. Sign up to manage real campaigns.</p>
     </div>
@@ -279,7 +279,7 @@ function GeoTab() {
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           <h3 className="text-sm font-bold text-slate-700 mb-3">Issues found ({issues.length})</h3>
           <div className="space-y-2">

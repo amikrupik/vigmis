@@ -446,7 +446,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
             </div>
             {pacing && <BurnGauge pctSpent={pacing.pct_spent} pctElapsed={pacing.pct_elapsed} status={pacing.status} />}
           </div>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
               { label: 'Spend', val: `$${daily.today.spend.toFixed(0)}`, chg: daily.changes?.spend },
               { label: 'ROAS', val: `${daily.today.roas.toFixed(1)}x`, chg: daily.changes?.roas },
@@ -1207,7 +1207,7 @@ function CreativeTab({ settings }: any) {
         </div>
 
         {/* Video type cards */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {VIDEO_OPTIONS.map(opt => (
             <button
               key={opt.type}
@@ -1391,7 +1391,7 @@ function CreativeTab({ settings }: any) {
           <h3 className="font-bold text-slate-900">Creative Scoring</h3>
           <p className="text-sm text-slate-500 mt-0.5">Get a 0-100 score and improvement tips before you spend</p>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {['avatar', 'cinematic', 'animation', 'image', 'text'].map(t => (
             <button key={t} onClick={() => setScoreForm(f => ({ ...f, type: t }))} className={`py-2 text-sm font-semibold rounded-xl capitalize transition-colors ${scoreForm.type === t ? 'bg-indigo-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{t}</button>
           ))}
@@ -1580,7 +1580,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   return (
     <div className="space-y-6">
       {/* Sub-tab nav */}
-      <div className="flex gap-1 flex-wrap bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 flex-wrap bg-slate-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto">
         {SUB_TABS.map(t => (
           <button key={t.key} onClick={() => setSubTab(t.key)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${subTab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t.label}</button>
         ))}

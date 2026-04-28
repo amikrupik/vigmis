@@ -10,7 +10,7 @@ export default function AboutPage() {
       <PublicNav />
 
       <main className="flex-1 max-w-3xl mx-auto px-6 py-20">
-        <h1 className="text-4xl font-black text-slate-900 mb-6">About Vigmis</h1>
+        <h1 className="text-2xl sm:text-4xl font-black text-slate-900 mb-6">About Vigmis</h1>
 
         <div className="prose prose-slate max-w-none space-y-6 text-slate-600 leading-relaxed">
           <p className="text-xl text-slate-700 font-medium">
