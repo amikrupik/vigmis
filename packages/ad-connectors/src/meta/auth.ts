@@ -1,5 +1,5 @@
 // Meta (Facebook) Business Manager OAuth connector
-// Scopes: ads_management, ads_read, business_management
+// Scopes: ads_management, ads_read, business_management, pages_manage_posts, instagram_content_publish, instagram_manage_comments
 // Docs: https://developers.facebook.com/docs/marketing-api/overview/authorization
 
 import { db, encryptToken, decryptToken } from '@vigmis/db';
@@ -14,6 +14,9 @@ const SCOPES = [
   'ads_read',
   'business_management',
   'pages_read_engagement',
+  'pages_manage_posts',
+  'instagram_content_publish',
+  'instagram_manage_comments',
 ].join(',');
 
 function getConfig() {
