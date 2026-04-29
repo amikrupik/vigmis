@@ -2,7 +2,7 @@
 //
 // GET  /auth/google           → redirect to Google consent screen
 // GET  /auth/google/callback  → exchange code, save tokens
-// GET  /auth/meta             → redirect to Meta consent screen
+// GET  /auth/meta             → redirect to Meta consent screen (scopes: public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,business_management)
 // GET  /auth/meta/callback    → exchange code, save tokens
 // GET  /auth/status           → which platforms are connected
 
