@@ -1,5 +1,5 @@
 // Meta (Facebook) Business Manager OAuth connector
-// Scopes: ads_management, ads_read, business_management, pages_manage_posts, instagram_content_publish, instagram_manage_comments
+// Scopes: public_profile, email, ads_read, ads_management, pages_show_list, pages_read_engagement, business_management
 // Docs: https://developers.facebook.com/docs/marketing-api/overview/authorization
 
 import { db, encryptToken, decryptToken } from '@vigmis/db';
@@ -10,13 +10,13 @@ const META_AUTH_URL = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth
 const META_TOKEN_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
 const META_EXCHANGE_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
 const SCOPES = [
-  'ads_management',
+  'public_profile',
+  'email',
   'ads_read',
-  'business_management',
+  'ads_management',
+  'pages_show_list',
   'pages_read_engagement',
-  'pages_manage_posts',
-  'instagram_content_publish',
-  'instagram_manage_comments',
+  'business_management',
 ].join(',');
 
 function getConfig() {
