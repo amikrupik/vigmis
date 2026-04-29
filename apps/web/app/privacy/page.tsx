@@ -79,9 +79,10 @@ export default function PrivacyPage() {
             <p>We use essential cookies for authentication (via Clerk) and session management. We do not use tracking or advertising cookies.</p>
           </section>
 
-          <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">8. Data Retention</h2>
+          <section id="data-deletion">
+            <h2 className="text-xl font-bold text-slate-900 mb-3">8. Data Retention &amp; Deletion</h2>
             <p>We retain your data for as long as your account is active. Upon account deletion, your data is permanently removed within 30 days, except where retention is required by law.</p>
+            <p className="mt-3">To request deletion of your account and all associated data, go to <strong>Dashboard → Settings → Danger Zone → Delete Account</strong>, or email <a href="mailto:privacy@vigmis.com" className="text-indigo-600">privacy@vigmis.com</a>. We will process the request within 30 days.</p>
           </section>
 
           <section>
