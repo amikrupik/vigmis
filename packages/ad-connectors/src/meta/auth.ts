@@ -11,7 +11,6 @@ const META_TOKEN_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/acc
 const META_EXCHANGE_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
 const SCOPES = [
   'public_profile',
-  'email',
   'ads_read',
   'ads_management',
   'pages_show_list',
