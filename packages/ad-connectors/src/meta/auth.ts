@@ -1,5 +1,5 @@
 // Meta (Facebook) Business Manager OAuth connector
-// Scopes: public_profile, email, ads_read, ads_management, pages_show_list, pages_read_engagement, business_management
+// Scopes: public_profile, ads_read, ads_management, pages_show_list, pages_read_engagement, business_management
 // Docs: https://developers.facebook.com/docs/marketing-api/overview/authorization
 
 import { db, encryptToken, decryptToken } from '@vigmis/db';
