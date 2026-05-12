@@ -33,7 +33,7 @@ export class MetaAdsConnector implements AdConnector {
 
   getAuthUrl(tenantId: string, state: string): string {
     const { appId, redirectUri } = getConfig();
-    console.log('[Meta OAuth] scope string:', SCOPES);
+
     const params = new URLSearchParams({
       client_id: appId,
       redirect_uri: redirectUri,

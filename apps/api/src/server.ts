@@ -24,7 +24,7 @@ import { historyRoutes } from './routes/history.js';
 
 const app = Fastify({ logger: true });
 
-console.log('[ENV CHECK] WEB_URL =', process.env.WEB_URL ?? '(not set — fallback to localhost:3000)');
+
 
 await app.register(cors, {
   origin: process.env.WEB_URL ?? 'http://localhost:3000',
