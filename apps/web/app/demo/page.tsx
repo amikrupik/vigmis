@@ -29,6 +29,13 @@ const ALERTS = [
 
 const GEO = { score: 68, grade: 'C+', delta: 12, issues: 4, strengths: 3 };
 
+const SOCIAL_POSTS = [
+  { id: '1', platform: 'tiktok', status: 'pending', content: '🔑 3 tips to boost your hotel bookings this summer! Our AI analyzed top-performing ads in your niche — here\'s what works. #HotelMarketing #TravelTips', scheduled_for: 'Today 6:00 PM', video_url: true },
+  { id: '2', platform: 'tiktok', status: 'pending', content: '✨ Behind the scenes at Tel Aviv Boutique Hotel — what makes guests come back? Our AI spotted a 40% engagement boost on "behind the scenes" content. #BTS #TelAviv', scheduled_for: 'Thu 6:00 PM', video_url: true },
+  { id: '3', platform: 'facebook', status: 'published', content: 'Summer is here! Book your stay at Tel Aviv Boutique Hotel and enjoy rooftop access + free breakfast. Limited rooms available this weekend. 🌅', published_at: '2 days ago', likes: 34, shares: 8 },
+  { id: '4', platform: 'instagram', status: 'published', content: 'Weekend vibes at the rooftop 🌊 Tel Aviv never looked better. Swipe to see all the views from our top floor suite.', published_at: '4 days ago', likes: 127, shares: 22 },
+];
+
 const WEEKLY = [
   { day: 'Mon', spend: 87, conversions: 14 },
   { day: 'Tue', spend: 94, conversions: 17 },
@@ -329,15 +336,109 @@ function GeoTab() {
   );
 }
 
+// ── Social Tab ────────────────────────────────────────────────────────────────
+
+function SocialTab() {
+  const [posts, setPosts] = useState(SOCIAL_POSTS);
+  const [approved, setApproved] = useState<string[]>([]);
+  const [rejected, setRejected] = useState<string[]>([]);
+
+  const pending = posts.filter(p => p.status === 'pending');
+  const published = posts.filter(p => p.status === 'published');
+
+  function handleApprove(id: string) {
+    setApproved(prev => [...prev, id]);
+  }
+  function handleReject(id: string) {
+    setRejected(prev => [...prev, id]);
+  }
+
+  const platformColor: Record<string, string> = {
+    tiktok: 'bg-black text-white',
+    facebook: 'bg-blue-600 text-white',
+    instagram: 'bg-pink-500 text-white',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Pending approval */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-slate-900">Pending Approval</h2>
+          <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">{pending.length} posts</span>
+        </div>
+        <div className="space-y-4">
+          {pending.map(post => {
+            const isApproved = approved.includes(post.id);
+            const isRejected = rejected.includes(post.id);
+            return (
+              <div key={post.id} className={`bg-white border rounded-2xl p-5 transition-all ${isApproved ? 'border-emerald-300 bg-emerald-50' : isRejected ? 'border-red-200 bg-red-50 opacity-60' : 'border-slate-200'}`}>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${platformColor[post.platform]}`}>{post.platform.toUpperCase()}</span>
+                  <span className="text-xs text-slate-400">Scheduled: {post.scheduled_for}</span>
+                </div>
+                {post.video_url && (
+                  <div className="w-full h-24 bg-slate-900 rounded-xl flex items-center justify-center mb-3">
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">▶</div>
+                      <p className="text-xs text-slate-400">AI-generated video ready</p>
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm text-slate-700 mb-4">{post.content}</p>
+                {!isApproved && !isRejected ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApprove(post.id)} className="flex-1 bg-emerald-600 text-white text-sm font-semibold py-2 rounded-xl hover:bg-emerald-700 transition-colors">
+                      ✓ Approve & Publish
+                    </button>
+                    <button onClick={() => handleReject(post.id)} className="flex-1 bg-slate-100 text-slate-600 text-sm font-semibold py-2 rounded-xl hover:bg-slate-200 transition-colors">
+                      ✕ Reject
+                    </button>
+                  </div>
+                ) : isApproved ? (
+                  <p className="text-sm font-bold text-emerald-600 text-center">✓ Approved — queued for publishing</p>
+                ) : (
+                  <p className="text-sm font-bold text-red-400 text-center">✕ Rejected</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Published */}
+      <div>
+        <h2 className="text-lg font-bold text-slate-900 mb-3">Published</h2>
+        <div className="space-y-3">
+          {published.map(post => (
+            <div key={post.id} className="bg-white border border-slate-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${platformColor[post.platform]}`}>{post.platform.toUpperCase()}</span>
+                <span className="text-xs text-slate-400">{post.published_at}</span>
+              </div>
+              <p className="text-sm text-slate-700 mb-3">{post.content}</p>
+              <div className="flex gap-4 text-xs text-slate-400">
+                <span>❤️ {post.likes} likes</span>
+                <span>🔁 {post.shares} shares</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Demo Page ────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'campaigns' | 'analytics' | 'geo';
+type Tab = 'overview' | 'campaigns' | 'analytics' | 'geo' | 'social';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'geo', label: 'AI Visibility' },
+  { id: 'social', label: 'Social Media' },
 ];
 
 export default function DemoPage() {
@@ -387,6 +488,7 @@ export default function DemoPage() {
         {tab === 'campaigns' && <CampaignsTab />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'geo' && <GeoTab />}
+        {tab === 'social' && <SocialTab />}
 
         {/* Bottom CTA */}
         <div className="mt-10 bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-8 text-center text-white">
