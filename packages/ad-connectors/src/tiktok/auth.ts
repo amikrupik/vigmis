@@ -1,91 +1,96 @@
-// TikTok for Business Marketing API — OAuth 2.0 connector
-// Docs: https://business-api.tiktok.com/portal/docs?id=1738373164380162
+// TikTok for Developers — OAuth 2.0 connector (Login Kit + Content Posting API)
+// Docs: https://developers.tiktok.com/doc/login-kit-web/
+//       https://developers.tiktok.com/doc/content-posting-api-get-started/
 //
 // Required env vars (Railway):
-//   TIKTOK_CLIENT_KEY    — from TikTok for Business developer portal
-//   TIKTOK_CLIENT_SECRET — from TikTok for Business developer portal
+//   TIKTOK_CLIENT_KEY    — from TikTok Developers portal
+//   TIKTOK_CLIENT_SECRET — from TikTok Developers portal
 //   TIKTOK_REDIRECT_URI  — e.g. https://vigmisapi-production.up.railway.app/auth/tiktok/callback
 //
-// Scopes needed:
-//   advertiser.read     — read advertiser info
-//   campaign.read       — read campaign performance
-//   campaign.create     — create/update campaigns
+// Scopes requested:
+//   user.info.basic — read profile info (open_id, avatar, display name)
+//   video.upload    — upload video to user's inbox draft (granted by default)
+//   video.publish   — Direct Post to user's profile (requires audit approval)
 
 import { db, encryptToken, decryptToken } from '@vigmis/db';
 import type { AdConnector, OAuthTokens } from '../connector.interface.js';
 
-const TIKTOK_AUTH_URL = 'https://business-api.tiktok.com/portal/auth';
-const TIKTOK_TOKEN_URL = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/';
-const TIKTOK_REFRESH_URL = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/refresh_token/';
+const TIKTOK_AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/';
+const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
+
+const SCOPES = ['user.info.basic', 'video.upload', 'video.publish'].join(',');
 
 function getConfig() {
-  const appId = process.env.TIKTOK_CLIENT_KEY;
-  const appSecret = process.env.TIKTOK_CLIENT_SECRET;
+  const clientKey = process.env.TIKTOK_CLIENT_KEY;
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
   const redirectUri = process.env.TIKTOK_REDIRECT_URI;
-  if (!appId || !appSecret || !redirectUri) {
+  if (!clientKey || !clientSecret || !redirectUri) {
     throw new Error('Missing TikTok OAuth environment variables: TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_REDIRECT_URI');
   }
-  return { appId, appSecret, redirectUri };
+  return { clientKey, clientSecret, redirectUri };
+}
+
+interface TikTokTokenResponse {
+  access_token: string;
+  expires_in: number;
+  open_id: string;
+  refresh_expires_in: number;
+  refresh_token: string;
+  scope: string;
+  token_type: string;
+  error?: string;
+  error_description?: string;
 }
 
 export class TikTokAdsConnector implements AdConnector {
   readonly platform = 'tiktok' as const;
 
-  getAuthUrl(tenantId: string, state: string): string {
-    const { appId, redirectUri } = getConfig();
+  getAuthUrl(_tenantId: string, state: string): string {
+    const { clientKey, redirectUri } = getConfig();
     const params = new URLSearchParams({
-      app_id: appId,
+      client_key: clientKey,
+      scope: SCOPES,
+      response_type: 'code',
       redirect_uri: redirectUri,
       state,
-      // TikTok does not use a scope param in the URL — scopes are configured in app settings
     });
     return `${TIKTOK_AUTH_URL}?${params.toString()}`;
   }
 
   async handleCallback(code: string, tenantId: string): Promise<OAuthTokens> {
-    const { appId, appSecret, redirectUri } = getConfig();
+    const { clientKey, clientSecret, redirectUri } = getConfig();
+
+    const body = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    });
 
     const res = await fetch(TIKTOK_TOKEN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        app_id: appId,
-        secret: appSecret,
-        auth_code: code,
-      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-cache',
+      },
+      body: body.toString(),
     });
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`TikTok token exchange failed: ${body}`);
+    const json = (await res.json()) as TikTokTokenResponse;
+
+    if (!res.ok || json.error || !json.access_token) {
+      throw new Error(`TikTok token exchange failed: ${json.error_description ?? json.error ?? 'unknown error'}`);
     }
 
-    const json = await res.json() as {
-      code: number;
-      message: string;
-      data?: {
-        access_token: string;
-        refresh_token: string;
-        access_token_expire_in: number;    // seconds
-        refresh_token_expire_in: number;
-        advertiser_ids: string[];
-        scope: string[];
-      };
-    };
-
-    if (json.code !== 0 || !json.data) {
-      throw new Error(`TikTok token exchange error: ${json.message}`);
-    }
-
-    const d = json.data;
-    const expiresAt = new Date(Date.now() + d.access_token_expire_in * 1000);
+    const expiresAt = new Date(Date.now() + json.expires_in * 1000);
 
     const tokens: OAuthTokens = {
-      accessToken: d.access_token,
-      refreshToken: d.refresh_token,
+      accessToken: json.access_token,
+      refreshToken: json.refresh_token,
       expiresAt,
-      scope: d.scope?.join(','),
-      accountId: d.advertiser_ids?.[0] ?? undefined,
+      scope: json.scope,
+      accountId: json.open_id,
     };
 
     await this.persistTokens(tenantId, tokens);
@@ -93,7 +98,7 @@ export class TikTokAdsConnector implements AdConnector {
   }
 
   async refreshTokens(tenantId: string): Promise<OAuthTokens> {
-    const { appId, appSecret } = getConfig();
+    const { clientKey, clientSecret } = getConfig();
 
     const { data: row, error } = await db
       .from('platform_tokens')
@@ -108,43 +113,36 @@ export class TikTokAdsConnector implements AdConnector {
 
     const refreshToken = decryptToken(row.refresh_token);
 
-    const res = await fetch(TIKTOK_REFRESH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        app_id: appId,
-        secret: appSecret,
-        refresh_token: refreshToken,
-      }),
+    const body = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
     });
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`TikTok token refresh failed: ${body}`);
+    const res = await fetch(TIKTOK_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-cache',
+      },
+      body: body.toString(),
+    });
+
+    const json = (await res.json()) as TikTokTokenResponse;
+
+    if (!res.ok || json.error || !json.access_token) {
+      throw new Error(`TikTok token refresh failed: ${json.error_description ?? json.error ?? 'unknown error'}`);
     }
 
-    const json = await res.json() as {
-      code: number;
-      message: string;
-      data?: {
-        access_token: string;
-        refresh_token: string;
-        access_token_expire_in: number;
-        refresh_token_expire_in: number;
-      };
-    };
-
-    if (json.code !== 0 || !json.data) {
-      throw new Error(`TikTok token refresh error: ${json.message}`);
-    }
-
-    const d = json.data;
-    const expiresAt = new Date(Date.now() + d.access_token_expire_in * 1000);
+    const expiresAt = new Date(Date.now() + json.expires_in * 1000);
 
     const tokens: OAuthTokens = {
-      accessToken: d.access_token,
-      refreshToken: d.refresh_token,
+      accessToken: json.access_token,
+      refreshToken: json.refresh_token,
       expiresAt,
+      scope: json.scope,
+      accountId: json.open_id,
     };
 
     await this.persistTokens(tenantId, tokens);

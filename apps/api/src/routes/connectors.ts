@@ -135,7 +135,7 @@ export async function connectorRoutes(app: FastifyInstance) {
   });
 
   app.get('/auth/tiktok/callback', async (request, reply) => {
-    const { auth_code, state, error } = request.query as Record<string, string>;
+    const { code, state, error } = request.query as Record<string, string>;
 
     if (error) {
       return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_denied`);
@@ -147,7 +147,7 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
 
     try {
-      await tiktok.handleCallback(auth_code, stateData.tenantId);
+      await tiktok.handleCallback(code, stateData.tenantId);
 
       await db.from('audit_log').insert({
         tenant_id: stateData.tenantId,

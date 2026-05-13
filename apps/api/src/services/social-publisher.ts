@@ -120,9 +120,10 @@ async function publishToInstagram(post: any): Promise<PublishResult> {
 }
 
 async function publishToTikTok(post: any): Promise<PublishResult> {
-  // TikTok Content Posting API — requires video_url
+  // TikTok Content Posting API — Direct Post via FILE_UPLOAD
+  // Uses FILE_UPLOAD (push_by_file) instead of PULL_FROM_URL so we don't need to
+  // verify the video-hosting domain (videos live on Supabase, not vigmis.com).
   if (!post.video_url) {
-    // Video not ready yet — mark as failed so cron retries next run
     return { success: false, error: 'TikTok post requires a video (not yet generated)' };
   }
 
@@ -138,7 +139,20 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
 
   const content = post.client_edit?.trim() || post.content;
 
-  // Initialize video upload
+  // Step 1: fetch the video bytes from wherever they're hosted (Supabase, etc.)
+  const videoRes = await fetch(post.video_url);
+  if (!videoRes.ok) {
+    return { success: false, error: `Failed to fetch video bytes: ${videoRes.status}` };
+  }
+  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+  const videoSize = videoBuffer.length;
+
+  // TikTok requires chunk_size between 5MB and 64MB. For a single-chunk upload of
+  // a video smaller than 5MB, chunk_size can equal video_size.
+  const chunkSize = videoSize;
+  const totalChunkCount = 1;
+
+  // Step 2: init Direct Post with FILE_UPLOAD source
   const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
     method: 'POST',
     headers: {
@@ -154,8 +168,10 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
         disable_comment: false,
       },
       source_info: {
-        source: 'PULL_FROM_URL',
-        video_url: post.video_url,
+        source: 'FILE_UPLOAD',
+        video_size: videoSize,
+        chunk_size: chunkSize,
+        total_chunk_count: totalChunkCount,
       },
     }),
   });
@@ -165,7 +181,29 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
     return { success: false, error: initData.error.message };
   }
 
-  return { success: true, externalId: initData.data?.publish_id };
+  const uploadUrl = initData.data?.upload_url as string | undefined;
+  const publishId = initData.data?.publish_id as string | undefined;
+  if (!uploadUrl || !publishId) {
+    return { success: false, error: 'TikTok init response missing upload_url or publish_id' };
+  }
+
+  // Step 3: PUT video bytes to the returned upload_url
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Content-Length': videoSize.toString(),
+      'Content-Range': `bytes 0-${videoSize - 1}/${videoSize}`,
+    },
+    body: videoBuffer,
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    return { success: false, error: `TikTok upload failed (${uploadRes.status}): ${errText}` };
+  }
+
+  return { success: true, externalId: publishId };
 }
 
 export async function publishSocialPost(post: any): Promise<PublishResult> {
