@@ -3343,11 +3343,28 @@ function SocialTab() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Social Media not enabled</h2>
+        <h2 className="text-xl font-bold text-slate-900">Enable Social Media</h2>
         <p className="text-sm text-slate-500 leading-relaxed">
-          Social media management wasn't enabled during onboarding.
+          Vigmis will create weekly content for your Facebook Page and Instagram. You approve before anything is published.
         </p>
-        <p className="text-sm text-slate-400">To add it, use the <strong className="text-slate-600">chat button</strong> (bottom-right) and say <em>"Enable social media management"</em> — or contact <a href="mailto:support@vigmis.com" className="text-indigo-600 hover:underline">support@vigmis.com</a>.</p>
+        <button
+          onClick={async () => {
+            await updateSocialSettings({
+              enabled: true,
+              approval_mode: 'review',
+              platforms: [
+                { platform: 'facebook', enabled: true, posts_per_week: 1 },
+                { platform: 'instagram', enabled: true, posts_per_week: 1 },
+              ],
+              content_pillars: ['educational', 'promotional', 'social_proof'],
+            });
+            await load();
+          }}
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm"
+        >
+          Enable Social Media Management
+        </button>
+        <p className="text-xs text-slate-400">Requires Meta connection. You can disable it later in settings.</p>
       </div>
     );
   }
