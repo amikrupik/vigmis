@@ -3298,9 +3298,18 @@ function SocialTab() {
 
   async function handleGenerate() {
     setGenerating(true);
-    await generateSocialContent();
+    const result = await generateSocialContent();
     await load();
     setGenerating(false);
+    if (!result) {
+      alert('Generation failed. Check that Meta is connected and try again.');
+    } else if (result.generated === 0 && result.skipped === 0) {
+      alert('Social media is not configured. Enable it first.');
+    } else if (result.generated === 0) {
+      alert(`No new posts generated. ${result.skipped} skipped (already scheduled this week).`);
+    } else {
+      alert(`Generated ${result.generated} post${result.generated > 1 ? 's' : ''}.`);
+    }
   }
 
   async function handleSendReply(commentId: string) {
