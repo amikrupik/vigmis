@@ -21,10 +21,10 @@ export default async function Home() {
         const data = await res.json();
         redirect(data.onboardingComplete ? "/dashboard" : "/onboarding");
       } else {
-        redirect("/onboarding");
+        redirect("/dashboard");
       }
     } catch {
-      redirect("/onboarding");
+      redirect("/dashboard");
     }
   }
 
