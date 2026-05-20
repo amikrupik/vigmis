@@ -125,8 +125,13 @@ export async function socialRoutes(app: FastifyInstance) {
 
   // ── Manual generate ───────────────────────────────────────────────────────
   app.post('/social/generate', { preHandler: authenticate }, async (request, reply) => {
-    const result = await generateWeeklyPostsForTenant(request.tenantId);
-    return reply.send(result);
+    try {
+      const result = await generateWeeklyPostsForTenant(request.tenantId);
+      return reply.send(result);
+    } catch (err) {
+      request.log.error({ err, tenantId: request.tenantId }, 'Social generate failed');
+      return reply.code(500).send({ error: err instanceof Error ? err.message : 'Generation failed' });
+    }
   });
 
   // ── Analytics overview ────────────────────────────────────────────────────
