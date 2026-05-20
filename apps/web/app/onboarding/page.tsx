@@ -2,6 +2,8 @@ import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import OnboardingPageClient from './OnboardingPageClient';
 
+export const maxDuration = 300;
+
 export default async function OnboardingPage({
   searchParams,
 }: {
