@@ -134,7 +134,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         ? { ...settings, open_notes: [settings.open_notes, `Website clarification: ${websiteNotes.trim()}`].filter(Boolean).join('\n') }
         : settings;
       const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 60_000)
+        setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 180_000)
       );
       const result = await Promise.race([runAnalysis(settingsWithNotes, feedback), timeout]);
       clearTimeout(timer1);
