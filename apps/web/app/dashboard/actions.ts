@@ -7,13 +7,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 async function apiCall(path: string, method = 'GET', body?: object) {
   const { getToken } = await auth();
   const token = await getToken();
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API_URL}${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: 'no-store',
   });
   if (!res.ok) return null;
