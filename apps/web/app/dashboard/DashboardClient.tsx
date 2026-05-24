@@ -21,6 +21,7 @@ import {
   generateSocialContent, getSocialAnalytics,
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
+  getMetaPages, selectMetaPage, type MetaPage,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
   runGeoAudit, getGeoReport, getHistoryTimeline,
@@ -3473,6 +3474,42 @@ function SocialTab() {
   const [adAccountSaving, setAdAccountSaving] = useState(false);
   const [adAccountError, setAdAccountError] = useState<string | null>(null);
 
+  // ── Meta Pages + Instagram picker ─────────────────────────────────────────
+  const [pages, setPages] = useState<MetaPage[] | null>(null);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [pagesError, setPagesError] = useState<string | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [selectedIgUserId, setSelectedIgUserId] = useState<string | null>(null);
+  const [pageSaving, setPageSaving] = useState(false);
+
+  async function loadPages() {
+    setPagesLoading(true);
+    setPagesError(null);
+    const res = await getMetaPages();
+    if (!res) {
+      setPages([]);
+      setPagesError('Could not load Facebook pages. Reconnect Meta and try again.');
+    } else {
+      setPages(res.pages);
+      setSelectedPageId(res.selected_page_id);
+      setSelectedIgUserId(res.selected_instagram_user_id);
+    }
+    setPagesLoading(false);
+  }
+
+  async function handleSelectPage(p: MetaPage) {
+    setPageSaving(true);
+    const res = await selectMetaPage(p.page_id, p.instagram_user_id);
+    if (res) {
+      setSelectedPageId(p.page_id);
+      setSelectedIgUserId(p.instagram_user_id);
+      await load(); // refresh settings so the rest of SocialTab sees the new IDs
+    } else {
+      setPagesError('Failed to save selection.');
+    }
+    setPageSaving(false);
+  }
+
   async function loadAdAccounts() {
     setAdAccountLoading(true);
     setAdAccountError(null);
@@ -4086,14 +4123,92 @@ function SocialTab() {
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
+        {/* Facebook Page + Instagram picker — auto-detected from Meta */}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
           <div>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Connect your pages</h3>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Facebook Page + Instagram</h3>
             <p className="text-sm text-slate-500 leading-relaxed">
-              To publish posts and read comments, Vigmis needs your Facebook Page ID and Instagram User ID.
-              Find your Page ID in Facebook → Page Settings → About. Find your IG User ID via the Meta Graph API or a third-party tool.
+              Pick which Facebook Page (and linked Instagram Business account) Vigmis should publish to.
+              We read this list straight from your connected Meta account — no manual IDs needed.
             </p>
           </div>
+
+          {(selectedPageId || settings?.facebook_page_id) && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm">
+              <p className="font-semibold text-emerald-700">
+                Connected Page: {pages?.find(p => p.page_id === selectedPageId)?.name ?? selectedPageId ?? settings?.facebook_page_id}
+              </p>
+              {(selectedIgUserId || settings?.instagram_user_id) && (
+                <p className="text-xs text-slate-600 mt-0.5">Instagram: {pages?.find(p => p.instagram_user_id === selectedIgUserId)?.instagram_username ?? selectedIgUserId ?? settings?.instagram_user_id}</p>
+              )}
+            </div>
+          )}
+
+          {pages === null && !pagesLoading && (
+            <button
+              onClick={loadPages}
+              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              {selectedPageId || settings?.facebook_page_id ? 'Change page' : 'Load my pages'}
+            </button>
+          )}
+
+          {pagesLoading && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+              Loading pages from Meta…
+            </div>
+          )}
+
+          {pagesError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{pagesError}</p>
+          )}
+
+          {pages && pages.length === 0 && !pagesLoading && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              Meta returned no Pages for this user. Make sure you have admin access to at least one Facebook Page.
+            </p>
+          )}
+
+          {pages && pages.length > 0 && (
+            <div className="space-y-2">
+              {pages.map(p => {
+                const isSelected = p.page_id === selectedPageId;
+                return (
+                  <button
+                    key={p.page_id}
+                    onClick={() => handleSelectPage(p)}
+                    disabled={pageSaving || isSelected}
+                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                      isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+                    } ${pageSaving ? 'opacity-50 cursor-wait' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{p.page_id}</p>
+                        {p.category && <p className="text-xs text-slate-500 mt-0.5">{p.category}</p>}
+                        {p.instagram_username ? (
+                          <p className="text-xs text-violet-600 mt-1">📷 Instagram: @{p.instagram_username}</p>
+                        ) : (
+                          <p className="text-xs text-slate-400 mt-1">No Instagram Business account linked</p>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Manual override — kept as fallback for advanced users */}
+        <details className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <summary className="text-xs font-semibold text-slate-600 cursor-pointer">Manual Page ID entry (advanced)</summary>
+          <div className="mt-3 space-y-4">
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Facebook Page ID</label>
@@ -4130,7 +4245,8 @@ function SocialTab() {
           <p className="text-xs text-slate-400 leading-relaxed">
             These IDs are used only to publish your approved posts and fetch comments. Vigmis never posts without your approval (unless you set Auto mode).
           </p>
-        </div>
+          </div>
+        </details>
         </div>
       )}
 

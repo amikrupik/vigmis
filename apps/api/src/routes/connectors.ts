@@ -237,6 +237,93 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
   });
 
+  // List Facebook Pages + connected Instagram Business accounts
+  app.get('/connectors/meta/pages', { preHandler: authenticate }, async (request, reply) => {
+    const { data: tokenRow } = await db
+      .from('platform_tokens')
+      .select('access_token')
+      .eq('tenant_id', request.tenantId)
+      .eq('platform', 'meta')
+      .maybeSingle();
+    if (!tokenRow?.access_token) return reply.code(400).send({ error: 'Meta is not connected' });
+    const token = decryptToken(tokenRow.access_token);
+
+    try {
+      // /me/accounts returns Pages this user manages. For each, we ask for the linked IG business account.
+      const res = await fetch(
+        `${META_GRAPH}/me/accounts?fields=id,name,category,instagram_business_account{id,username}&limit=100&access_token=${token}`,
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        request.log.error({ body }, 'Meta /me/accounts failed');
+        return reply.code(502).send({ error: 'Meta API error', detail: body.slice(0, 300) });
+      }
+      const json = (await res.json()) as {
+        data?: Array<{
+          id: string; name: string; category?: string;
+          instagram_business_account?: { id: string; username?: string };
+        }>;
+      };
+      const pages = (json.data ?? []).map(p => ({
+        page_id: p.id,
+        name: p.name,
+        category: p.category ?? null,
+        instagram_user_id: p.instagram_business_account?.id ?? null,
+        instagram_username: p.instagram_business_account?.username ?? null,
+      }));
+      // Read current selections from social_settings
+      const { data: settings } = await db
+        .from('social_settings')
+        .select('facebook_page_id, instagram_user_id')
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle();
+      return reply.send({
+        pages,
+        selected_page_id: settings?.facebook_page_id ?? null,
+        selected_instagram_user_id: settings?.instagram_user_id ?? null,
+      });
+    } catch (err) {
+      request.log.error({ err }, 'Failed to fetch Meta pages');
+      return reply.code(500).send({ error: 'Failed to fetch pages' });
+    }
+  });
+
+  // Select Facebook Page + (optional) linked Instagram in one call
+  app.post<{ Body: { facebook_page_id: string; instagram_user_id?: string | null } }>(
+    '/connectors/meta/page',
+    { preHandler: authenticate }, async (request, reply) => {
+      const { facebook_page_id, instagram_user_id } = request.body ?? ({} as any);
+      if (!facebook_page_id) return reply.code(400).send({ error: 'facebook_page_id required' });
+
+      // Upsert into social_settings (the publisher reads these fields)
+      const { error } = await db.from('social_settings').upsert({
+        tenant_id: request.tenantId,
+        facebook_page_id,
+        instagram_user_id: instagram_user_id ?? null,
+        // social_settings.enabled defaults to false in migration 014 — flip it on so
+        // posts can actually publish. We don't want to fight the user's other settings,
+        // so we only touch enabled when it isn't already true.
+        enabled: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'tenant_id' });
+
+      if (error) {
+        request.log.error({ error }, 'Failed to save Meta page selection');
+        return reply.code(500).send({ error: 'Failed to save page selection' });
+      }
+
+      await db.from('audit_log').insert({
+        tenant_id: request.tenantId,
+        action: 'connector.meta.page_selected',
+        platform: 'meta',
+        actor: 'user',
+        payload: { facebook_page_id, instagram_user_id: instagram_user_id ?? null },
+      });
+
+      return reply.send({ success: true });
+    },
+  );
+
   app.post<{ Body: { account_id: string } }>(
     '/connectors/meta/ad-account',
     { preHandler: authenticate },

@@ -320,6 +320,22 @@ export async function selectMetaAdAccount(account_id: string): Promise<{ success
   return apiCall('/connectors/meta/ad-account', 'POST', { account_id });
 }
 
+export type MetaPage = {
+  page_id: string;
+  name: string;
+  category: string | null;
+  instagram_user_id: string | null;
+  instagram_username: string | null;
+};
+
+export async function getMetaPages(): Promise<{ pages: MetaPage[]; selected_page_id: string | null; selected_instagram_user_id: string | null } | null> {
+  return apiCall('/connectors/meta/pages');
+}
+
+export async function selectMetaPage(facebook_page_id: string, instagram_user_id: string | null) {
+  return apiCall('/connectors/meta/page', 'POST', { facebook_page_id, instagram_user_id });
+}
+
 export async function rerunAnalysisServer(): Promise<{ websiteAnalysis?: string; strategy?: any; error?: string } | null> {
   // Re-runs onboarding/analyze with the current saved settings.
   const status = await apiCall('/onboarding/status');
