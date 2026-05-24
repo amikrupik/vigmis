@@ -9,13 +9,27 @@ const META_API_VERSION = 'v19.0';
 const META_AUTH_URL = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth`;
 const META_TOKEN_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
 const META_EXCHANGE_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
+// Scopes Vigmis needs:
+// - public_profile: identify the user
+// - ads_read / ads_management: read & control campaigns
+// - pages_show_list: list the user's Pages in the picker
+// - pages_read_engagement: read post insights and comments
+// - pages_manage_posts: publish posts to the Page
+// - business_management: read Business Manager (Ad Accounts, owned Pages)
+// - instagram_basic: read the linked Instagram Business account + its posts
+// - instagram_content_publish: publish to Instagram via Graph API
+// - instagram_manage_comments: reply to / hide Instagram comments
 const SCOPES = [
   'public_profile',
   'ads_read',
   'ads_management',
   'pages_show_list',
   'pages_read_engagement',
+  'pages_manage_posts',
   'business_management',
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_comments',
 ].join(',');
 
 function getConfig() {
