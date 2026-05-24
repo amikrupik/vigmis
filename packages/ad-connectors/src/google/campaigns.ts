@@ -159,6 +159,101 @@ export async function createGoogleCampaign(
   }
 }
 
+// Fetch yesterday's metrics for a single campaign (clicks, impressions, cost, conversions, value)
+export async function fetchGoogleCampaignMetrics(
+  externalId: string,
+  tenantId: string,
+): Promise<{ clicks: number; impressions: number; spend: number; conversions: number; revenue: number } | null> {
+  try {
+    const devToken = getDeveloperToken();
+    const accessToken = await getAccessToken(tenantId);
+    const customerId = await getCustomerId(tenantId, accessToken);
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const date = yesterday.toISOString().slice(0, 10);
+
+    const res = await fetch(`${BASE}/customers/${customerId}/googleAds:search`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token': devToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `SELECT metrics.clicks, metrics.impressions, metrics.cost_micros,
+                       metrics.conversions, metrics.conversions_value
+                FROM campaign
+                WHERE campaign.id = ${externalId}
+                  AND segments.date = '${date}'`,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+
+    const json = await res.json() as { results?: Array<{ metrics: any }> };
+    const m = json.results?.[0]?.metrics ?? {};
+    return {
+      clicks: Number(m.clicks ?? 0),
+      impressions: Number(m.impressions ?? 0),
+      spend: Number(m.cost_micros ?? 0) / 1_000_000,
+      conversions: Number(m.conversions ?? 0),
+      revenue: Number(m.conversions_value ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Update a campaign's daily budget (Google budgets live on campaign_budget, not campaign)
+export async function updateGoogleBudget(
+  externalId: string,
+  tenantId: string,
+  newDailyBudgetUsd: number,
+): Promise<boolean> {
+  try {
+    const devToken = getDeveloperToken();
+    const accessToken = await getAccessToken(tenantId);
+    const customerId = await getCustomerId(tenantId, accessToken);
+
+    // Resolve the budget resource attached to this campaign
+    const lookup = await fetch(`${BASE}/customers/${customerId}/googleAds:search`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token': devToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `SELECT campaign_budget.resource_name FROM campaign WHERE campaign.id = ${externalId}`,
+      }),
+    });
+    if (!lookup.ok) return false;
+    const lookupJson = await lookup.json() as { results?: Array<{ campaignBudget?: { resourceName: string } }> };
+    const budgetResource = lookupJson.results?.[0]?.campaignBudget?.resourceName;
+    if (!budgetResource) return false;
+
+    const amountMicros = Math.round(newDailyBudgetUsd * 1_000_000);
+    const res = await fetch(`${BASE}/customers/${customerId}/campaignBudgets:mutate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token': devToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operations: [{
+          update: { resourceName: budgetResource, amountMicros: String(amountMicros) },
+          updateMask: 'amount_micros',
+        }],
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function pauseGoogleCampaign(
   externalId: string,
   tenantId: string,

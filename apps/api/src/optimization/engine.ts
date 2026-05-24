@@ -14,7 +14,10 @@ import { evaluateCampaign, getBenchmarkForStagnation, type CustomBenchmarkOverri
 import { hasActiveAbTest, evaluateAbTests } from './ab-engine.js';
 import { checkBenchmarkRecalibration } from './recalibration.js';
 import { sendTrackingGuide } from '../services/tracking-guide.js';
-import { pauseMetaCampaign, resumeMetaCampaign } from '@vigmis/ad-connectors';
+import {
+  pauseMetaCampaign, resumeMetaCampaign,
+  fetchGoogleCampaignMetrics, updateGoogleBudget,
+} from '@vigmis/ad-connectors';
 import { sendTenantNotification } from '../services/notify.js';
 import { createProtocol } from '../routes/protocols.js';
 import type { CampaignMetrics } from './rules.js';
@@ -41,11 +44,19 @@ async function checkTokenHealth(tenantId: string, platform: string): Promise<{ o
   return { ok: daysLeft >= 0, daysLeft: Math.floor(daysLeft) };
 }
 
-// Fetch Meta campaign insights
+type CampaignMetricsRaw = {
+  clicks: number;
+  impressions: number;
+  spend: number;
+  conversions: number;     // platform self-reported (may inflate)
+  revenue: number;         // platform self-reported
+};
+
+// Fetch Meta campaign insights — now also pulls conversions + conversion value
 async function fetchMetaMetrics(
   externalId: string,
   tenantId: string,
-): Promise<{ clicks: number; impressions: number; spend: number } | null> {
+): Promise<CampaignMetricsRaw | null> {
   try {
     const { data } = await db
       .from('platform_tokens')
@@ -65,23 +76,95 @@ async function fetchMetaMetrics(
 
     const res = await fetch(
       `https://graph.facebook.com/v19.0/${externalId}/insights?` +
-      `fields=clicks,impressions,spend&time_range={"since":"${dateStr}","until":"${dateStr}"}` +
+      `fields=clicks,impressions,spend,actions,action_values` +
+      `&time_range={"since":"${dateStr}","until":"${dateStr}"}` +
       `&access_token=${accessToken}`
     );
 
     if (!res.ok) return null;
-    const json = await res.json() as { data: Array<{ clicks: string; impressions: string; spend: string }> };
+    const json = await res.json() as { data: Array<{
+      clicks: string; impressions: string; spend: string;
+      actions?: Array<{ action_type: string; value: string }>;
+      action_values?: Array<{ action_type: string; value: string }>;
+    }> };
     const row = json.data?.[0];
-    if (!row) return { clicks: 0, impressions: 0, spend: 0 };
+    if (!row) return { clicks: 0, impressions: 0, spend: 0, conversions: 0, revenue: 0 };
+
+    const conversionTypes = ['purchase', 'omni_purchase', 'lead', 'complete_registration', 'offsite_conversion.fb_pixel_purchase'];
+    const conversions = (row.actions ?? [])
+      .filter(a => conversionTypes.includes(a.action_type))
+      .reduce((s, a) => s + parseFloat(a.value ?? '0'), 0);
+    const revenue = (row.action_values ?? [])
+      .filter(a => conversionTypes.includes(a.action_type))
+      .reduce((s, a) => s + parseFloat(a.value ?? '0'), 0);
 
     return {
       clicks: parseInt(row.clicks ?? '0'),
       impressions: parseInt(row.impressions ?? '0'),
       spend: parseFloat(row.spend ?? '0'),
+      conversions: Math.round(conversions),
+      revenue,
     };
   } catch {
     return null;
   }
+}
+
+// GA4 ground-truth lookup: yesterday's conversions + revenue attributed to this campaign.
+// Returns null when GA4 is not configured or no data matched — the engine then falls back
+// to platform self-reported numbers.
+async function fetchGa4ForCampaign(
+  tenantId: string,
+  campaign: { id: string; name: string; platform: string },
+): Promise<{ conversions: number; revenue: number } | null> {
+  const { data: settings } = await db
+    .from('ga4_settings')
+    .select('property_id, enabled')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  if (!settings?.enabled || !settings.property_id) return null;
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const date = yesterday.toISOString().slice(0, 10);
+
+  // Try to match GA4 sessionCampaign to our campaign name first (UTMs wired correctly),
+  // then fall back to platform-medium matching when names don't match.
+  const sourceMap: Record<string, string[]> = {
+    google:    ['google'],
+    meta:      ['facebook', 'fb', 'instagram', 'ig', 'meta'],
+    tiktok:    ['tiktok', 'tt'],
+  };
+  const sources = sourceMap[campaign.platform] ?? [campaign.platform];
+
+  // Exact campaign-name match
+  const { data: nameMatch } = await db
+    .from('ga4_daily_metrics')
+    .select('conversions, purchase_revenue')
+    .eq('tenant_id', tenantId)
+    .eq('date', date)
+    .eq('session_campaign', campaign.name)
+    .limit(20);
+
+  let rows = nameMatch ?? [];
+
+  // Fall back: platform-level aggregate (source/medium = cpc)
+  if (!rows.length) {
+    const { data: srcMatch } = await db
+      .from('ga4_daily_metrics')
+      .select('conversions, purchase_revenue')
+      .eq('tenant_id', tenantId)
+      .eq('date', date)
+      .in('source', sources)
+      .eq('medium', 'cpc')
+      .limit(50);
+    rows = srcMatch ?? [];
+  }
+
+  if (!rows.length) return null;
+  const conversions = rows.reduce((s, r: any) => s + Number(r.conversions ?? 0), 0);
+  const revenue = rows.reduce((s, r: any) => s + Number(r.purchase_revenue ?? 0), 0);
+  return { conversions, revenue };
 }
 
 // Update campaign budget via Meta API
@@ -410,14 +493,28 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
     result.campaignsEvaluated++;
 
     try {
-      let metrics: { clicks: number; impressions: number; spend: number } | null = null;
+      let metrics: CampaignMetricsRaw | null = null;
 
       if (campaign.platform === 'meta' && campaign.external_id) {
         metrics = await fetchMetaMetrics(campaign.external_id, tenantId);
+      } else if (campaign.platform === 'google' && campaign.external_id) {
+        metrics = await fetchGoogleCampaignMetrics(campaign.external_id, tenantId);
       }
-      // Google + TikTok metrics will be wired when API access is approved
+      // TikTok metrics will be wired when Marketing API is approved
 
-      if (!metrics) metrics = { clicks: 0, impressions: 0, spend: 0 };
+      if (!metrics) metrics = { clicks: 0, impressions: 0, spend: 0, conversions: 0, revenue: 0 };
+
+      // Cross-check with GA4 ground truth when available
+      const ga4 = await fetchGa4ForCampaign(tenantId, campaign).catch(() => null);
+      if (ga4) {
+        // Prefer GA4 conversions/revenue (single source of truth, no double counting).
+        // Keep platform clicks/impressions/spend — GA4 doesn't have those.
+        metrics = {
+          ...metrics,
+          conversions: ga4.conversions,
+          revenue: ga4.revenue,
+        };
+      }
 
       const daysRunning = Math.max(1, Math.floor(
         (Date.now() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
@@ -454,6 +551,9 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         clicks: metrics.clicks,
         impressions: metrics.impressions,
         spend: metrics.spend,
+        conversions: metrics.conversions,
+        revenue: metrics.revenue,
+        attributionSource: ga4 ? 'ga4' : 'platform',
         dailyBudgetUsd: campaign.daily_budget_usd,
         daysRunning,
         status: campaign.status,
@@ -629,7 +729,8 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
 
       if ((action.type === 'scale_up' || action.type === 'scale_down') && campaign.external_id) {
         if (campaign.platform === 'meta') await updateMetaBudget(campaign.external_id, tenantId, newBudget);
-        // Google + TikTok budget updates will be wired when APIs are approved
+        else if (campaign.platform === 'google') await updateGoogleBudget(campaign.external_id, tenantId, newBudget);
+        // TikTok budget updates will be wired when Marketing API is approved
         await db.from('campaigns')
           .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
           .eq('id', campaign.id);

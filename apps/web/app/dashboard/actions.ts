@@ -320,6 +320,44 @@ export async function selectMetaAdAccount(account_id: string): Promise<{ success
   return apiCall('/connectors/meta/ad-account', 'POST', { account_id });
 }
 
+export async function rerunAnalysisServer(): Promise<{ websiteAnalysis?: string; strategy?: any; error?: string } | null> {
+  // Re-runs onboarding/analyze with the current saved settings.
+  const status = await apiCall('/onboarding/status');
+  if (!status?.settings) return { error: 'No settings saved yet' };
+  return apiCall('/onboarding/analyze', 'POST', { settings: status.settings });
+}
+
+export async function getStrategy(): Promise<{
+  settings: any | null;
+  history: Array<{ id: string; action: string; platform?: string; actor: string; payload: any; created_at: string }>;
+} | null> {
+  return apiCall('/onboarding/strategy');
+}
+
+export type Ga4Property = {
+  property_id: string;
+  display_name: string;
+  account_id?: string;
+  currency?: string;
+  time_zone?: string;
+};
+
+export async function getGa4Properties(): Promise<{ properties: Ga4Property[] } | null> {
+  return apiCall('/ga4/properties');
+}
+
+export async function getGa4Settings(): Promise<{ settings: { property_id: string; property_name?: string; last_synced_at?: string } | null } | null> {
+  return apiCall('/ga4/settings');
+}
+
+export async function setGa4Property(property_id: string, property_name?: string) {
+  return apiCall('/ga4/settings', 'POST', { property_id, property_name });
+}
+
+export async function runGa4Sync(): Promise<{ rows: number; from?: string; to?: string } | null> {
+  return apiCall('/ga4/sync', 'POST', {});
+}
+
 export async function getSocialSettings() {
   return apiCall('/social/settings');
 }

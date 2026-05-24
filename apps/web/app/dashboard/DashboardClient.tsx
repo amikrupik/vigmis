@@ -21,6 +21,8 @@ import {
   generateSocialContent, getSocialAnalytics,
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
+  getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
+  getStrategy, rerunAnalysisServer,
   runGeoAudit, getGeoReport, getHistoryTimeline,
   exportAnalyticsCSV, exportAnalyticsHTML,
   exportCampaignsCSV, exportCampaignsHTML,
@@ -32,7 +34,7 @@ import { ClerkSignOutButton } from '../components/sign-out-button';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'geo' | 'history' | 'protocols' | 'social' | 'settings';
+type Tab = 'overview' | 'strategy' | 'analytics' | 'campaigns' | 'creative' | 'intelligence' | 'geo' | 'history' | 'protocols' | 'social' | 'settings';
 
 type Campaign = {
   id: string; platform: 'google' | 'meta' | 'tiktok';
@@ -71,6 +73,7 @@ const PLATFORM_BADGE: Record<string, string> = {
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'overview', label: 'Overview', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
+  { key: 'strategy', label: 'Strategy', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
   { key: 'analytics', label: 'Analytics', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
   { key: 'campaigns', label: 'Campaigns', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
   { key: 'creative', label: 'Creative', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
@@ -228,6 +231,7 @@ export default function DashboardClient() {
             onGeoTab={() => setTab('geo')}
           />
         )}
+        {tab === 'strategy' && <StrategyTab settings={settings} />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'campaigns' && (
           <CampaignsTab
@@ -2241,6 +2245,211 @@ function ProtocolsTab() {
   );
 }
 
+// ── Strategy Tab ──────────────────────────────────────────────────────────────
+// Read-only view of the current campaign strategy + the audit trail of changes.
+// Lets the client see what Vigmis decided, on what basis, and what has changed since.
+
+function StrategyTab({ settings: _settings }: any) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof getStrategy>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [reanalyzeMsg, setReanalyzeMsg] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const res = await getStrategy();
+    setData(res);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleReanalyze() {
+    setReanalyzing(true);
+    setReanalyzeMsg(null);
+    const res = await rerunAnalysisServer();
+    if (!res) setReanalyzeMsg('Re-analysis failed. Try again from the chat.');
+    else if (res.error) setReanalyzeMsg(res.error);
+    else setReanalyzeMsg('Re-analyzed. Reload to see the new strategy.');
+    setReanalyzing(false);
+    await load();
+  }
+
+  if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!data?.settings) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center text-sm text-slate-500">
+        No strategy saved yet. Complete onboarding to build one.
+      </div>
+    );
+  }
+
+  const s = data.settings;
+  const plan = s.strategy_plan ?? null;
+  const managedBudget = s.budget_monthly_ils
+    ? Math.round((s.budget_monthly_ils / 3.7) * (s.management_percentage / 100))
+    : null;
+
+  return (
+    <div className="space-y-5 max-w-4xl mx-auto">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Current Strategy</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            What Vigmis is doing, why, and every change since launch.
+          </p>
+          {s.updated_at && (
+            <p className="text-xs text-slate-400 mt-0.5">Last updated: {new Date(s.updated_at).toLocaleString()}</p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleReanalyze}
+            disabled={reanalyzing}
+            className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+          >
+            {reanalyzing ? 'Re-analyzing site…' : 'Re-analyze website'}
+          </button>
+          <a href="/onboarding?rethink=true" className="text-sm border border-amber-200 text-amber-700 hover:bg-amber-50 px-4 py-2 rounded-xl transition-colors">
+            Rethink strategy
+          </a>
+        </div>
+      </div>
+
+      {reanalyzeMsg && (
+        <p className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700">{reanalyzeMsg}</p>
+      )}
+
+      {/* Website understanding */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-900">What Vigmis understood about your business</h3>
+          {s.website_url && (
+            <a href={s.website_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">
+              {s.website_url} →
+            </a>
+          )}
+        </div>
+        {s.website_analysis ? (
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{s.website_analysis}</p>
+        ) : (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            No website analysis was stored. Click "Re-analyze website" to scan now — Vigmis will refuse to invent if the site is unreadable.
+          </p>
+        )}
+      </div>
+
+      {/* Plan summary */}
+      {plan && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900">Campaign plan</h3>
+            {managedBudget !== null && (
+              <span className="text-sm font-bold text-indigo-600">${managedBudget}/mo managed</span>
+            )}
+          </div>
+          <div className="p-5 space-y-4 text-sm text-slate-700">
+            {plan.market_insights && (
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Market insights</p>
+                <p className="leading-relaxed">{plan.market_insights}</p>
+              </div>
+            )}
+            {plan.target_audience && (
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Target audience</p>
+                <p className="leading-relaxed">{plan.target_audience}</p>
+              </div>
+            )}
+            {plan.platforms?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Platforms & budget split</p>
+                <div className="space-y-2">
+                  {plan.platforms.map((p: any) => (
+                    <div key={p.name} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                      <div>
+                        <span className="font-semibold capitalize">{p.name}</span>
+                        {p.campaign_types && (
+                          <span className="text-xs text-slate-500 ml-2">({p.campaign_types.join(', ')})</span>
+                        )}
+                        {p.reasoning && (
+                          <p className="text-xs text-slate-500 mt-0.5">{p.reasoning}</p>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-slate-900 flex-shrink-0">{p.budget_percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {plan.estimated_cpc && (
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-500">Estimated CPC</span>
+                <strong>{plan.estimated_cpc}</strong>
+              </div>
+            )}
+            {plan.recommendations && (
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Recommendations</p>
+                <p className="leading-relaxed whitespace-pre-wrap">{plan.recommendations}</p>
+              </div>
+            )}
+            {plan.custom_benchmarks && (
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer font-semibold">Custom benchmarks (what counts as good vs bad for this business)</summary>
+                <pre className="mt-2 bg-slate-50 rounded-lg p-2 overflow-x-auto text-[10px]">{JSON.stringify(plan.custom_benchmarks, null, 2)}</pre>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Inputs we used */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 mb-3">Inputs Vigmis used</h3>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div><dt className="text-xs text-slate-400">Goal</dt><dd className="font-medium">{s.goal}</dd></div>
+          <div><dt className="text-xs text-slate-400">Business type</dt><dd className="font-medium">{s.business_type ?? '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">Monthly budget</dt><dd className="font-medium">₪{s.budget_monthly_ils?.toLocaleString() ?? '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">Managed share</dt><dd className="font-medium">{s.management_percentage}%</dd></div>
+          <div><dt className="text-xs text-slate-400">Margin</dt><dd className="font-medium">{s.margin_pct ? `${s.margin_pct}%` : '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">Hero product</dt><dd className="font-medium">{s.hero_product_name ?? '—'}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Targeting include</dt><dd className="font-medium">{(s.geo_include ?? []).join(', ') || '—'}</dd></div>
+          {s.geo_exclude?.length > 0 && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Excluded</dt><dd className="font-medium">{s.geo_exclude.join(', ')}</dd></div>}
+          {s.exclusions && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Hard exclusions</dt><dd className="font-medium whitespace-pre-wrap">{s.exclusions}</dd></div>}
+          {s.open_notes && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Notes</dt><dd className="font-medium whitespace-pre-wrap">{s.open_notes}</dd></div>}
+        </dl>
+      </div>
+
+      {/* Change history */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <h3 className="font-bold text-slate-900 mb-3">Change history</h3>
+        {data.history.length === 0 ? (
+          <p className="text-sm text-slate-500">No optimization changes yet — campaigns are still in their learning period or have not run optimization cycles.</p>
+        ) : (
+          <ol className="space-y-2 text-sm">
+            {data.history.map(h => (
+              <li key={h.id} className="border-l-2 border-slate-200 pl-3 py-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-semibold text-slate-800">{h.action.replace(/^optimization\./, '').replace(/_/g, ' ')}</span>
+                  <span className="text-xs text-slate-400 flex-shrink-0">{new Date(h.created_at).toLocaleString()}</span>
+                </div>
+                {h.platform && <span className="text-xs text-slate-500 capitalize">{h.platform}</span>}
+                {h.payload && Object.keys(h.payload).length > 0 && (
+                  <details className="mt-1 text-xs text-slate-500">
+                    <summary className="cursor-pointer">details</summary>
+                    <pre className="mt-1 bg-slate-50 rounded p-2 overflow-x-auto text-[10px]">{JSON.stringify(h.payload, null, 2)}</pre>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ settings, connected }: any) {
@@ -3286,6 +3495,42 @@ function SocialTab() {
     setAdAccountSaving(false);
   }
 
+  // ── GA4 (Google Analytics 4) ────────────────────────────────────────────────
+  const [ga4Settings, setGa4Settings] = useState<{ property_id: string; property_name?: string; last_synced_at?: string } | null>(null);
+  const [ga4Properties, setGa4Properties] = useState<Ga4Property[] | null>(null);
+  const [ga4Loading, setGa4Loading] = useState(false);
+  const [ga4Saving, setGa4Saving] = useState(false);
+  const [ga4Syncing, setGa4Syncing] = useState(false);
+  const [ga4Error, setGa4Error] = useState<string | null>(null);
+  const [ga4Status, setGa4Status] = useState<string | null>(null);
+
+  async function loadGa4() {
+    setGa4Loading(true);
+    setGa4Error(null);
+    const [propsRes, settingsRes] = await Promise.all([getGa4Properties(), getGa4Settings()]);
+    if (!propsRes) setGa4Error('Could not load GA4 properties — reconnect Google with the analytics.readonly scope.');
+    else setGa4Properties(propsRes.properties);
+    setGa4Settings(settingsRes?.settings ?? null);
+    setGa4Loading(false);
+  }
+
+  async function handleSelectGa4(p: Ga4Property) {
+    setGa4Saving(true);
+    const res = await setGa4Property(p.property_id, p.display_name);
+    if (res) setGa4Settings({ property_id: p.property_id, property_name: p.display_name });
+    else setGa4Error('Failed to save GA4 property.');
+    setGa4Saving(false);
+  }
+
+  async function handleGa4Sync() {
+    setGa4Syncing(true);
+    setGa4Status(null);
+    const r = await runGa4Sync();
+    if (!r) setGa4Error('Sync failed — check that the property is reachable.');
+    else setGa4Status(`Pulled ${r.rows} rows${r.from ? ` from ${r.from} to ${r.to}` : ''}.`);
+    setGa4Syncing(false);
+  }
+
   async function load() {
     setLoading(true);
     const [postsRes, settingsRes, analyticsRes, commentsRes] = await Promise.all([
@@ -3700,6 +3945,99 @@ function SocialTab() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* GA4 (Google Analytics 4) — ground-truth conversion data */}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Google Analytics 4 (ground truth)</h3>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              Connect a GA4 property so Vigmis can judge campaigns on real on-site conversions instead of platform-inflated numbers.
+              Google Ads and Meta both claim credit for the same purchase — GA4 measures it once at the website.
+            </p>
+          </div>
+
+          {ga4Settings && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm">
+              <p className="font-semibold text-emerald-700">Connected: {ga4Settings.property_name ?? ga4Settings.property_id}</p>
+              <p className="text-xs text-slate-600 font-mono mt-0.5">{ga4Settings.property_id}</p>
+              {ga4Settings.last_synced_at && (
+                <p className="text-xs text-slate-500 mt-1">Last sync: {new Date(ga4Settings.last_synced_at).toLocaleString()}</p>
+              )}
+            </div>
+          )}
+
+          {ga4Properties === null && !ga4Loading && (
+            <button
+              onClick={loadGa4}
+              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              {ga4Settings ? 'Change property' : 'Load my GA4 properties'}
+            </button>
+          )}
+
+          {ga4Loading && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+              Loading properties…
+            </div>
+          )}
+
+          {ga4Error && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{ga4Error}</p>
+          )}
+          {ga4Status && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">{ga4Status}</p>
+          )}
+
+          {ga4Properties && ga4Properties.length === 0 && !ga4Loading && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              No GA4 properties on this Google account. Create one at <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">analytics.google.com</a> and reload.
+            </p>
+          )}
+
+          {ga4Properties && ga4Properties.length > 0 && (
+            <div className="space-y-2">
+              {ga4Properties.map(p => {
+                const isSelected = p.property_id === ga4Settings?.property_id;
+                return (
+                  <button
+                    key={p.property_id}
+                    onClick={() => handleSelectGa4(p)}
+                    disabled={ga4Saving || isSelected}
+                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                      isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+                    } ${ga4Saving ? 'opacity-50 cursor-wait' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{p.display_name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 font-mono">{p.property_id}</p>
+                      </div>
+                      {isSelected && (
+                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {ga4Settings && (
+            <button
+              onClick={handleGa4Sync}
+              disabled={ga4Syncing}
+              className="text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {ga4Syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          )}
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Vigmis pulls source/medium/campaign attribution daily at 02:30 UTC. The optimizer will switch to
+            conversion-based decisions (CPA, ROAS) automatically as soon as data is available.
+          </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">

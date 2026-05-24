@@ -39,6 +39,9 @@ export interface CampaignMetrics {
   clicks: number;
   impressions: number;
   spend: number;           // USD in tracking window
+  conversions?: number;    // count (GA4 if available, else platform self-report)
+  revenue?: number;        // USD (GA4 if available, else platform self-report)
+  attributionSource?: 'ga4' | 'platform';  // 'ga4' = ground truth, 'platform' = self-reported
   dailyBudgetUsd: number;
   daysRunning: number;
   status: string;
@@ -197,6 +200,43 @@ export function evaluateCampaign(
   }
 
   // ── Post-learning: full optimization ─────────────────────────────────────────
+
+  // When GA4 ground-truth data is available, prefer conversion-based decisions over CTR.
+  // GA4 single-touch attribution removes platform double-counting (Google + Meta both
+  // claim the same purchase) — using it lets us judge a campaign on actual business outcomes.
+  if (metrics.attributionSource === 'ga4' && metrics.conversions !== undefined && clicks >= 15) {
+    const conv = metrics.conversions;
+    const rev = metrics.revenue ?? 0;
+    const cpa = conv > 0 ? spend / conv : Infinity;
+    const roas = spend > 0 ? rev / spend : 0;
+    const customMaxCpa = custom && (custom as any).maxCpa;
+
+    // Zero conversions despite enough traffic — campaign is leaking spend
+    if (conv === 0 && spend > dailyBudgetUsd * 3) {
+      return {
+        type: 'scale_down',
+        factor: SCALE_DOWN_FACTOR,
+        reason: `GA4 attribution: zero conversions on $${spend.toFixed(0)} spend (${clicks} clicks) for ${platform} ${campaignType} — reducing budget by 20% pending landing-page review.`,
+      };
+    }
+    // CPA hit the AI-generated ceiling — scale down
+    if (customMaxCpa && cpa > customMaxCpa) {
+      return {
+        type: 'scale_down',
+        factor: SCALE_DOWN_FACTOR,
+        reason: `GA4 attribution: CPA $${cpa.toFixed(2)} above $${customMaxCpa} ceiling for ${platform} ${campaignType} — reducing budget by 20%.`,
+      };
+    }
+    // ROAS strong (>2x) and conversions consistent — scale up
+    if (roas >= 2 && conv >= 3) {
+      return {
+        type: 'scale_up',
+        factor: SCALE_UP_FACTOR,
+        reason: `GA4 attribution: ROAS ${roas.toFixed(1)}× with ${conv} conversions on ${platform} ${campaignType} — scaling up budget by 20%.`,
+      };
+    }
+    // Conversions exist but below target — let CTR rules decide
+  }
 
   // CTR below minimum → scale down
   if (impressions > 500 && ctr < bench.minCtr) {

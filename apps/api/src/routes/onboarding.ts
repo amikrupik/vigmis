@@ -9,6 +9,7 @@ import { db, decryptToken } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { route } from '@vigmis/ai-router';
 import { getAllHistoricalData, fetchCompetitorAds } from '../services/historical.js';
+import { scrapeWebsite } from '../services/website-scraper.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -275,31 +276,44 @@ export async function onboardingRoutes(app: FastifyInstance) {
 
     // Phase 1: Website scan + historical data + competitor ads (in parallel)
     let websiteAnalysis = 'Website could not be scanned.';
+    type ScrapedSiteResult = Awaited<ReturnType<typeof scrapeWebsite>>;
+    let scrapedSite: ScrapedSiteResult = null;
 
     const [websiteResult, historical, metaTokenRow] = await Promise.all([
-      // Website scan
+      // Website scan — real multi-page + JSON-LD extraction
       (async () => {
         try {
-          const res = await fetch(settings.website_url, {
-            headers: { 'User-Agent': 'Vigmis/1.0 (Marketing Analysis)' },
-            signal: AbortSignal.timeout(10000),
-          });
-          const html = await res.text();
-          const text = html
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 6000);
+          scrapedSite = await scrapeWebsite(settings.website_url);
+          if (!scrapedSite || !scrapedSite.confident) {
+            // Honesty gate: refuse to confabulate. The strategy step will see this and surface it.
+            return `UNABLE_TO_READ_WEBSITE: scraped ${scrapedSite?.pagesCrawled.length ?? 0} page(s) but could not extract enough business signal. The site may be JavaScript-rendered, login-gated, or blocking bots. Vigmis will not invent a description — ask the client to clarify what they sell.`;
+          }
+          const productSummary = scrapedSite.jsonLdProducts.length
+            ? `\n\nProducts found in site schema:\n${scrapedSite.jsonLdProducts.slice(0, 8).map((p: any) => `- ${[p.name, p.brand, p.category, p.price ? '$' + p.price : null].filter(Boolean).join(' | ')}`).join('\n')}`
+            : '';
           const analysis = await route({
             task: 'analysis',
-            prompt: `Analyze this website content and extract:\n1. What they sell / service they offer\n2. Target audience\n3. Unique selling proposition\n4. Tone and brand voice\n5. Key products/services\n\nWebsite content:\n${text}`,
-            systemPrompt: 'You are a marketing analyst. Be concise. Respond in English.',
-            options: { maxTokens: 600 },
+            prompt: `Analyze this website content and extract:
+1. What they sell / service they offer — be SPECIFIC. Name the actual products if visible.
+2. Target audience
+3. Unique selling proposition
+4. Tone and brand voice
+5. Key products / services
+
+IMPORTANT: if the content does not clearly describe what the business sells, say so explicitly. Do NOT guess from generic words. Do NOT make up products. Only describe what is actually in the content below.
+
+Site URL: ${scrapedSite.url}
+Pages crawled: ${scrapedSite.pagesCrawled.join(', ')}${productSummary}
+
+Website content:
+${scrapedSite.text.slice(0, 8000)}`,
+            systemPrompt: 'You are a marketing analyst. Be precise and literal — never invent products or claims. If the site is unclear, say so.',
+            options: { maxTokens: 700 },
           });
           return analysis.output;
-        } catch { return 'Website could not be scanned.'; }
+        } catch (err) {
+          return `Website could not be scanned: ${err instanceof Error ? err.message : 'unknown error'}`;
+        }
       })(),
       // Historical data from connected platforms
       getAllHistoricalData(request.tenantId),
@@ -308,6 +322,15 @@ export async function onboardingRoutes(app: FastifyInstance) {
     ]);
 
     websiteAnalysis = websiteResult;
+
+    // Surface scrape failure as a hard error to the client — don't pretend we built a strategy on nothing.
+    if (websiteAnalysis.startsWith('UNABLE_TO_READ_WEBSITE')) {
+      return reply.code(422).send({
+        error: 'website_unreadable',
+        message: 'Vigmis could not read enough content from the website to build a strategy. This usually means the site is JavaScript-rendered, behind a login, or blocking bots. Please describe what you sell in the chat so Vigmis can proceed.',
+        scraped_pages: (scrapedSite as ScrapedSiteResult)?.pagesCrawled ?? [],
+      });
+    }
 
     // Fetch competitor ads using Meta Ad Library
     const metaToken = metaTokenRow.data?.access_token ? decryptToken(metaTokenRow.data.access_token) : undefined;
@@ -599,6 +622,34 @@ Your job: respond honestly and directly.
     });
 
     return reply.send({ response: res.output });
+  });
+
+  // ── Strategy viewer ──────────────────────────────────────────────────────────
+  // Read-only access to the current strategy + the audit trail of optimization changes.
+  app.get('/onboarding/strategy', { preHandler: authenticate }, async (request, reply) => {
+    const [settingsRes, auditRes] = await Promise.all([
+      db.from('client_settings')
+        .select('strategy_plan, website_analysis, website_url, goal, budget_monthly_ils, management_percentage, geo_include, geo_exclude, exclusions, open_notes, confirmed_at, updated_at, business_type, margin_pct, hero_product_name')
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle(),
+      db.from('audit_log')
+        .select('id, action, platform, actor, payload, created_at')
+        .eq('tenant_id', request.tenantId)
+        .in('action', [
+          'onboarding.completed',
+          'optimization.scale_up', 'optimization.scale_down', 'optimization.pause', 'optimization.resume',
+          'optimization.alert', 'optimization.needs_targeting_review', 'optimization.creative_fatigue',
+          'optimization.campaign_stagnant', 'optimization.benchmark_recalibrated',
+          'strategy.updated', 'strategy.recalibrated',
+        ])
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+
+    return reply.send({
+      settings: settingsRes.data ?? null,
+      history: auditRes.data ?? [],
+    });
   });
 
   // Return onboarding + connection status
