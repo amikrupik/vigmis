@@ -184,8 +184,16 @@ export async function connectorRoutes(app: FastifyInstance) {
     if (!data?.access_token) return reply.send({ connected: false, scopes: [] });
 
     const access = decryptToken(data.access_token);
+    // /debug_token wants an APP access token (or admin/dev token) in the access_token
+    // parameter — passing the same user token gives an empty scopes list back.
+    const appId = process.env.META_APP_ID;
+    const appSecret = process.env.META_APP_SECRET;
+    if (!appId || !appSecret) {
+      return reply.code(500).send({ error: 'Meta app credentials missing on the server' });
+    }
+    const appAccess = `${appId}|${appSecret}`;
     try {
-      const res = await fetch(`${META_GRAPH}/debug_token?input_token=${encodeURIComponent(access)}&access_token=${encodeURIComponent(access)}`);
+      const res = await fetch(`${META_GRAPH}/debug_token?input_token=${encodeURIComponent(access)}&access_token=${encodeURIComponent(appAccess)}`);
       const json = (await res.json()) as { data?: { scopes?: string[]; is_valid?: boolean } };
       const granted = json.data?.scopes ?? [];
       const required = [
