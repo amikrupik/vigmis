@@ -76,10 +76,15 @@ export async function socialRoutes(app: FastifyInstance) {
     return reply.send(data);
   });
 
-  // ── Approve (with optional edit) ──────────────────────────────────────────
+  // ── Approve (with optional edit + scheduling control) ────────────────────
+  // Body shape:
+  //   { edited_content?, publish_now?: true, scheduled_for?: ISO string }
+  // - publish_now=true: publish immediately via the platform API, mark as published.
+  // - scheduled_for: ISO datetime — schedule for that time (cron picks it up).
+  // - neither: keep the original scheduled_for (weekly slot).
   app.post('/social/posts/:id/approve', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as any;
-    const { edited_content } = request.body as any;
+    const { edited_content, publish_now, scheduled_for } = request.body as any;
 
     const { data: post } = await db
       .from('social_posts')
@@ -97,17 +102,68 @@ export async function socialRoutes(app: FastifyInstance) {
     };
     if (edited_content?.trim()) update.client_edit = edited_content.trim();
 
+    // Honour a client-chosen schedule
+    if (!publish_now && scheduled_for) {
+      const dt = new Date(scheduled_for);
+      if (isNaN(dt.getTime())) {
+        return reply.code(400).send({ error: 'scheduled_for must be a valid ISO datetime' });
+      }
+      update.scheduled_for = dt.toISOString();
+    }
+
+    // For publish-now, mark scheduled_for to now so the cron / publish call is consistent
+    if (publish_now) {
+      update.scheduled_for = new Date().toISOString();
+    }
+
     await db.from('social_posts').update(update).eq('id', id);
+
+    // Publish immediately
+    let publishResult: { success: boolean; externalId?: string; error?: string } | null = null;
+    if (publish_now) {
+      try {
+        const { publishSocialPost } = await import('../services/social-publisher.js');
+        const merged = { ...post, ...update, content: update.client_edit ?? post.client_edit ?? post.content };
+        publishResult = await publishSocialPost(merged);
+        const now = new Date().toISOString();
+        if (publishResult.success) {
+          await db.from('social_posts').update({
+            status: 'published',
+            external_post_id: publishResult.externalId ?? null,
+            published_at: now,
+            billed: true,
+            updated_at: now,
+          }).eq('id', id);
+        } else {
+          await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', id);
+        }
+      } catch (err) {
+        request.log.error({ err }, 'publish_now failed');
+        publishResult = { success: false, error: err instanceof Error ? err.message : 'publish failed' };
+      }
+    }
 
     await db.from('audit_log').insert({
       tenant_id: request.tenantId,
-      action: 'social.post_approved',
+      action: publish_now ? 'social.post_published_immediately' : 'social.post_approved',
       platform: post.platform,
       actor: 'user',
-      payload: { postId: id, platform: post.platform, edited: !!edited_content },
+      payload: {
+        postId: id,
+        platform: post.platform,
+        edited: !!edited_content,
+        scheduled_for: update.scheduled_for ?? post.scheduled_for,
+        publish_now: !!publish_now,
+        publish_success: publish_now ? publishResult?.success : undefined,
+      },
     });
 
-    return reply.send({ success: true });
+    return reply.send({
+      success: publish_now ? (publishResult?.success ?? false) : true,
+      published: publish_now && publishResult?.success === true,
+      scheduled_for: update.scheduled_for ?? post.scheduled_for,
+      publishError: publishResult?.error,
+    });
   });
 
   // ── Reject ────────────────────────────────────────────────────────────────

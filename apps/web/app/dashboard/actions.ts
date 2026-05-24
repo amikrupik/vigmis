@@ -373,8 +373,15 @@ export async function getSocialPosts(params?: { status?: string; platform?: stri
   return apiCall(`/social/posts${q.toString() ? `?${q}` : ''}`);
 }
 
-export async function approveSocialPost(id: string, editedContent?: string) {
-  return apiCall(`/social/posts/${id}/approve`, 'POST', { edited_content: editedContent });
+export async function approveSocialPost(
+  id: string,
+  opts?: { editedContent?: string; publishNow?: boolean; scheduledFor?: string },
+) {
+  return apiCall(`/social/posts/${id}/approve`, 'POST', {
+    edited_content: opts?.editedContent,
+    publish_now: opts?.publishNow,
+    scheduled_for: opts?.scheduledFor,
+  });
 }
 
 export async function rejectSocialPost(id: string, reason?: string) {

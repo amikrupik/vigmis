@@ -3551,14 +3551,26 @@ function SocialTab() {
 
   useEffect(() => { load(); }, [filterStatus]);
 
-  async function handleApprove(id: string) {
+  // Three approve modes: publish now, schedule custom time, or keep weekly slot.
+  async function handleApprove(id: string, mode: 'now' | 'custom' | 'keep', customWhen?: string) {
     setGeneratingPost(id);
     const editContent = editPost?.id === id ? editPost.content : undefined;
-    await approveSocialPost(id, editContent);
+    const opts: { editedContent?: string; publishNow?: boolean; scheduledFor?: string } = {
+      editedContent: editContent,
+    };
+    if (mode === 'now') opts.publishNow = true;
+    else if (mode === 'custom' && customWhen) opts.scheduledFor = customWhen;
+    const res = await approveSocialPost(id, opts);
     setEditPost(null);
+    setScheduleFor(null);
     await load();
     setGeneratingPost(null);
+    if (mode === 'now') {
+      if (res?.published) alert('Post published successfully.');
+      else alert(`Publish failed: ${res?.publishError ?? 'unknown error'}. The post stays in pending state — check that Meta is connected and the Page/IG IDs are set.`);
+    }
   }
+  const [scheduleFor, setScheduleFor] = useState<{ id: string; value: string } | null>(null);
 
   async function handleReject(id: string) {
     await rejectSocialPost(id, rejectReason);
@@ -3785,14 +3797,48 @@ function SocialTab() {
                     </button>
                     <button onClick={() => setRejectingPost(post.id)} className="border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">Reject</button>
                     <button
-                      onClick={() => handleApprove(post.id)}
+                      onClick={() => handleApprove(post.id, 'now')}
                       disabled={generatingPost === post.id}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
                     >
-                      {generatingPost === post.id ? 'Approving...' : editPost?.id === post.id ? 'Approve with edits' : 'Approve & Schedule'}
+                      {generatingPost === post.id ? 'Publishing...' : 'Publish now'}
+                    </button>
+                    <button
+                      onClick={() => setScheduleFor(scheduleFor?.id === post.id ? null : { id: post.id, value: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16) })}
+                      disabled={generatingPost === post.id}
+                      className="border border-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      {scheduleFor?.id === post.id ? 'Cancel' : 'Pick time'}
+                    </button>
+                    <button
+                      onClick={() => handleApprove(post.id, 'keep')}
+                      disabled={generatingPost === post.id}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
+                    >
+                      Approve as scheduled ({post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : 'no date'})
                     </button>
                   </div>
                 )}
+                {scheduleFor && scheduleFor.id === post.id && (() => {
+                  const sf = scheduleFor;
+                  return (
+                  <div className="px-5 pb-4 -mt-2 flex items-center gap-2">
+                    <input
+                      type="datetime-local"
+                      value={sf.value}
+                      onChange={e => setScheduleFor({ id: sf.id, value: e.target.value })}
+                      className="border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                    />
+                    <button
+                      onClick={() => handleApprove(post.id, 'custom', new Date(sf.value).toISOString())}
+                      disabled={generatingPost === post.id || !sf.value}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl"
+                    >
+                      Schedule
+                    </button>
+                  </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
