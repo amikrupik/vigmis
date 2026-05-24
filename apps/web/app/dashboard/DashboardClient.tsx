@@ -3723,7 +3723,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
   useEffect(() => { load(); }, [filterStatus]);
 
   // Reconnect modal — shown when publish fails because Meta token is stale/insufficient
-  const [reconnectModal, setReconnectModal] = useState(false);
+  const [reconnectModal, setReconnectModal] = useState<{ open: boolean; rawError: string }>({ open: false, rawError: '' });
 
   // Three approve modes: publish now, schedule custom time, or keep weekly slot.
   async function handleApprove(id: string, mode: 'now' | 'custom' | 'keep', customWhen?: string) {
@@ -3746,7 +3746,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
         const err = res?.publishError ?? '';
         // Any Meta API permission-style error → show the reconnect modal instead of a noisy alert.
         const isPermission = /pages_manage_posts|publish_to_groups|permission|#100|#200|#10|scope|not allowed/i.test(err);
-        if (isPermission) setReconnectModal(true);
+        if (isPermission) setReconnectModal({ open: true, rawError: err });
         else alert('Publish failed: ' + (err || 'unknown error') + '\nThe post stays in pending state.');
       }
     }
@@ -4385,16 +4385,20 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
         </div>
       )}
 
-      {reconnectModal && (
+      {reconnectModal.open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
             <h3 className="text-lg font-bold text-slate-900">Reconnect Facebook</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
               Your Facebook permissions for Vigmis are out of date. One click will reconnect — approve every permission on Facebook's screen and you're done.
             </p>
+            <details className="text-xs text-slate-400">
+              <summary className="cursor-pointer">Technical details (for support)</summary>
+              <pre className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] whitespace-pre-wrap break-all max-h-40 overflow-auto">{reconnectModal.rawError || '(no error message)'}</pre>
+            </details>
             <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setReconnectModal(false)}
+                onClick={() => setReconnectModal({ open: false, rawError: '' })}
                 className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-slate-700"
               >
                 Not now
