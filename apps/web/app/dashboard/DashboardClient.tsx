@@ -22,6 +22,7 @@ import {
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
   getMetaPages, selectMetaPage, type MetaPage,
+  getMetaScopes,
   updateSocialPost, deleteSocialPost,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
@@ -3637,6 +3638,15 @@ function SocialTab() {
     setAdAccountLoading(false);
   }
 
+  const [metaScopes, setMetaScopes] = useState<{ scopes: string[]; missing: string[]; needs_reconnect: boolean } | null>(null);
+  const [scopesLoading, setScopesLoading] = useState(false);
+  async function checkMetaScopes() {
+    setScopesLoading(true);
+    const r = await getMetaScopes();
+    setScopesLoading(false);
+    if (r) setMetaScopes({ scopes: r.scopes, missing: r.missing, needs_reconnect: r.needs_reconnect });
+  }
+
   async function handleSelectAdAccount(id: string) {
     setAdAccountSaving(true);
     const res = await selectMetaAdAccount(id);
@@ -4074,6 +4084,46 @@ function SocialTab() {
       {/* Connect section — page ID setup */}
       {activeSection === 'connect' && (
         <div className="space-y-5 max-w-lg">
+
+        {/* Meta token diagnostic — shows which OAuth permissions are actually granted */}
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="font-bold text-slate-900">Meta connection diagnostic</h3>
+            <button onClick={checkMetaScopes} disabled={scopesLoading} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg disabled:opacity-50">
+              {scopesLoading ? 'Checking…' : 'Check now'}
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">If posting fails with permission errors, click "Check now" to see exactly what Meta is granting Vigmis.</p>
+          {metaScopes && (
+            <>
+              {metaScopes.needs_reconnect ? (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs">
+                  <p className="font-bold text-red-700 mb-1">Missing permissions — Vigmis cannot publish</p>
+                  <p className="text-red-600">Missing: {metaScopes.missing.join(', ')}</p>
+                  <p className="text-slate-600 mt-2">Fix: 1) Open <a className="underline" href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener noreferrer">facebook.com Business Tools</a>, remove Vigmis. 2) Come back here and click Reconnect Meta below. 3) Approve every permission Facebook asks for.</p>
+                </div>
+              ) : (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700">
+                  <p className="font-bold">All required permissions granted ({metaScopes.scopes.length}).</p>
+                </div>
+              )}
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer">Show granted permissions ({metaScopes.scopes.length})</summary>
+                <ul className="mt-2 pl-4 list-disc">{metaScopes.scopes.map(s => <li key={s}>{s}</li>)}</ul>
+              </details>
+            </>
+          )}
+          <button
+            onClick={async () => {
+              const tok = await (window as any).Clerk?.session?.getToken();
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+              window.location.href = `${apiUrl}/auth/meta?token=${encodeURIComponent(tok ?? '')}`;
+            }}
+            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl"
+          >
+            Reconnect Meta
+          </button>
+        </div>
 
         {/* Ad Account picker — for paid campaigns */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">

@@ -320,6 +320,10 @@ export async function selectMetaAdAccount(account_id: string): Promise<{ success
   return apiCall('/connectors/meta/ad-account', 'POST', { account_id });
 }
 
+export async function getMetaScopes(): Promise<{ connected: boolean; scopes: string[]; missing: string[]; needs_reconnect: boolean } | null> {
+  return apiCall('/connectors/meta/scopes');
+}
+
 export type MetaPage = {
   page_id: string;
   name: string;
