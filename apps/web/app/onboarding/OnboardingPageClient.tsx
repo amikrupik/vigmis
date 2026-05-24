@@ -1420,8 +1420,8 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Choose what Vigmis will manage</h2>
             <p className="text-slate-500 text-sm mt-1">
-              You have multiple assets in your Meta Business Manager. Pick exactly which Facebook Page,
-              Instagram account, and Ad Account Vigmis should use. You can change this later.
+              Pick one Facebook Page and one Ad Account. Instagram is optional — only used if your Page has a linked Instagram Business account.
+              You can change all of this later in Dashboard → Social → Connect.
             </p>
           </div>
 
@@ -1438,9 +1438,10 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
               {/* Facebook Page + IG */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-bold text-slate-900">Facebook Page</h3>
+                  <h3 className="font-bold text-slate-900">Facebook Page <span className="text-xs font-normal text-slate-400">— required</span></h3>
                   <span className="text-xs text-slate-400">{pages?.length ?? 0} available</span>
                 </div>
+                <p className="text-xs text-slate-500">If the Page has a linked Instagram Business account, it'll be used automatically. If not — Vigmis will only publish to Facebook.</p>
                 {pages && pages.length === 0 && (
                   <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
                     Meta returned no Pages. You need admin access to at least one Facebook Page.
@@ -1481,7 +1482,7 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
               {/* Ad Account */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-bold text-slate-900">Ad Account</h3>
+                  <h3 className="font-bold text-slate-900">Ad Account <span className="text-xs font-normal text-slate-400">— required</span></h3>
                   <span className="text-xs text-slate-400">{accounts?.length ?? 0} available</span>
                 </div>
                 {accounts && accounts.length === 0 && (
