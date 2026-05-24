@@ -51,9 +51,22 @@ async function getPageConfig(tenantId: string, platform: 'facebook' | 'instagram
   const userToken = await getMetaToken(tenantId);
 
   if (platform === 'facebook') {
-    const pageRes = await fetch(`${META_BASE}/${pageId}?fields=access_token&access_token=${userToken}`);
-    const pageData = await pageRes.json() as any;
-    return { pageId, token: pageData.access_token ?? userToken };
+    // Fetch the Page Access Token from /me/accounts (more reliable than
+    // /<pageId>?fields=access_token which silently fails in some BM setups
+    // and leaves us with the user token — which can't POST /<pageId>/feed).
+    const acctRes = await fetch(`${META_BASE}/me/accounts?fields=id,name,access_token&limit=100&access_token=${userToken}`);
+    const acctJson = (await acctRes.json()) as { data?: Array<{ id: string; name: string; access_token?: string }>; error?: { message?: string } };
+    if (acctJson.error) {
+      throw new Error(`Meta /me/accounts failed: ${acctJson.error.message ?? 'unknown'}`);
+    }
+    const match = (acctJson.data ?? []).find(p => p.id === pageId);
+    if (!match) {
+      throw new Error(`Vigmis does not have admin access to Page ${pageId}. Open the Connect tab in Vigmis and pick a Page that's listed there, or grant Vigmis admin access to the Page in Facebook's Business Settings → People.`);
+    }
+    if (!match.access_token) {
+      throw new Error(`Facebook did not return a Page access token for "${match.name}". This usually means your role on the Page is not Admin or Editor. Update your role in Facebook → Page Settings → Page roles, then try again.`);
+    }
+    return { pageId, token: match.access_token };
   }
 
   return { pageId, token: userToken };
