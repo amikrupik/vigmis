@@ -3648,7 +3648,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
   }
 
   async function handleDisconnectMeta() {
-    if (!confirm('לנתק את חשבון פייסבוק מויגמיס? תוכל לחבר מחדש בכל עת.')) return;
+    if (!confirm('Disconnect Facebook from Vigmis? You can reconnect anytime.')) return;
     setDisconnecting(true);
     await disconnectMeta();
     await load();
@@ -3741,13 +3741,13 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
     setGeneratingPost(null);
     if (mode === 'now') {
       if (res?.published) {
-        alert('הפוסט פורסם בהצלחה.');
+        alert('Post published successfully.');
       } else {
         const err = res?.publishError ?? '';
         // Any Meta API permission-style error → show the reconnect modal instead of a noisy alert.
         const isPermission = /pages_manage_posts|publish_to_groups|permission|#100|#200|#10|scope|not allowed/i.test(err);
         if (isPermission) setReconnectModal(true);
-        else alert('הפרסום נכשל: ' + (err || 'שגיאה לא ידועה') + '\nהפוסט נשאר ממתין.');
+        else alert('Publish failed: ' + (err || 'unknown error') + '\nThe post stays in pending state.');
       }
     }
   }
@@ -4102,65 +4102,65 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
 
       </div>)}
 
-      {/* Connect section — clean, Hebrew, no technical jargon */}
+      {/* Connect section — clean UI, no technical jargon */}
       {activeSection === 'connect' && (
-        <div className="space-y-5 max-w-xl" dir="rtl">
+        <div className="space-y-5 max-w-xl">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">החיבורים שלך</h2>
-            <p className="text-sm text-slate-500 mt-1">ויגמיס ינהל את הקמפיינים והפוסטים שלך דרך החיבורים האלה.</p>
+            <h2 className="text-lg font-bold text-slate-900">Your connections</h2>
+            <p className="text-sm text-slate-500 mt-1">Vigmis will manage your campaigns and posts through these connections.</p>
           </div>
 
           {!metaConnected && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 text-right">
-              <h3 className="text-base font-bold text-slate-900">פייסבוק ואינסטגרם</h3>
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Facebook & Instagram</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
-                לחיצה אחת תפתח את פייסבוק. במסך שלהם תאשר בבת אחת את כל ההרשאות שויגמיס צריך, וזהו — חזרה לויגמיס וממשיכים.
+                One click opens Facebook. On their screen you'll approve all the permissions Vigmis needs at once — and you're done.
               </p>
               <button
                 onClick={handleConnectMeta}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                התחבר לפייסבוק
+                Connect Facebook
               </button>
             </div>
           )}
 
           {metaConnected && (
             <>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold">עמוד פייסבוק</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Facebook Page</p>
                     {(selectedPageId || settings?.facebook_page_id) ? (
                       <>
                         <p className="text-base font-bold text-slate-900 mt-0.5">
-                          {pages?.find(p => p.page_id === (selectedPageId ?? settings?.facebook_page_id))?.name ?? 'מחובר'}
+                          {pages?.find(p => p.page_id === (selectedPageId ?? settings?.facebook_page_id))?.name ?? 'Connected'}
                         </p>
                         {(selectedIgUserId || settings?.instagram_user_id) && (
                           <p className="text-xs text-violet-600 mt-1">
-                            ואינסטגרם: @{pages?.find(p => p.instagram_user_id === (selectedIgUserId ?? settings?.instagram_user_id))?.instagram_username ?? 'מקושר'}
+                            Instagram: @{pages?.find(p => p.instagram_user_id === (selectedIgUserId ?? settings?.instagram_user_id))?.instagram_username ?? 'linked'}
                           </p>
                         )}
                       </>
                     ) : (
-                      <p className="text-sm text-amber-600 mt-0.5">עוד לא נבחר עמוד</p>
+                      <p className="text-sm text-amber-600 mt-0.5">No Page selected yet</p>
                     )}
                   </div>
                   <button
                     onClick={() => { if (editing !== 'page') { loadPages(); setEditing('page'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'page' ? 'סגור' : (selectedPageId || settings?.facebook_page_id) ? 'שינוי' : 'בחר עמוד'}
+                    {editing === 'page' ? 'Close' : (selectedPageId || settings?.facebook_page_id) ? 'Change' : 'Choose Page'}
                   </button>
                 </div>
 
                 {editing === 'page' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {pagesLoading && <p className="text-sm text-slate-500">טוען עמודים מפייסבוק…</p>}
+                    {pagesLoading && <p className="text-sm text-slate-500">Loading Pages from Facebook…</p>}
                     {pagesError && <p className="text-xs text-red-600">{pagesError}</p>}
                     {pages && pages.length === 0 && (
                       <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                        פייסבוק לא החזיר עמודים. צריך שתהיה לך הרשאת מנהל בלפחות עמוד אחד.
+                        Facebook returned no Pages. You need admin access to at least one Page.
                       </p>
                     )}
                     {pages?.map(p => {
@@ -4170,15 +4170,15 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                           key={p.page_id}
                           onClick={async () => { await handleSelectPage(p); setEditing(null); }}
                           disabled={pageSaving}
-                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                          className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                           {p.instagram_username
-                            ? <p className="text-xs text-violet-600 mt-0.5">אינסטגרם: @{p.instagram_username}</p>
-                            : <p className="text-xs text-slate-400 mt-0.5">בלי אינסטגרם מקושר</p>}
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                            ? <p className="text-xs text-violet-600 mt-0.5">Instagram: @{p.instagram_username}</p>
+                            : <p className="text-xs text-slate-400 mt-0.5">No Instagram linked</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
                         </button>
                       );
                     })}
@@ -4186,33 +4186,33 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                 )}
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold">חשבון פרסום</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ad Account</p>
                     {adAccountSelected ? (
                       <p className="text-base font-bold text-slate-900 mt-0.5">
-                        {adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'מחובר'}
+                        {adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'Connected'}
                       </p>
                     ) : (
-                      <p className="text-sm text-amber-600 mt-0.5">עוד לא נבחר חשבון פרסום</p>
+                      <p className="text-sm text-amber-600 mt-0.5">No Ad Account selected yet</p>
                     )}
                   </div>
                   <button
                     onClick={() => { if (editing !== 'account') { loadAdAccounts(); setEditing('account'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'account' ? 'סגור' : adAccountSelected ? 'שינוי' : 'בחר חשבון'}
+                    {editing === 'account' ? 'Close' : adAccountSelected ? 'Change' : 'Choose Account'}
                   </button>
                 </div>
 
                 {editing === 'account' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {adAccountLoading && <p className="text-sm text-slate-500">טוען חשבונות פרסום מפייסבוק…</p>}
+                    {adAccountLoading && <p className="text-sm text-slate-500">Loading Ad Accounts from Facebook…</p>}
                     {adAccountError && <p className="text-xs text-red-600">{adAccountError}</p>}
                     {adAccounts && adAccounts.length === 0 && (
                       <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                        פייסבוק לא החזיר חשבונות פרסום. וודא שיש לך הרשאת מנהל בלפחות אחד.
+                        Facebook returned no Ad Accounts. Make sure you have admin access to at least one.
                       </p>
                     )}
                     {adAccounts?.map(a => {
@@ -4222,17 +4222,17 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                           key={a.id}
                           onClick={async () => { await handleSelectAdAccount(a.id); setEditing(null); }}
                           disabled={adAccountSaving}
-                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                          className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-900">{a.name}</p>
                           <div className="flex flex-wrap gap-3 text-xs text-slate-500 mt-1">
-                            {a.business && <span>עסק: {a.business}</span>}
-                            {a.currency && <span>מטבע: {a.currency}</span>}
-                            <span>{a.active ? 'פעיל' : 'לא פעיל'}</span>
+                            {a.business && <span>Business: {a.business}</span>}
+                            {a.currency && <span>Currency: {a.currency}</span>}
+                            <span>{a.active ? 'Active' : 'Inactive'}</span>
                           </div>
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
                         </button>
                       );
                     })}
@@ -4240,33 +4240,33 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                 )}
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold">Google Analytics (אופציונלי)</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Analytics (optional)</p>
                     {ga4Settings ? (
                       <>
-                        <p className="text-base font-bold text-slate-900 mt-0.5">{ga4Settings.property_name ?? 'מחובר'}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">ויגמיס מחשב את ביצועי הקמפיינים לפי נתוני האתר שלך, במקום להסתמך על דיווחי פייסבוק וגוגל.</p>
+                        <p className="text-base font-bold text-slate-900 mt-0.5">{ga4Settings.property_name ?? 'Connected'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Vigmis measures campaign results from your website instead of relying on Facebook and Google's own reports.</p>
                       </>
                     ) : (
-                      <p className="text-sm text-slate-500 mt-0.5">חיבור Analytics עוזר לויגמיס למדוד תוצאות אמיתיות באתר במקום להסתמך על דיווחי הפלטפורמות.</p>
+                      <p className="text-sm text-slate-500 mt-0.5">Connecting Analytics lets Vigmis judge campaigns on real on-site conversions instead of platform-reported numbers.</p>
                     )}
                   </div>
                   <button
                     onClick={() => { if (editing !== 'ga4') { loadGa4(); setEditing('ga4'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'ga4' ? 'סגור' : ga4Settings ? 'שינוי' : 'חבר'}
+                    {editing === 'ga4' ? 'Close' : ga4Settings ? 'Change' : 'Connect'}
                   </button>
                 </div>
 
                 {editing === 'ga4' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {ga4Loading && <p className="text-sm text-slate-500">טוען נכסים מ-Google Analytics…</p>}
+                    {ga4Loading && <p className="text-sm text-slate-500">Loading properties from Google Analytics…</p>}
                     {ga4Error && <p className="text-xs text-red-600">{ga4Error}</p>}
                     {ga4Properties && ga4Properties.length === 0 && (
-                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">לא נמצאו נכסי Analytics בחשבון Google. צור אחד באתר Google Analytics ונסה שוב.</p>
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">No Analytics properties found on this Google account. Create one at analytics.google.com and try again.</p>
                     )}
                     {ga4Properties?.map(p => {
                       const isSelected = p.property_id === ga4Settings?.property_id;
@@ -4275,12 +4275,12 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                           key={p.property_id}
                           onClick={async () => { await handleSelectGa4(p); setEditing(null); }}
                           disabled={ga4Saving}
-                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                          className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-900">{p.display_name}</p>
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
                         </button>
                       );
                     })}
@@ -4288,13 +4288,13 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                 )}
               </div>
 
-              <div className="pt-2 text-right">
+              <div className="pt-2">
                 <button
                   onClick={handleDisconnectMeta}
                   disabled={disconnecting}
                   className="text-xs text-red-600 hover:text-red-700 underline disabled:opacity-50"
                 >
-                  {disconnecting ? 'מנתק…' : 'ניתוק ויגמיס מפייסבוק'}
+                  {disconnecting ? 'Disconnecting…' : 'Disconnect Vigmis from Facebook'}
                 </button>
               </div>
             </>
@@ -4386,24 +4386,24 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
       )}
 
       {reconnectModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-right">
-            <h3 className="text-lg font-bold text-slate-900">צריך לחבר שוב את פייסבוק</h3>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Reconnect Facebook</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              ההרשאות שלך לויגמיס מפייסבוק התיישנו. לחיצה אחת תחבר מחדש — תאשר את כל ההרשאות במסך של פייסבוק וזהו.
+              Your Facebook permissions for Vigmis are out of date. One click will reconnect — approve every permission on Facebook's screen and you're done.
             </p>
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setReconnectModal(false)}
                 className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-slate-700"
               >
-                לא עכשיו
+                Not now
               </button>
               <button
                 onClick={handleConnectMeta}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2 rounded-xl"
               >
-                התחבר שוב לפייסבוק
+                Reconnect Facebook
               </button>
             </div>
           </div>
