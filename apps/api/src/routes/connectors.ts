@@ -295,14 +295,21 @@ export async function connectorRoutes(app: FastifyInstance) {
       const { facebook_page_id, instagram_user_id } = request.body ?? ({} as any);
       if (!facebook_page_id) return reply.code(400).send({ error: 'facebook_page_id required' });
 
+      // Build the platforms JSONB array that the weekly-generator reads.
+      // Empty array => generate skips this tenant ("Social media is not configured").
+      const platforms: Array<{ platform: string; enabled: boolean; page_id: string | null }> = [
+        { platform: 'facebook', enabled: true, page_id: facebook_page_id },
+      ];
+      if (instagram_user_id) {
+        platforms.push({ platform: 'instagram', enabled: true, page_id: instagram_user_id });
+      }
+
       // Upsert into social_settings (the publisher reads these fields)
       const { error } = await db.from('social_settings').upsert({
         tenant_id: request.tenantId,
         facebook_page_id,
         instagram_user_id: instagram_user_id ?? null,
-        // social_settings.enabled defaults to false in migration 014 — flip it on so
-        // posts can actually publish. We don't want to fight the user's other settings,
-        // so we only touch enabled when it isn't already true.
+        platforms,
         enabled: true,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'tenant_id' });

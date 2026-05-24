@@ -524,7 +524,16 @@ async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generat
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
-  const platforms: any[] = (settings.platforms ?? []).filter((p: any) => p.enabled !== false);
+  // Build the active-platforms list. Prefer the explicit JSONB array; fall back to
+  // the top-level facebook_page_id / instagram_user_id columns when the array is
+  // missing or empty (older tenants set up before the JSONB array was populated).
+  let platforms: any[] = (settings.platforms ?? []).filter((p: any) => p.enabled !== false);
+  if (!platforms.length) {
+    const inferred: any[] = [];
+    if (settings.facebook_page_id) inferred.push({ platform: 'facebook', enabled: true, page_id: settings.facebook_page_id });
+    if (settings.instagram_user_id) inferred.push({ platform: 'instagram', enabled: true, page_id: settings.instagram_user_id });
+    platforms = inferred;
+  }
   if (!platforms.length) return { generated: 0, skipped: 0 };
 
   const pillars: string[] = settings.content_pillars ?? ['educational', 'promotional', 'social_proof'];
