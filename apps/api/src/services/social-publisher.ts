@@ -27,7 +27,7 @@ async function getPageConfig(tenantId: string, platform: 'facebook' | 'instagram
     .from('social_settings')
     .select('facebook_page_id, instagram_user_id, platforms')
     .eq('tenant_id', tenantId)
-    .single();
+    .maybeSingle();
 
   // Prefer top-level fields, fall back to platforms array for backward compat
   let pageId: string | undefined;
@@ -37,17 +37,49 @@ async function getPageConfig(tenantId: string, platform: 'facebook' | 'instagram
     pageId = settings?.instagram_user_id ?? (settings?.platforms as any[])?.find((p: any) => p.platform === 'instagram')?.page_id;
   }
 
-  if (!pageId) throw new Error(`No page_id configured for ${platform}`);
-
   const userToken = await getMetaToken(tenantId);
+
+  // ── Auto-resolve if missing: pick the first Page the user manages, save it back. ──
+  // The Connect UI lets the client pick explicitly, but if they skipped that step
+  // (or are still trying things out) we shouldn't make publish fail outright.
+  if (!pageId) {
+    const res = await fetch(`${META_BASE}/me/accounts?fields=id,name,instagram_business_account&access_token=${userToken}&limit=10`);
+    const json = (await res.json()) as any;
+    if (json.error) throw new Error(`Meta /me/accounts failed: ${json.error.message}`);
+    const pages: Array<{ id: string; name: string; instagram_business_account?: { id: string } }> = json.data ?? [];
+    if (!pages.length) {
+      throw new Error('No Facebook Pages are linked to this Meta account — Vigmis cannot publish until you have admin access to at least one Page.');
+    }
+
+    if (platform === 'facebook') {
+      pageId = pages[0].id;
+    } else {
+      // For Instagram, find the first Page that has an IG business account attached
+      const linked = pages.find(p => p.instagram_business_account?.id);
+      if (!linked) {
+        throw new Error('No Instagram Business account is linked to any of your Facebook Pages. Connect Instagram inside Meta Business Suite, then try again.');
+      }
+      pageId = linked.instagram_business_account!.id;
+    }
+
+    // Persist so we don't pay this round-trip again, AND so the rest of the UI
+    // (Dashboard → Social → Connect) reflects the actual values being used.
+    const persistField = platform === 'facebook' ? 'facebook_page_id' : 'instagram_user_id';
+    await db.from('social_settings').upsert({
+      tenant_id: tenantId,
+      [persistField]: pageId,
+      enabled: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'tenant_id' });
+  }
 
   if (platform === 'facebook') {
     const pageRes = await fetch(`${META_BASE}/${pageId}?fields=access_token&access_token=${userToken}`);
     const pageData = await pageRes.json() as any;
-    return { pageId, token: pageData.access_token ?? userToken };
+    return { pageId: pageId!, token: pageData.access_token ?? userToken };
   }
 
-  return { pageId, token: userToken };
+  return { pageId: pageId!, token: userToken };
 }
 
 async function publishToFacebook(post: any): Promise<PublishResult> {
