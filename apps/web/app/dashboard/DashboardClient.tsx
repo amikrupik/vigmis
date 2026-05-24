@@ -22,7 +22,7 @@ import {
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
   getMetaPages, selectMetaPage, type MetaPage,
-  getMetaScopes,
+  getMetaScopes, disconnectMeta,
   updateSocialPost, deleteSocialPost,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
@@ -249,7 +249,7 @@ export default function DashboardClient() {
         {tab === 'geo' && <GeoTab settings={settings} />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'protocols' && <ProtocolsTab />}
-        {tab === 'social' && <SocialTab />}
+        {tab === 'social' && <SocialTab metaConnected={connected.meta} />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
       </div>
 
@@ -3564,7 +3564,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
   );
 }
 
-function SocialTab() {
+function SocialTab({ metaConnected }: { metaConnected: boolean }) {
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -3638,13 +3638,24 @@ function SocialTab() {
     setAdAccountLoading(false);
   }
 
-  const [metaScopes, setMetaScopes] = useState<{ scopes: string[]; missing: string[]; needs_reconnect: boolean } | null>(null);
-  const [scopesLoading, setScopesLoading] = useState(false);
-  async function checkMetaScopes() {
-    setScopesLoading(true);
-    const r = await getMetaScopes();
-    setScopesLoading(false);
-    if (r) setMetaScopes({ scopes: r.scopes, missing: r.missing, needs_reconnect: r.needs_reconnect });
+  const [editing, setEditing] = useState<null | 'page' | 'account' | 'ga4'>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  async function handleConnectMeta() {
+    const tok = await (window as any).Clerk?.session?.getToken();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+    window.location.href = `${apiUrl}/auth/meta?token=${encodeURIComponent(tok ?? '')}`;
+  }
+
+  async function handleDisconnectMeta() {
+    if (!confirm('לנתק את חשבון פייסבוק מויגמיס? תוכל לחבר מחדש בכל עת.')) return;
+    setDisconnecting(true);
+    await disconnectMeta();
+    await load();
+    setEditing(null);
+    setPages(null);
+    setAdAccounts(null);
+    setDisconnecting(false);
   }
 
   async function handleSelectAdAccount(id: string) {
@@ -3711,6 +3722,9 @@ function SocialTab() {
 
   useEffect(() => { load(); }, [filterStatus]);
 
+  // Reconnect modal — shown when publish fails because Meta token is stale/insufficient
+  const [reconnectModal, setReconnectModal] = useState(false);
+
   // Three approve modes: publish now, schedule custom time, or keep weekly slot.
   async function handleApprove(id: string, mode: 'now' | 'custom' | 'keep', customWhen?: string) {
     setGeneratingPost(id);
@@ -3726,8 +3740,15 @@ function SocialTab() {
     await load();
     setGeneratingPost(null);
     if (mode === 'now') {
-      if (res?.published) alert('Post published successfully.');
-      else alert(`Publish failed: ${res?.publishError ?? 'unknown error'}. The post stays in pending state — check that Meta is connected and the Page/IG IDs are set.`);
+      if (res?.published) {
+        alert('הפוסט פורסם בהצלחה.');
+      } else {
+        const err = res?.publishError ?? '';
+        // Any Meta API permission-style error → show the reconnect modal instead of a noisy alert.
+        const isPermission = /pages_manage_posts|publish_to_groups|permission|#100|#200|#10|scope|not allowed/i.test(err);
+        if (isPermission) setReconnectModal(true);
+        else alert('הפרסום נכשל: ' + (err || 'שגיאה לא ידועה') + '\nהפוסט נשאר ממתין.');
+      }
     }
   }
   const [scheduleFor, setScheduleFor] = useState<{ id: string; value: string } | null>(null);
@@ -4081,347 +4102,207 @@ function SocialTab() {
 
       </div>)}
 
-      {/* Connect section — page ID setup */}
+      {/* Connect section — clean, Hebrew, no technical jargon */}
       {activeSection === 'connect' && (
-        <div className="space-y-5 max-w-lg">
-
-        {/* Meta token diagnostic — shows which OAuth permissions are actually granted */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="font-bold text-slate-900">Meta connection diagnostic</h3>
-            <button onClick={checkMetaScopes} disabled={scopesLoading} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg disabled:opacity-50">
-              {scopesLoading ? 'Checking…' : 'Check now'}
-            </button>
-          </div>
-          <p className="text-xs text-slate-500">If posting fails with permission errors, click "Check now" to see exactly what Meta is granting Vigmis.</p>
-          {metaScopes && (
-            <>
-              {metaScopes.needs_reconnect ? (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs">
-                  <p className="font-bold text-red-700 mb-1">Missing permissions — Vigmis cannot publish</p>
-                  <p className="text-red-600">Missing: {metaScopes.missing.join(', ')}</p>
-                  <p className="text-slate-600 mt-2">Fix: 1) Open <a className="underline" href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener noreferrer">facebook.com Business Tools</a>, remove Vigmis. 2) Come back here and click Reconnect Meta below. 3) Approve every permission Facebook asks for.</p>
-                </div>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700">
-                  <p className="font-bold">All required permissions granted ({metaScopes.scopes.length}).</p>
-                </div>
-              )}
-              <details className="text-xs text-slate-500">
-                <summary className="cursor-pointer">Show granted permissions ({metaScopes.scopes.length})</summary>
-                <ul className="mt-2 pl-4 list-disc">{metaScopes.scopes.map(s => <li key={s}>{s}</li>)}</ul>
-              </details>
-            </>
-          )}
-          <button
-            onClick={async () => {
-              const tok = await (window as any).Clerk?.session?.getToken();
-              const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
-              window.location.href = `${apiUrl}/auth/meta?token=${encodeURIComponent(tok ?? '')}`;
-            }}
-            className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-xl"
-          >
-            Reconnect Meta
-          </button>
-        </div>
-
-        {/* Ad Account picker — for paid campaigns */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <div className="space-y-5 max-w-xl" dir="rtl">
           <div>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Meta Ad Account</h3>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              If your Business Manager has more than one ad account, choose which one Vigmis should use for paid campaigns.
-              Until you pick one, Vigmis falls back to the first account Meta returns — which may not be the right one.
-            </p>
+            <h2 className="text-lg font-bold text-slate-900">החיבורים שלך</h2>
+            <p className="text-sm text-slate-500 mt-1">ויגמיס ינהל את הקמפיינים והפוסטים שלך דרך החיבורים האלה.</p>
           </div>
 
-          {adAccounts === null && !adAccountLoading && (
-            <button
-              onClick={loadAdAccounts}
-              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-            >
-              Load my ad accounts
-            </button>
-          )}
-
-          {adAccountLoading && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
-              Loading ad accounts from Meta…
-            </div>
-          )}
-
-          {adAccountError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{adAccountError}</p>
-          )}
-
-          {adAccounts && adAccounts.length === 0 && !adAccountLoading && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              Meta returned no ad accounts for this user. Make sure you have admin access to at least one ad account in Business Manager.
-            </p>
-          )}
-
-          {adAccounts && adAccounts.length > 0 && (
-            <div className="space-y-2">
-              {adAccounts.map(a => {
-                const isSelected = a.id === adAccountSelected;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => handleSelectAdAccount(a.id)}
-                    disabled={adAccountSaving || isSelected}
-                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
-                      isSelected
-                        ? 'border-emerald-300 bg-emerald-50'
-                        : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
-                    } ${adAccountSaving ? 'opacity-50 cursor-wait' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{a.name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 font-mono">{a.id}</p>
-                        <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-500">
-                          {a.business && <span>Business: <strong className="text-slate-700">{a.business}</strong></span>}
-                          {a.currency && <span>Currency: <strong className="text-slate-700">{a.currency}</strong></span>}
-                          <span>{a.active ? '✓ Active' : '⚠ Inactive'}</span>
-                        </div>
-                      </div>
-                      {isSelected && (
-                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+          {!metaConnected && (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4 text-right">
+              <h3 className="text-base font-bold text-slate-900">פייסבוק ואינסטגרם</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                לחיצה אחת תפתח את פייסבוק. במסך שלהם תאשר בבת אחת את כל ההרשאות שויגמיס צריך, וזהו — חזרה לויגמיס וממשיכים.
+              </p>
               <button
-                onClick={loadAdAccounts}
-                className="text-xs text-slate-400 hover:text-slate-600 underline mt-2"
+                onClick={handleConnectMeta}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                Refresh list
+                התחבר לפייסבוק
               </button>
             </div>
           )}
-        </div>
 
-        {/* GA4 (Google Analytics 4) — ground-truth conversion data */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Google Analytics 4 (ground truth)</h3>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Connect a GA4 property so Vigmis can judge campaigns on real on-site conversions instead of platform-inflated numbers.
-              Google Ads and Meta both claim credit for the same purchase — GA4 measures it once at the website.
-            </p>
-          </div>
-
-          {ga4Settings && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm">
-              <p className="font-semibold text-emerald-700">Connected: {ga4Settings.property_name ?? ga4Settings.property_id}</p>
-              <p className="text-xs text-slate-600 font-mono mt-0.5">{ga4Settings.property_id}</p>
-              {ga4Settings.last_synced_at && (
-                <p className="text-xs text-slate-500 mt-1">Last sync: {new Date(ga4Settings.last_synced_at).toLocaleString()}</p>
-              )}
-            </div>
-          )}
-
-          {ga4Properties === null && !ga4Loading && (
-            <button
-              onClick={loadGa4}
-              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-            >
-              {ga4Settings ? 'Change property' : 'Load my GA4 properties'}
-            </button>
-          )}
-
-          {ga4Loading && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
-              Loading properties…
-            </div>
-          )}
-
-          {ga4Error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{ga4Error}</p>
-          )}
-          {ga4Status && (
-            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">{ga4Status}</p>
-          )}
-
-          {ga4Properties && ga4Properties.length === 0 && !ga4Loading && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              No GA4 properties on this Google account. Create one at <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">analytics.google.com</a> and reload.
-            </p>
-          )}
-
-          {ga4Properties && ga4Properties.length > 0 && (
-            <div className="space-y-2">
-              {ga4Properties.map(p => {
-                const isSelected = p.property_id === ga4Settings?.property_id;
-                return (
-                  <button
-                    key={p.property_id}
-                    onClick={() => handleSelectGa4(p)}
-                    disabled={ga4Saving || isSelected}
-                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
-                      isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
-                    } ${ga4Saving ? 'opacity-50 cursor-wait' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{p.display_name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 font-mono">{p.property_id}</p>
-                      </div>
-                      {isSelected && (
-                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {ga4Settings && (
-            <button
-              onClick={handleGa4Sync}
-              disabled={ga4Syncing}
-              className="text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {ga4Syncing ? 'Syncing…' : 'Sync now'}
-            </button>
-          )}
-
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Vigmis pulls source/medium/campaign attribution daily at 02:30 UTC. The optimizer will switch to
-            conversion-based decisions (CPA, ROAS) automatically as soon as data is available.
-          </p>
-        </div>
-
-        {/* Facebook Page + Instagram picker — auto-detected from Meta */}
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 mb-1">Facebook Page + Instagram</h3>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Pick which Facebook Page (and linked Instagram Business account) Vigmis should publish to.
-              We read this list straight from your connected Meta account — no manual IDs needed.
-            </p>
-          </div>
-
-          {(selectedPageId || settings?.facebook_page_id) && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm">
-              <p className="font-semibold text-emerald-700">
-                Connected Page: {pages?.find(p => p.page_id === selectedPageId)?.name ?? selectedPageId ?? settings?.facebook_page_id}
-              </p>
-              {(selectedIgUserId || settings?.instagram_user_id) && (
-                <p className="text-xs text-slate-600 mt-0.5">Instagram: {pages?.find(p => p.instagram_user_id === selectedIgUserId)?.instagram_username ?? selectedIgUserId ?? settings?.instagram_user_id}</p>
-              )}
-            </div>
-          )}
-
-          {pages === null && !pagesLoading && (
-            <button
-              onClick={loadPages}
-              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-            >
-              {selectedPageId || settings?.facebook_page_id ? 'Change page' : 'Load my pages'}
-            </button>
-          )}
-
-          {pagesLoading && (
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
-              Loading pages from Meta…
-            </div>
-          )}
-
-          {pagesError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{pagesError}</p>
-          )}
-
-          {pages && pages.length === 0 && !pagesLoading && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              Meta returned no Pages for this user. Make sure you have admin access to at least one Facebook Page.
-            </p>
-          )}
-
-          {pages && pages.length > 0 && (
-            <div className="space-y-2">
-              {pages.map(p => {
-                const isSelected = p.page_id === selectedPageId;
-                return (
-                  <button
-                    key={p.page_id}
-                    onClick={() => handleSelectPage(p)}
-                    disabled={pageSaving || isSelected}
-                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
-                      isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
-                    } ${pageSaving ? 'opacity-50 cursor-wait' : ''}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">{p.page_id}</p>
-                        {p.category && <p className="text-xs text-slate-500 mt-0.5">{p.category}</p>}
-                        {p.instagram_username ? (
-                          <p className="text-xs text-violet-600 mt-1">📷 Instagram: @{p.instagram_username}</p>
-                        ) : (
-                          <p className="text-xs text-slate-400 mt-1">No Instagram Business account linked</p>
+          {metaConnected && (
+            <>
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-slate-400 font-semibold">עמוד פייסבוק</p>
+                    {(selectedPageId || settings?.facebook_page_id) ? (
+                      <>
+                        <p className="text-base font-bold text-slate-900 mt-0.5">
+                          {pages?.find(p => p.page_id === (selectedPageId ?? settings?.facebook_page_id))?.name ?? 'מחובר'}
+                        </p>
+                        {(selectedIgUserId || settings?.instagram_user_id) && (
+                          <p className="text-xs text-violet-600 mt-1">
+                            ואינסטגרם: @{pages?.find(p => p.instagram_user_id === (selectedIgUserId ?? settings?.instagram_user_id))?.instagram_username ?? 'מקושר'}
+                          </p>
                         )}
-                      </div>
-                      {isSelected && (
-                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
-                      )}
-                    </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-amber-600 mt-0.5">עוד לא נבחר עמוד</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { if (editing !== 'page') { loadPages(); setEditing('page'); } else { setEditing(null); } }}
+                    className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
+                  >
+                    {editing === 'page' ? 'סגור' : (selectedPageId || settings?.facebook_page_id) ? 'שינוי' : 'בחר עמוד'}
                   </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
 
-        {/* Manual override — kept as fallback for advanced users */}
-        <details className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <summary className="text-xs font-semibold text-slate-600 cursor-pointer">Manual Page ID entry (advanced)</summary>
-          <div className="mt-3 space-y-4">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Facebook Page ID</label>
-              <input
-                value={pageIdInput}
-                onChange={e => setPageIdInput(e.target.value)}
-                placeholder="e.g. 123456789012345"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {settings?.facebook_page_id && (
-                <p className="text-xs text-emerald-600 mt-1 font-medium">Connected: {settings.facebook_page_id}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Instagram User ID</label>
-              <input
-                value={igUserIdInput}
-                onChange={e => setIgUserIdInput(e.target.value)}
-                placeholder="e.g. 17841400000000000"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {settings?.instagram_user_id && (
-                <p className="text-xs text-emerald-600 mt-1 font-medium">Connected: {settings.instagram_user_id}</p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleSaveConnect}
-            disabled={savingConnect}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
-          >
-            {savingConnect ? 'Saving...' : 'Save'}
-          </button>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            These IDs are used only to publish your approved posts and fetch comments. Vigmis never posts without your approval (unless you set Auto mode).
-          </p>
-          </div>
-        </details>
+                {editing === 'page' && (
+                  <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                    {pagesLoading && <p className="text-sm text-slate-500">טוען עמודים מפייסבוק…</p>}
+                    {pagesError && <p className="text-xs text-red-600">{pagesError}</p>}
+                    {pages && pages.length === 0 && (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                        פייסבוק לא החזיר עמודים. צריך שתהיה לך הרשאת מנהל בלפחות עמוד אחד.
+                      </p>
+                    )}
+                    {pages?.map(p => {
+                      const isSelected = p.page_id === (selectedPageId ?? settings?.facebook_page_id);
+                      return (
+                        <button
+                          key={p.page_id}
+                          onClick={async () => { await handleSelectPage(p); setEditing(null); }}
+                          disabled={pageSaving}
+                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                            isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                          {p.instagram_username
+                            ? <p className="text-xs text-violet-600 mt-0.5">אינסטגרם: @{p.instagram_username}</p>
+                            : <p className="text-xs text-slate-400 mt-0.5">בלי אינסטגרם מקושר</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-slate-400 font-semibold">חשבון פרסום</p>
+                    {adAccountSelected ? (
+                      <p className="text-base font-bold text-slate-900 mt-0.5">
+                        {adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'מחובר'}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-amber-600 mt-0.5">עוד לא נבחר חשבון פרסום</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { if (editing !== 'account') { loadAdAccounts(); setEditing('account'); } else { setEditing(null); } }}
+                    className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
+                  >
+                    {editing === 'account' ? 'סגור' : adAccountSelected ? 'שינוי' : 'בחר חשבון'}
+                  </button>
+                </div>
+
+                {editing === 'account' && (
+                  <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                    {adAccountLoading && <p className="text-sm text-slate-500">טוען חשבונות פרסום מפייסבוק…</p>}
+                    {adAccountError && <p className="text-xs text-red-600">{adAccountError}</p>}
+                    {adAccounts && adAccounts.length === 0 && (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                        פייסבוק לא החזיר חשבונות פרסום. וודא שיש לך הרשאת מנהל בלפחות אחד.
+                      </p>
+                    )}
+                    {adAccounts?.map(a => {
+                      const isSelected = a.id === adAccountSelected;
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={async () => { await handleSelectAdAccount(a.id); setEditing(null); }}
+                          disabled={adAccountSaving}
+                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                            isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{a.name}</p>
+                          <div className="flex flex-wrap gap-3 text-xs text-slate-500 mt-1">
+                            {a.business && <span>עסק: {a.business}</span>}
+                            {a.currency && <span>מטבע: {a.currency}</span>}
+                            <span>{a.active ? 'פעיל' : 'לא פעיל'}</span>
+                          </div>
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-right">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-slate-400 font-semibold">Google Analytics (אופציונלי)</p>
+                    {ga4Settings ? (
+                      <>
+                        <p className="text-base font-bold text-slate-900 mt-0.5">{ga4Settings.property_name ?? 'מחובר'}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">ויגמיס מחשב את ביצועי הקמפיינים לפי נתוני האתר שלך, במקום להסתמך על דיווחי פייסבוק וגוגל.</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-500 mt-0.5">חיבור Analytics עוזר לויגמיס למדוד תוצאות אמיתיות באתר במקום להסתמך על דיווחי הפלטפורמות.</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { if (editing !== 'ga4') { loadGa4(); setEditing('ga4'); } else { setEditing(null); } }}
+                    className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
+                  >
+                    {editing === 'ga4' ? 'סגור' : ga4Settings ? 'שינוי' : 'חבר'}
+                  </button>
+                </div>
+
+                {editing === 'ga4' && (
+                  <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                    {ga4Loading && <p className="text-sm text-slate-500">טוען נכסים מ-Google Analytics…</p>}
+                    {ga4Error && <p className="text-xs text-red-600">{ga4Error}</p>}
+                    {ga4Properties && ga4Properties.length === 0 && (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">לא נמצאו נכסי Analytics בחשבון Google. צור אחד באתר Google Analytics ונסה שוב.</p>
+                    )}
+                    {ga4Properties?.map(p => {
+                      const isSelected = p.property_id === ga4Settings?.property_id;
+                      return (
+                        <button
+                          key={p.property_id}
+                          onClick={async () => { await handleSelectGa4(p); setEditing(null); }}
+                          disabled={ga4Saving}
+                          className={`w-full text-right border rounded-xl px-4 py-3 transition-all ${
+                            isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{p.display_name}</p>
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">נבחר</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 text-right">
+                <button
+                  onClick={handleDisconnectMeta}
+                  disabled={disconnecting}
+                  className="text-xs text-red-600 hover:text-red-700 underline disabled:opacity-50"
+                >
+                  {disconnecting ? 'מנתק…' : 'ניתוק ויגמיס מפייסבוק'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
+
+      {/* Old connect section — replaced above. Kept as dead branch so JSX stays balanced. */}
 
       {/* Comments section */}
       {activeSection === 'comments' && (
@@ -4501,6 +4382,31 @@ function SocialTab() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {reconnectModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-right">
+            <h3 className="text-lg font-bold text-slate-900">צריך לחבר שוב את פייסבוק</h3>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              ההרשאות שלך לויגמיס מפייסבוק התיישנו. לחיצה אחת תחבר מחדש — תאשר את כל ההרשאות במסך של פייסבוק וזהו.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setReconnectModal(false)}
+                className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-slate-700"
+              >
+                לא עכשיו
+              </button>
+              <button
+                onClick={handleConnectMeta}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2 rounded-xl"
+              >
+                התחבר שוב לפייסבוק
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

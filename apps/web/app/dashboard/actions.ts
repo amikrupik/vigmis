@@ -324,6 +324,10 @@ export async function getMetaScopes(): Promise<{ connected: boolean; scopes: str
   return apiCall('/connectors/meta/scopes');
 }
 
+export async function disconnectMeta(): Promise<{ success: boolean } | null> {
+  return apiCall('/connectors/meta/disconnect', 'POST', {});
+}
+
 export type MetaPage = {
   page_id: string;
   name: string;

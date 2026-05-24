@@ -170,6 +170,48 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
   });
 
+  // ─── Disconnect Meta — revoke + wipe token + clear page selections ─────
+  app.post('/connectors/meta/disconnect', { preHandler: authenticate }, async (request, reply) => {
+    const { data: tokenRow } = await db
+      .from('platform_tokens')
+      .select('access_token')
+      .eq('tenant_id', request.tenantId)
+      .eq('platform', 'meta')
+      .maybeSingle();
+
+    // Best-effort revoke at Facebook so Vigmis disappears from the user's apps page.
+    if (tokenRow?.access_token) {
+      try {
+        const access = decryptToken(tokenRow.access_token);
+        await fetch(`${META_GRAPH}/me/permissions?access_token=${encodeURIComponent(access)}`, { method: 'DELETE' });
+      } catch (err) {
+        request.log.warn({ err }, 'Meta revoke during disconnect failed (continuing)');
+      }
+    }
+
+    await db.from('platform_tokens').delete()
+      .eq('tenant_id', request.tenantId).eq('platform', 'meta');
+
+    // Clear Page selections so the next reconnect doesn't reuse stale IDs.
+    await db.from('social_settings').update({
+      facebook_page_id: null,
+      instagram_user_id: null,
+      platforms: [],
+      enabled: false,
+      updated_at: new Date().toISOString(),
+    }).eq('tenant_id', request.tenantId);
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'connector.meta.disconnected',
+      platform: 'meta',
+      actor: 'user',
+      payload: {},
+    });
+
+    return reply.send({ success: true });
+  });
+
   // ─── Meta token introspection — what scopes does the current token actually grant? ──
   // Helps debug "pages_manage_posts required" errors after re-adding scopes:
   // surfaces whether the user's stored token already covers the scope or whether they
