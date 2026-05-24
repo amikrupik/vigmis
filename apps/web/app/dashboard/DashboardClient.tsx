@@ -3768,9 +3768,17 @@ function SocialTab() {
 
   async function handleSaveConnect() {
     setSavingConnect(true);
-    await updateSocialSettings({ facebook_page_id: pageIdInput.trim() || null, instagram_user_id: igUserIdInput.trim() || null });
+    const res = await updateSocialSettings({
+      facebook_page_id: pageIdInput.trim() || null,
+      instagram_user_id: igUserIdInput.trim() || null,
+    });
     await load();
     setSavingConnect(false);
+    if (!res) {
+      alert('Save failed — please check that Meta is still connected and try again.');
+    } else {
+      alert(`Saved.\nFacebook Page: ${pageIdInput.trim() || '(none)'}\nInstagram: ${igUserIdInput.trim() || '(none)'}`);
+    }
   }
 
   const pendingPosts = posts.filter(p => p.status === 'pending_approval');
