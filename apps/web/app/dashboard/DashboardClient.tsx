@@ -22,6 +22,7 @@ import {
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
   getMetaPages, selectMetaPage, type MetaPage,
+  updateSocialPost, deleteSocialPost,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
   runGeoAudit, getGeoReport, getHistoryTimeline,
@@ -3450,6 +3451,118 @@ function HistoryTab() {
   );
 }
 
+// PostActions — inline edit / reschedule / delete for any non-published post.
+// Sits under each row in the posts list so the client can fix typos, push a
+// date, or remove a draft without leaving the page.
+function PostActions({ post, onChange }: { post: any; onChange: () => Promise<void> | void }) {
+  const [mode, setMode] = useState<'idle' | 'edit' | 'reschedule' | 'delete' | 'image'>('idle');
+  const [text, setText] = useState(post.client_edit || post.content || '');
+  const [when, setWhen] = useState(post.scheduled_for ? new Date(post.scheduled_for).toISOString().slice(0, 16) : '');
+  const [img, setImg] = useState(post.image_url || '');
+  const [busy, setBusy] = useState(false);
+
+  async function save(fields: { content?: string; image_url?: string | null; scheduled_for?: string }) {
+    setBusy(true);
+    await updateSocialPost(post.id, fields);
+    setBusy(false);
+    setMode('idle');
+    await onChange();
+  }
+  async function doDelete() {
+    setBusy(true);
+    await deleteSocialPost(post.id);
+    setBusy(false);
+    await onChange();
+  }
+
+  if (post.status === 'published') {
+    return (
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={() => { if (confirm('Remove this post from Vigmis? (it stays live on Facebook/Instagram unless you delete it there too)')) doDelete(); }}
+          disabled={busy}
+          className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded"
+        >
+          Remove from Vigmis
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      {mode === 'idle' && (
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setMode('edit')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">Edit text</button>
+          <button onClick={() => setMode('image')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">{post.image_url ? 'Change image' : 'Add image'}</button>
+          <button onClick={() => setMode('reschedule')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">Reschedule</button>
+          <button
+            onClick={() => { if (confirm('Delete this post permanently?')) doDelete(); }}
+            disabled={busy}
+            className="text-xs border border-red-200 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+
+      {mode === 'edit' && (
+        <div className="space-y-2">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={4}
+            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
+          />
+          <div className="flex gap-2">
+            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
+            <button onClick={() => save({ content: text })} disabled={busy || !text.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">Save text</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'image' && (
+        <div className="space-y-2">
+          <input
+            type="url"
+            value={img}
+            onChange={e => setImg(e.target.value)}
+            placeholder="https://..."
+            className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
+          />
+          <p className="text-xs text-slate-400">Paste a public image URL. Image upload is coming — for now use a URL from your site or any image host.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
+            {post.image_url && (
+              <button onClick={() => save({ image_url: null })} disabled={busy} className="text-xs border border-red-200 text-red-600 px-3 py-1.5 rounded-lg">Remove image</button>
+            )}
+            <button onClick={() => save({ image_url: img })} disabled={busy || !img.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">Save image</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'reschedule' && (
+        <div className="flex gap-2 items-center flex-wrap">
+          <input
+            type="datetime-local"
+            value={when}
+            onChange={e => setWhen(e.target.value)}
+            className="text-sm border border-slate-200 rounded-xl px-3 py-1.5"
+          />
+          <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
+          <button
+            onClick={() => save({ scheduled_for: new Date(when).toISOString() })}
+            disabled={busy || !when}
+            className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg"
+          >
+            Save new time
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SocialTab() {
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
@@ -3939,6 +4052,8 @@ function SocialTab() {
                       ))}
                     </div>
                   )}
+                  {/* Edit / Reschedule / Delete — available for any non-published post */}
+                  <PostActions post={post} onChange={load} />
                 </div>
               );
             })}

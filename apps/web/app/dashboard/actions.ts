@@ -389,6 +389,17 @@ export async function getSocialPosts(params?: { status?: string; platform?: stri
   return apiCall(`/social/posts${q.toString() ? `?${q}` : ''}`);
 }
 
+export async function updateSocialPost(
+  id: string,
+  fields: { content?: string; image_url?: string | null; scheduled_for?: string },
+) {
+  return apiCall(`/social/posts/${id}`, 'PATCH', fields);
+}
+
+export async function deleteSocialPost(id: string) {
+  return apiCall(`/social/posts/${id}`, 'DELETE');
+}
+
 export async function approveSocialPost(
   id: string,
   opts?: { editedContent?: string; publishNow?: boolean; scheduledFor?: string },

@@ -166,6 +166,71 @@ export async function socialRoutes(app: FastifyInstance) {
     });
   });
 
+  // ── Patch (edit content / image / schedule on any non-published post) ────
+  app.patch('/social/posts/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as any;
+    const { content, image_url, scheduled_for } = request.body as any;
+
+    const { data: post } = await db.from('social_posts')
+      .select('id, status, platform')
+      .eq('id', id).eq('tenant_id', request.tenantId).single();
+    if (!post) return reply.code(404).send({ error: 'Not found' });
+    if (post.status === 'published') {
+      return reply.code(400).send({ error: 'Cannot edit a published post — delete it and create a new one.' });
+    }
+
+    const update: any = { updated_at: new Date().toISOString() };
+    if (typeof content === 'string' && content.trim()) {
+      update.content = content.trim();
+      update.client_edit = content.trim();
+    }
+    if (typeof image_url === 'string') {
+      update.image_url = image_url.trim() || null;
+    }
+    if (scheduled_for) {
+      const dt = new Date(scheduled_for);
+      if (isNaN(dt.getTime())) return reply.code(400).send({ error: 'scheduled_for must be valid ISO datetime' });
+      update.scheduled_for = dt.toISOString();
+    }
+
+    await db.from('social_posts').update(update).eq('id', id);
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'social.post_edited',
+      platform: post.platform,
+      actor: 'user',
+      payload: { postId: id, fields: Object.keys(update).filter(k => k !== 'updated_at') },
+    });
+    return reply.send({ success: true });
+  });
+
+  // ── Delete (any post — published is removed from our DB only, not from the platform) ──
+  app.delete('/social/posts/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as any;
+    const { data: post } = await db.from('social_posts')
+      .select('id, platform, status, external_post_id')
+      .eq('id', id).eq('tenant_id', request.tenantId).single();
+    if (!post) return reply.code(404).send({ error: 'Not found' });
+
+    await db.from('social_posts').delete().eq('id', id);
+    // Cascade also removes analytics row via FK.
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'social.post_deleted',
+      platform: post.platform,
+      actor: 'user',
+      payload: {
+        postId: id,
+        wasPublished: post.status === 'published',
+        external_post_id: post.external_post_id,
+        // We deliberately don't delete from Meta automatically — that needs an explicit
+        // "Delete on Facebook/Instagram" action with the user's confirmation.
+      },
+    });
+    return reply.send({ success: true });
+  });
+
   // ── Reject ────────────────────────────────────────────────────────────────
   app.post('/social/posts/:id/reject', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as any;
