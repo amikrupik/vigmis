@@ -27,36 +27,20 @@ async function getAccessToken(tenantId: string): Promise<string> {
   return decryptToken(data.access_token);
 }
 
-async function getAdAccountId(tenantId: string, accessToken: string): Promise<string> {
-  // First check if we stored it
+async function getAdAccountId(tenantId: string, _accessToken: string): Promise<string> {
+  // Require an explicit user-selected account_id. The onboarding flow now forces
+  // a Meta Assets selection step right after OAuth — if it's still missing here,
+  // we'd be guessing, and a wrong guess publishes ads to the wrong client's account.
   const { data } = await db
     .from('platform_tokens')
     .select('account_id')
     .eq('tenant_id', tenantId)
     .eq('platform', 'meta')
-    .single();
+    .maybeSingle();
 
   if (data?.account_id) return data.account_id;
 
-  // Fetch from Meta API
-  const res = await fetch(
-    `${BASE}/me/adaccounts?fields=id,name&access_token=${accessToken}`,
-  );
-  if (!res.ok) throw new Error(`Meta ad accounts fetch failed: ${await res.text()}`);
-
-  const json = await res.json() as { data: Array<{ id: string; name: string }> };
-  if (!json.data?.length) throw new Error('No Meta ad accounts found');
-
-  const accountId = json.data[0].id; // e.g. "act_123456789"
-
-  // Store for next time
-  await db
-    .from('platform_tokens')
-    .update({ account_id: accountId })
-    .eq('tenant_id', tenantId)
-    .eq('platform', 'meta');
-
-  return accountId;
+  throw new Error('No Meta ad account selected. Open Dashboard → Social → Connect and pick which ad account Vigmis should manage.');
 }
 
 export async function createMetaCampaign(

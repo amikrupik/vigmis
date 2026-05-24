@@ -1,20 +1,25 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
 import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
+import {
+  getMetaPages, selectMetaPage, type MetaPage,
+  getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
+} from '../dashboard/actions';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-type Step = 'connect' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'tracking' | 'saving';
+type Step = 'connect' | 'meta_assets' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'tracking' | 'saving';
 type CreativeChoice = 'avatar' | 'cinematic' | 'animation' | 'upload' | 'skip' | null;
 
 const STEPS: { key: Step; label: string }[] = [
   { key: 'connect', label: 'Connect' },
+  { key: 'meta_assets', label: 'Choose Page' },
   { key: 'chat', label: 'Interview' },
   { key: 'analysis', label: 'Analysis' },
   { key: 'strategy', label: 'Strategy' },
@@ -23,7 +28,7 @@ const STEPS: { key: Step; label: string }[] = [
 ];
 
 const STEP_INDEX: Record<Step, number> = {
-  connect: 0, chat: 1, analysis: 2, website_check: 2, strategy: 3, creative: 4, tracking: 5, saving: 6,
+  connect: 0, meta_assets: 1, chat: 2, analysis: 3, website_check: 3, strategy: 4, creative: 5, tracking: 6, saving: 7,
 };
 
 const ANALYSIS_STEPS = [
@@ -415,7 +420,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
             <div className="space-y-3">
               <button
-                onClick={() => setStep('chat')}
+                onClick={() => setStep(connected.meta ? 'meta_assets' : 'chat')}
                 disabled={!termsAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
@@ -433,6 +438,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         </div>
       </div>
     );
+  }
+
+  // ── Meta Assets selection (Page + IG + Ad Account) ───────────────────────────
+  if (step === 'meta_assets') {
+    return <MetaAssetsStep onDone={() => setStep('chat')} onBack={() => setStep('connect')} header={header} />;
   }
 
   // ── Website check ─────────────────────────────────────────────────────────────
@@ -1340,6 +1350,197 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       )}
       <div className="flex-1 overflow-hidden">
         <OnboardingChat onConfirm={handleChatConfirm} />
+      </div>
+    </div>
+  );
+}
+
+// ── Meta Assets step ──────────────────────────────────────────────────────────
+// Shown immediately after Meta OAuth completes. Forces the client to pick which
+// Ad Account, Facebook Page, and Instagram Business account Vigmis will manage,
+// before they go any deeper into onboarding. Eliminates the silent "first
+// account Meta returns" fallback.
+
+function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack: () => void; header: React.ReactNode }) {
+  const [pages, setPages] = useState<MetaPage[] | null>(null);
+  const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [selectedIgUserId, setSelectedIgUserId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const [pagesRes, accountsRes] = await Promise.all([getMetaPages(), getMetaAdAccounts()]);
+      if (pagesRes) {
+        setPages(pagesRes.pages);
+        setSelectedPageId(pagesRes.selected_page_id);
+        setSelectedIgUserId(pagesRes.selected_instagram_user_id);
+      } else {
+        setError('Could not load Facebook pages — please reconnect Meta.');
+      }
+      if (accountsRes) {
+        setAccounts(accountsRes.accounts);
+        setSelectedAccountId(accountsRes.selected);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  function selectPage(p: MetaPage) {
+    setSelectedPageId(p.page_id);
+    setSelectedIgUserId(p.instagram_user_id);
+  }
+
+  async function handleContinue() {
+    if (!selectedPageId) { setError('Please choose a Facebook Page first.'); return; }
+    if (!selectedAccountId) { setError('Please choose an Ad Account first.'); return; }
+    setSaving(true);
+    setError(null);
+    const [pageRes, accountRes] = await Promise.all([
+      selectMetaPage(selectedPageId, selectedIgUserId),
+      selectMetaAdAccount(selectedAccountId),
+    ]);
+    setSaving(false);
+    if (!pageRes || !accountRes?.success) {
+      setError('Failed to save your selection. Please try again.');
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-col flex-1">
+      {header}
+      <div className="flex-1 overflow-y-auto p-6 py-10">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Choose what Vigmis will manage</h2>
+            <p className="text-slate-500 text-sm mt-1">
+              You have multiple assets in your Meta Business Manager. Pick exactly which Facebook Page,
+              Instagram account, and Ad Account Vigmis should use. You can change this later.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>
+          )}
+
+          {loading && (
+            <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>
+          )}
+
+          {!loading && (
+            <>
+              {/* Facebook Page + IG */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="font-bold text-slate-900">Facebook Page</h3>
+                  <span className="text-xs text-slate-400">{pages?.length ?? 0} available</span>
+                </div>
+                {pages && pages.length === 0 && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    Meta returned no Pages. You need admin access to at least one Facebook Page.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {pages?.map(p => {
+                    const isSelected = p.page_id === selectedPageId;
+                    return (
+                      <button
+                        key={p.page_id}
+                        onClick={() => selectPage(p)}
+                        className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                          isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
+                            <p className="text-xs text-slate-500 font-mono mt-0.5">{p.page_id}</p>
+                            {p.category && <p className="text-xs text-slate-500 mt-0.5">{p.category}</p>}
+                            {p.instagram_username ? (
+                              <p className="text-xs text-violet-600 mt-1">📷 Instagram: @{p.instagram_username}</p>
+                            ) : (
+                              <p className="text-xs text-slate-400 mt-1">No Instagram Business account linked</p>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ad Account */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="font-bold text-slate-900">Ad Account</h3>
+                  <span className="text-xs text-slate-400">{accounts?.length ?? 0} available</span>
+                </div>
+                {accounts && accounts.length === 0 && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    Meta returned no Ad Accounts. You need admin access to at least one Ad Account in Business Manager.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {accounts?.map(a => {
+                    const isSelected = a.id === selectedAccountId;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelectedAccountId(a.id)}
+                        className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                          isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-900 truncate">{a.name}</p>
+                            <p className="text-xs text-slate-500 font-mono mt-0.5">{a.id}</p>
+                            <div className="flex gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+                              {a.business && <span>Business: <strong className="text-slate-700">{a.business}</strong></span>}
+                              {a.currency && <span>Currency: <strong className="text-slate-700">{a.currency}</strong></span>}
+                              <span>{a.active ? '✓ Active' : '⚠ Inactive'}</span>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={onBack}
+                  className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleContinue}
+                  disabled={saving || !selectedPageId || !selectedAccountId}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
+                >
+                  {saving ? 'Saving…' : 'Continue →'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 text-center">
+                You can change these selections anytime in Dashboard → Social → Connect.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
