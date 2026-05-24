@@ -53,6 +53,11 @@ export class MetaAdsConnector implements AdConnector {
       redirect_uri: redirectUri,
       scope: SCOPES,
       response_type: 'code',
+      // rerequest: if the user previously declined or wasn't asked for a scope (because
+      // it didn't exist in our SCOPES list at the time), Facebook would normally skip
+      // the consent screen entirely on reconnect. rerequest forces a fresh screen and
+      // re-asks for any missing scopes.
+      auth_type: 'rerequest',
       state,
     });
     return `${META_AUTH_URL}?${params.toString()}`;

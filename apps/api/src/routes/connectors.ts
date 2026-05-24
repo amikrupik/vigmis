@@ -170,6 +170,43 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
   });
 
+  // ─── Meta token introspection — what scopes does the current token actually grant? ──
+  // Helps debug "pages_manage_posts required" errors after re-adding scopes:
+  // surfaces whether the user's stored token already covers the scope or whether they
+  // need to disconnect + reconnect to pick up new ones.
+  app.get('/connectors/meta/scopes', { preHandler: authenticate }, async (request, reply) => {
+    const { data } = await db
+      .from('platform_tokens')
+      .select('access_token')
+      .eq('tenant_id', request.tenantId)
+      .eq('platform', 'meta')
+      .maybeSingle();
+    if (!data?.access_token) return reply.send({ connected: false, scopes: [] });
+
+    const access = decryptToken(data.access_token);
+    try {
+      const res = await fetch(`${META_GRAPH}/debug_token?input_token=${encodeURIComponent(access)}&access_token=${encodeURIComponent(access)}`);
+      const json = (await res.json()) as { data?: { scopes?: string[]; is_valid?: boolean } };
+      const granted = json.data?.scopes ?? [];
+      const required = [
+        'public_profile', 'ads_read', 'ads_management',
+        'pages_show_list', 'pages_read_engagement', 'pages_manage_posts',
+        'business_management',
+        'instagram_basic', 'instagram_content_publish', 'instagram_manage_comments',
+      ];
+      const missing = required.filter(s => !granted.includes(s));
+      return reply.send({
+        connected: json.data?.is_valid !== false,
+        scopes: granted,
+        missing,
+        needs_reconnect: missing.length > 0,
+      });
+    } catch (err) {
+      request.log.error({ err }, 'Meta debug_token failed');
+      return reply.code(500).send({ error: 'Failed to inspect Meta token' });
+    }
+  });
+
   // ─── Status ────────────────────────────────────────────────────────────────
 
   app.get('/auth/status', { preHandler: authenticate }, async (request, reply) => {
