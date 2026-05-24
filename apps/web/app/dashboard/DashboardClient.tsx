@@ -4134,11 +4134,11 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                     {(selectedPageId || settings?.facebook_page_id) ? (
                       <>
                         <p className="text-base font-bold text-slate-900 mt-0.5">
-                          {pages?.find(p => p.page_id === (selectedPageId ?? settings?.facebook_page_id))?.name ?? 'Connected'}
+                          <bdi>{pages?.find(p => p.page_id === (selectedPageId ?? settings?.facebook_page_id))?.name ?? 'Connected'}</bdi>
                         </p>
                         {(selectedIgUserId || settings?.instagram_user_id) && (
                           <p className="text-xs text-violet-600 mt-1">
-                            Instagram: @{pages?.find(p => p.instagram_user_id === (selectedIgUserId ?? settings?.instagram_user_id))?.instagram_username ?? 'linked'}
+                            Instagram: <bdi>@{pages?.find(p => p.instagram_user_id === (selectedIgUserId ?? settings?.instagram_user_id))?.instagram_username ?? 'linked'}</bdi>
                           </p>
                         )}
                       </>
@@ -4174,9 +4174,9 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
-                          <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                          <p className="text-sm font-semibold text-slate-900"><bdi>{p.name}</bdi></p>
                           {p.instagram_username
-                            ? <p className="text-xs text-violet-600 mt-0.5">Instagram: @{p.instagram_username}</p>
+                            ? <p className="text-xs text-violet-600 mt-0.5">Instagram: <bdi>@{p.instagram_username}</bdi></p>
                             : <p className="text-xs text-slate-400 mt-0.5">No Instagram linked</p>}
                           {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
                         </button>
@@ -4192,7 +4192,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ad Account</p>
                     {adAccountSelected ? (
                       <p className="text-base font-bold text-slate-900 mt-0.5">
-                        {adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'Connected'}
+                        <bdi>{adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'Connected'}</bdi>
                       </p>
                     ) : (
                       <p className="text-sm text-amber-600 mt-0.5">No Ad Account selected yet</p>
@@ -4226,10 +4226,10 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
-                          <p className="text-sm font-semibold text-slate-900">{a.name}</p>
+                          <p className="text-sm font-semibold text-slate-900"><bdi>{a.name}</bdi></p>
                           <div className="flex flex-wrap gap-3 text-xs text-slate-500 mt-1">
-                            {a.business && <span>Business: {a.business}</span>}
-                            {a.currency && <span>Currency: {a.currency}</span>}
+                            {a.business && <span>Business: <bdi>{a.business}</bdi></span>}
+                            {a.currency && <span>Currency: <bdi>{a.currency}</bdi></span>}
                             <span>{a.active ? 'Active' : 'Inactive'}</span>
                           </div>
                           {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
@@ -4246,7 +4246,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Analytics (optional)</p>
                     {ga4Settings ? (
                       <>
-                        <p className="text-base font-bold text-slate-900 mt-0.5">{ga4Settings.property_name ?? 'Connected'}</p>
+                        <p className="text-base font-bold text-slate-900 mt-0.5"><bdi>{ga4Settings.property_name ?? 'Connected'}</bdi></p>
                         <p className="text-xs text-slate-500 mt-0.5">Vigmis measures campaign results from your website instead of relying on Facebook and Google's own reports.</p>
                       </>
                     ) : (
@@ -4279,7 +4279,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                             isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                         >
-                          <p className="text-sm font-semibold text-slate-900">{p.display_name}</p>
+                          <p className="text-sm font-semibold text-slate-900"><bdi>{p.display_name}</bdi></p>
                           {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
                         </button>
                       );
@@ -4394,7 +4394,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
             </p>
             <details className="text-xs text-slate-400">
               <summary className="cursor-pointer">Technical details (for support)</summary>
-              <pre className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] whitespace-pre-wrap break-all max-h-40 overflow-auto">{reconnectModal.rawError || '(no error message)'}</pre>
+              <pre dir="auto" className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] whitespace-pre-wrap break-all max-h-40 overflow-auto">{reconnectModal.rawError || '(no error message)'}</pre>
             </details>
             <div className="flex gap-3 pt-2">
               <button
