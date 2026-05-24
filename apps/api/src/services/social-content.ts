@@ -9,6 +9,7 @@ export interface SocialContentInput {
   platform: 'facebook' | 'instagram' | 'tiktok';
   pillar: string;
   websiteUrl?: string;
+  websiteAnalysis?: string | null;
   goal: string;
   strategyPlan?: StrategyPlan | null;
   brandVoice?: string;
@@ -117,7 +118,10 @@ function buildImagePrompt(input: SocialContentInput, postText: string): string {
 }
 
 export async function generateSocialContent(input: SocialContentInput): Promise<SocialContentOutput> {
-  const websiteContent = input.websiteUrl ? await fetchWebsiteContent(input.websiteUrl) : '';
+  // Prefer the stored AI analysis (richer, already extracted), fall back to live scrape if missing.
+  const websiteContent =
+    input.websiteAnalysis?.trim()
+      ?? (input.websiteUrl ? await fetchWebsiteContent(input.websiteUrl) : '');
   const prompt = buildPrompt(input, websiteContent);
 
   const aiResponse = await route({

@@ -304,6 +304,22 @@ export async function getExportUrl() {
   return { url: `${API_URL}/account/export`, token };
 }
 
+export type MetaAdAccount = {
+  id: string;
+  name: string;
+  currency: string | null;
+  active: boolean;
+  business: string | null;
+};
+
+export async function getMetaAdAccounts(): Promise<{ accounts: MetaAdAccount[]; selected: string | null } | null> {
+  return apiCall('/connectors/meta/ad-accounts');
+}
+
+export async function selectMetaAdAccount(account_id: string): Promise<{ success: boolean } | null> {
+  return apiCall('/connectors/meta/ad-account', 'POST', { account_id });
+}
+
 export async function getSocialSettings() {
   return apiCall('/social/settings');
 }

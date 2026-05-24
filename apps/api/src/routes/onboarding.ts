@@ -116,6 +116,7 @@ const SaveSettingsSchema = z.object({
   risk_level: z.enum(['conservative', 'balanced', 'aggressive']).default('balanced'),
   dayparting_rules: z.array(DaypartingRuleSchema).default([]),
   strategy_plan: z.record(z.unknown()).optional(),
+  website_analysis: z.string().optional(),
   conversation: z.array(ConversationMessageSchema),
   social_opt_in: z.object({
     enabled: z.boolean(),
@@ -165,6 +166,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
           margin_pct:              data.margin_pct ?? null,
           hero_product_name:       data.hero_product_name ?? null,
           hero_product_margin_pct: data.hero_product_margin_pct ?? null,
+          website_analysis:        data.website_analysis ?? null,
           confirmed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },

@@ -4,7 +4,6 @@ import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
-import ChatDrawer from '../dashboard/ChatDrawer';
 import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
 import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
@@ -185,6 +184,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           has_parallel_campaigns: hasParallelCampaigns,
           conversation: pendingConversation,
           strategy_plan: analysisResult.strategy,
+          website_analysis: analysisResult.websiteAnalysis,
           creative_choice: creativeChoice,
           tracking_verified: pixelVerified && !skipTracking,
           social_opt_in: socialEnabled ? {
@@ -431,7 +431,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </div>
           </div>
         </div>
-        <ChatDrawer />
       </div>
     );
   }
@@ -534,7 +533,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </div>
           </div>
         </div>
-        <ChatDrawer />
       </div>
     );
   }
@@ -996,7 +994,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </button>
           </div>
         </div>
-        <ChatDrawer />
       </div>
     );
   }
@@ -1125,7 +1122,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </p>
           </div>
         </div>
-        <ChatDrawer />
       </div>
     );
   }
@@ -1311,7 +1307,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             )}
           </div>
         </div>
-        <ChatDrawer />
       </div>
     );
   }
@@ -1346,7 +1341,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       <div className="flex-1 overflow-hidden">
         <OnboardingChat onConfirm={handleChatConfirm} />
       </div>
-      <ChatDrawer />
     </div>
   );
 }

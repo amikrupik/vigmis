@@ -3,7 +3,6 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getBillingStatus, startCheckout, openPortal, getInvoices } from './actions';
-import ChatDrawer from '../dashboard/ChatDrawer';
 
 type BillingStatus = {
   plan: 'free' | 'pro';
@@ -251,7 +250,6 @@ export default function BillingClient() {
 
       </div>
 
-      <ChatDrawer />
     </div>
   );
 }

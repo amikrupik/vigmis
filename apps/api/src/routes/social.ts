@@ -399,7 +399,7 @@ async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generat
 
   const { data: clientSettings } = await db
     .from('client_settings')
-    .select('website_url, goal, strategy_plan')
+    .select('website_url, website_analysis, goal, strategy_plan')
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
@@ -443,6 +443,7 @@ async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generat
         platform,
         pillar: thisPillar,
         websiteUrl: clientSettings?.website_url ?? undefined,
+        websiteAnalysis: clientSettings?.website_analysis ?? undefined,
         goal: clientSettings?.goal ?? 'leads',
         strategyPlan: clientSettings?.strategy_plan ?? undefined,
         brandVoice: settings.brand_voice ?? undefined,

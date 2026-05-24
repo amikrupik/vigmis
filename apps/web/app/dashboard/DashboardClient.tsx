@@ -20,13 +20,13 @@ import {
   getSocialSettings, updateSocialSettings, getSocialPosts, approveSocialPost, rejectSocialPost,
   generateSocialContent, getSocialAnalytics,
   getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
+  getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
   runGeoAudit, getGeoReport, getHistoryTimeline,
   exportAnalyticsCSV, exportAnalyticsHTML,
   exportCampaignsCSV, exportCampaignsHTML,
   exportSocialCSV, exportSocialHTML,
   exportMarketingPlanHTML, exportInvoiceHTML,
 } from './actions';
-import ChatDrawer from './ChatDrawer';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
 
@@ -246,7 +246,6 @@ export default function DashboardClient() {
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
       </div>
 
-      <ChatDrawer />
       <FeedbackModal />
 
       {showStopModal && (
@@ -3259,6 +3258,33 @@ function SocialTab() {
   const [savingConnect, setSavingConnect] = useState(false);
   const [pageIdInput, setPageIdInput] = useState('');
   const [igUserIdInput, setIgUserIdInput] = useState('');
+  const [adAccounts, setAdAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [adAccountSelected, setAdAccountSelected] = useState<string | null>(null);
+  const [adAccountLoading, setAdAccountLoading] = useState(false);
+  const [adAccountSaving, setAdAccountSaving] = useState(false);
+  const [adAccountError, setAdAccountError] = useState<string | null>(null);
+
+  async function loadAdAccounts() {
+    setAdAccountLoading(true);
+    setAdAccountError(null);
+    const res = await getMetaAdAccounts();
+    if (!res) {
+      setAdAccounts([]);
+      setAdAccountError('Could not load ad accounts — make sure Meta is connected and re-try.');
+    } else {
+      setAdAccounts(res.accounts);
+      setAdAccountSelected(res.selected);
+    }
+    setAdAccountLoading(false);
+  }
+
+  async function handleSelectAdAccount(id: string) {
+    setAdAccountSaving(true);
+    const res = await selectMetaAdAccount(id);
+    if (res?.success) setAdAccountSelected(id);
+    else setAdAccountError('Failed to save selection — try again.');
+    setAdAccountSaving(false);
+  }
 
   async function load() {
     setLoading(true);
@@ -3596,7 +3622,87 @@ function SocialTab() {
 
       {/* Connect section — page ID setup */}
       {activeSection === 'connect' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5 max-w-lg">
+        <div className="space-y-5 max-w-lg">
+
+        {/* Ad Account picker — for paid campaigns */}
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">Meta Ad Account</h3>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              If your Business Manager has more than one ad account, choose which one Vigmis should use for paid campaigns.
+              Until you pick one, Vigmis falls back to the first account Meta returns — which may not be the right one.
+            </p>
+          </div>
+
+          {adAccounts === null && !adAccountLoading && (
+            <button
+              onClick={loadAdAccounts}
+              className="bg-slate-900 hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              Load my ad accounts
+            </button>
+          )}
+
+          {adAccountLoading && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+              Loading ad accounts from Meta…
+            </div>
+          )}
+
+          {adAccountError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{adAccountError}</p>
+          )}
+
+          {adAccounts && adAccounts.length === 0 && !adAccountLoading && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              Meta returned no ad accounts for this user. Make sure you have admin access to at least one ad account in Business Manager.
+            </p>
+          )}
+
+          {adAccounts && adAccounts.length > 0 && (
+            <div className="space-y-2">
+              {adAccounts.map(a => {
+                const isSelected = a.id === adAccountSelected;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => handleSelectAdAccount(a.id)}
+                    disabled={adAccountSaving || isSelected}
+                    className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                      isSelected
+                        ? 'border-emerald-300 bg-emerald-50'
+                        : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+                    } ${adAccountSaving ? 'opacity-50 cursor-wait' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{a.name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 font-mono">{a.id}</p>
+                        <div className="flex flex-wrap gap-3 mt-1 text-xs text-slate-500">
+                          {a.business && <span>Business: <strong className="text-slate-700">{a.business}</strong></span>}
+                          {a.currency && <span>Currency: <strong className="text-slate-700">{a.currency}</strong></span>}
+                          <span>{a.active ? '✓ Active' : '⚠ Inactive'}</span>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              <button
+                onClick={loadAdAccounts}
+                className="text-xs text-slate-400 hover:text-slate-600 underline mt-2"
+              >
+                Refresh list
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
           <div>
             <h3 className="text-base font-bold text-slate-900 mb-1">Connect your pages</h3>
             <p className="text-sm text-slate-500 leading-relaxed">
@@ -3640,6 +3746,7 @@ function SocialTab() {
           <p className="text-xs text-slate-400 leading-relaxed">
             These IDs are used only to publish your approved posts and fetch comments. Vigmis never posts without your approval (unless you set Auto mode).
           </p>
+        </div>
         </div>
       )}
 

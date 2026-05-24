@@ -8,10 +8,13 @@
 
 import type { FastifyInstance } from 'fastify';
 import { GoogleAdsConnector, MetaAdsConnector, TikTokAdsConnector } from '@vigmis/ad-connectors';
-import { db } from '@vigmis/db';
+import { db, decryptToken } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { fetchAndStoreHistoricalData } from '../services/historical.js';
 import crypto from 'crypto';
+
+const META_API_VERSION = 'v19.0';
+const META_GRAPH = `https://graph.facebook.com/${META_API_VERSION}`;
 
 const google = new GoogleAdsConnector();
 const meta = new MetaAdsConnector();
@@ -192,4 +195,77 @@ export async function connectorRoutes(app: FastifyInstance) {
 
     return reply.send({ ...status, tiktok_available: tiktokConfigured });
   });
+
+  // ─── Meta Ad Accounts ─────────────────────────────────────────────────────
+  // List ad accounts the user has access to + which one Vigmis will use.
+
+  app.get('/connectors/meta/ad-accounts', { preHandler: authenticate }, async (request, reply) => {
+    const { data: tokenRow } = await db
+      .from('platform_tokens')
+      .select('access_token, account_id')
+      .eq('tenant_id', request.tenantId)
+      .eq('platform', 'meta')
+      .maybeSingle();
+
+    if (!tokenRow?.access_token) {
+      return reply.code(400).send({ error: 'Meta is not connected' });
+    }
+
+    const token = decryptToken(tokenRow.access_token);
+
+    try {
+      const res = await fetch(
+        `${META_GRAPH}/me/adaccounts?fields=id,name,account_id,account_status,currency,business&limit=50&access_token=${token}`,
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        request.log.error({ body }, 'Meta /me/adaccounts failed');
+        return reply.code(502).send({ error: 'Meta API error', detail: body.slice(0, 300) });
+      }
+      const json = (await res.json()) as { data?: Array<{ id: string; name: string; account_status?: number; currency?: string; business?: { name?: string } }> };
+      const accounts = (json.data ?? []).map(a => ({
+        id: a.id,
+        name: a.name,
+        currency: a.currency ?? null,
+        active: a.account_status === 1,
+        business: a.business?.name ?? null,
+      }));
+      return reply.send({ accounts, selected: tokenRow.account_id ?? null });
+    } catch (err) {
+      request.log.error({ err }, 'Failed to fetch Meta ad accounts');
+      return reply.code(500).send({ error: 'Failed to fetch ad accounts' });
+    }
+  });
+
+  app.post<{ Body: { account_id: string } }>(
+    '/connectors/meta/ad-account',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { account_id } = request.body ?? ({} as any);
+      if (!account_id || !/^act_\d+$/.test(account_id)) {
+        return reply.code(400).send({ error: 'account_id must look like "act_123456789"' });
+      }
+
+      const { error } = await db
+        .from('platform_tokens')
+        .update({ account_id, updated_at: new Date().toISOString() })
+        .eq('tenant_id', request.tenantId)
+        .eq('platform', 'meta');
+
+      if (error) {
+        request.log.error({ error }, 'Failed to persist Meta ad account selection');
+        return reply.code(500).send({ error: 'Failed to save ad account' });
+      }
+
+      await db.from('audit_log').insert({
+        tenant_id: request.tenantId,
+        action: 'connector.meta.ad_account_selected',
+        platform: 'meta',
+        actor: 'user',
+        payload: { account_id },
+      });
+
+      return reply.send({ success: true });
+    },
+  );
 }
