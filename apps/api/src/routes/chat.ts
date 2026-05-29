@@ -13,6 +13,7 @@ import {
 } from '@vigmis/ad-connectors';
 import { generateSocialContent } from '../services/social-content.js';
 import { classifyIntent } from '../services/intent-router.js';
+import { checkChatQuota, recordAiCost } from '../services/usage.js';
 
 type ExecutedAction = {
   type: string;
@@ -347,6 +348,17 @@ export async function chatRoutes(app: FastifyInstance) {
 
       const tenantId = request.tenantId;
 
+      // Quota / circuit-breaker gate — runs BEFORE any LLM work so a frozen or
+      // out-of-allowance tenant can't keep burning tokens. Soft wall, not error.
+      const quota = await checkChatQuota(tenantId);
+      if (!quota.allowed) {
+        await db.from('chat_messages').insert([
+          { tenant_id: tenantId, role: 'user', content: message.trim() },
+          { tenant_id: tenantId, role: 'assistant', content: quota.reason },
+        ]);
+        return reply.send({ response: quota.reason, actions: [], quota: { exhausted: true } });
+      }
+
       // Intent router — every chat message goes through here BEFORE the heavy
       // chat engine runs. Short-circuits ethical/legal/platform blocks with a
       // structured reply + alternative. native_capability falls through.
@@ -437,6 +449,9 @@ export async function chatRoutes(app: FastifyInstance) {
 
       const response = await route({ task: 'chat', messages, systemPrompt: systemWithContext });
       const rawOutput = response.output;
+
+      // Meter this message against the monthly allowance + cost breaker.
+      await recordAiCost(tenantId, response.costUsd, { messages: 1 }).catch(() => {});
 
       const parsedActions = parseActions(rawOutput);
       const executedActions = parsedActions.length > 0

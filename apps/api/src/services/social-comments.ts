@@ -8,6 +8,7 @@ import { route } from '@vigmis/ai-router';
 import { sendTenantNotification } from './notify.js';
 import { classifyAndLog } from './policy-gate.js';
 import { getBrandVoice, brandVoiceInstructions } from './brand-voice.js';
+import { checkCommentQuota, recordAiCost } from './usage.js';
 
 // ─── Provocation patterns: fast-path no-engage signal ────────────────────────
 // Anyone matching these is a troll/baiter regardless of LLM verdict. Replying
@@ -93,8 +94,8 @@ async function triageComment(
   postContent: string,
   businessContext: string,
   brandVoiceBlock: string,
-): Promise<TriageResult> {
-  // Fast-path: provocations short-circuit before any LLM call.
+): Promise<TriageResult & { costUsd: number }> {
+  // Fast-path: provocations short-circuit before any LLM call (zero cost).
   const prov = detectProvocation(commentText);
   if (prov.is_provocation) {
     return {
@@ -106,6 +107,7 @@ async function triageComment(
       recommendation: `Provocation/troll pattern detected (${prov.reason}). Responding feeds the engagement they want.`,
       do_not_engage: true,
       no_engage_reason: prov.reason,
+      costUsd: 0,
     };
   }
 
@@ -179,7 +181,7 @@ Reply rules:
       .replace(/```\s*$/, '')
       .trim();
     const parsed = JSON.parse(raw);
-    return normalizeTriage(parsed);
+    return { ...normalizeTriage(parsed), costUsd: res.costUsd };
   } catch {
     return {
       sentiment: 'other',
@@ -190,6 +192,7 @@ Reply rules:
       recommendation: 'Could not triage automatically — please review manually.',
       do_not_engage: false,
       no_engage_reason: '',
+      costUsd: 0,
     };
   }
 }
@@ -277,10 +280,17 @@ export async function fetchCommentsForTenant(tenantId: string): Promise<{ fetche
   const brandVoiceProfile = await getBrandVoice(tenantId).catch(() => null);
   const brandVoiceBlock = brandVoiceInstructions(brandVoiceProfile);
 
+  // Quota / breaker gate — if frozen or out of monthly comment allowance, skip
+  // AI triage entirely this run (comments stay for manual handling).
+  const quota = await checkCommentQuota(tenantId);
+  if (!quota.allowed) return { fetched: 0, new: 0 };
+  let triageBudget = quota.remaining;
+
   let fetched = 0;
   let added = 0;
 
   for (const post of posts) {
+    if (triageBudget <= 0) break;
     if (!post.external_post_id) continue;
 
     let rawComments: any[] = [];
@@ -295,6 +305,7 @@ export async function fetchCommentsForTenant(tenantId: string): Promise<{ fetche
     fetched += rawComments.length;
 
     for (const c of rawComments) {
+      if (triageBudget <= 0) break; // monthly comment allowance exhausted
       const externalId = c.id;
       const text = c.message ?? c.text ?? '';
       if (!text.trim()) continue;
@@ -310,6 +321,10 @@ export async function fetchCommentsForTenant(tenantId: string): Promise<{ fetche
 
       // AI triage with brand voice + 10-category taxonomy + confidence + routing
       const triage = await triageComment(text, post.platform, post.content, businessContext, brandVoiceBlock);
+
+      // Meter this handled comment against the monthly allowance + cost breaker.
+      triageBudget--;
+      await recordAiCost(tenantId, triage.costUsd, { comments: 1 }).catch(() => {});
 
       // Toxicity / legal gate on the AI's own draft reply. If Vigmis's draft
       // could itself be defamatory or policy-violating, do NOT save it as a
