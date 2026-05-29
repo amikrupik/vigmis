@@ -34,3 +34,6 @@ Thumbs.db
 
 # misc
 .vercel
+
+# supabase CLI local state (project ref, pooler URL — machine-local, not source)
+supabase/.temp

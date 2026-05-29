@@ -12,6 +12,7 @@ import {
   resumeGoogleCampaign, resumeMetaCampaign, resumeTikTokCampaign,
 } from '@vigmis/ad-connectors';
 import { generateSocialContent } from '../services/social-content.js';
+import { classifyIntent } from '../services/intent-router.js';
 
 type ExecutedAction = {
   type: string;
@@ -345,6 +346,30 @@ export async function chatRoutes(app: FastifyInstance) {
       if (!message?.trim()) return reply.code(400).send({ error: 'message required' });
 
       const tenantId = request.tenantId;
+
+      // Intent router — every chat message goes through here BEFORE the heavy
+      // chat engine runs. Short-circuits ethical/legal/platform blocks with a
+      // structured reply + alternative. native_capability falls through.
+      const intent = await classifyIntent({
+        tenantId,
+        message: message.trim(),
+        pageContext,
+      });
+      if (intent.bucket !== 'native_capability' && intent.user_facing_response) {
+        await db.from('chat_messages').insert([
+          { tenant_id: tenantId, role: 'user', content: message.trim() },
+          { tenant_id: tenantId, role: 'assistant', content: intent.user_facing_response },
+        ]);
+        return reply.send({
+          response: intent.user_facing_response,
+          actions: [],
+          intent: {
+            bucket: intent.bucket,
+            reason: intent.reason,
+            alternative: intent.alternative,
+          },
+        });
+      }
 
       const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes] = await Promise.all([
         db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(12),

@@ -22,6 +22,11 @@ import {
   resumeTikTokCampaign,
 } from '@vigmis/ad-connectors';
 import type { CampaignSpec } from '@vigmis/ad-connectors';
+import { gateAdsByReadiness } from '../services/conversion-readiness.js';
+import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
+import { isFrozenFor } from './admin.js';
+import { getTrustTier, actionGateForTier } from '../services/trust-tier.js';
+import { checkIndustryGate } from '../services/industry-gates.js';
 
 // How to name campaigns consistently
 function buildCampaignName(platform: string, type: string): string {
@@ -89,6 +94,60 @@ export async function campaignRoutes(app: FastifyInstance) {
     if (settingsErr || !settings?.strategy_plan) {
       return reply.code(400).send({ error: 'No strategy plan found. Complete onboarding first.' });
     }
+
+    // Admin freeze + Trust Tier gates.
+    const frozen = await isFrozenFor(request.tenantId, 'publish');
+    if (frozen.frozen) {
+      return reply.code(423).send({ error: 'tenant_frozen', capability: 'publish', reason: frozen.reason });
+    }
+    const tier = await getTrustTier(request.tenantId).catch(() => 'standard' as const);
+    const tierGate = actionGateForTier(tier, 'scale_up_budget');
+    if (!tierGate.allow) {
+      return reply.code(403).send({ error: 'trust_tier_blocked', tier, reason: tierGate.reason });
+    }
+
+    // Industry gate on the strategy's recommended copy themes (if present).
+    const strategySummary = JSON.stringify(settings.strategy_plan ?? {});
+    const industryGate = await checkIndustryGate({ tenantId: request.tenantId, text: strategySummary });
+    if (industryGate.blocked) {
+      return reply.code(412).send({
+        error: 'industry_attestation_required',
+        industry: industryGate.detected_industry,
+        required_license: industryGate.required_license,
+        reason: industryGate.reason,
+      });
+    }
+
+    // Conversion-readiness gate — refuse to launch paid campaigns to a
+    // landing page that won't convert. Vigmis is supposed to replace a
+    // marketing manager, and a real one tells you to fix the page first.
+    const readiness = await gateAdsByReadiness(request.tenantId);
+    if (!readiness.allow && readiness.verdict === 'block') {
+      return reply.code(412).send({
+        error: 'conversion_readiness_block',
+        verdict: readiness.verdict,
+        score: readiness.score,
+        message: 'Vigmis refuses to launch paid campaigns to this landing page. The page is not currently suitable for paid traffic. Fix the issues listed in Strategy → Readiness, then try again.',
+        blocking_issues: readiness.blockingIssues,
+      });
+    }
+
+    // Capture a forensic snapshot of the launch decision — what plan, what budget.
+    await captureApprovalSnapshot({
+      tenantId: request.tenantId,
+      clerkUserId: request.clerkUserId,
+      subjectKind: 'campaign',
+      contentSnapshot: {
+        strategy_plan: settings.strategy_plan,
+        budget_monthly_ils: settings.budget_monthly_ils,
+        management_percentage: settings.management_percentage,
+        readiness_score: readiness.score,
+        readiness_verdict: readiness.verdict,
+      },
+      approvalMethod: 'web_click',
+      clientIp: request.ip ?? null,
+      userAgent: (request.headers['user-agent'] as string | undefined) ?? null,
+    }).catch((err) => request.log.error({ err }, 'campaign launch snapshot failed; continuing'));
 
     // Calculate managed budget
     const monthlyBudgetUsd = Math.round(settings.budget_monthly_ils / 3.7);

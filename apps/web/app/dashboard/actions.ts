@@ -450,6 +450,10 @@ export async function hideSocialComment(id: string) {
   return apiCall(`/social/comments/${id}/hide`, 'POST');
 }
 
+export async function cancelCoolingOff(postId: string) {
+  return apiCall(`/social/posts/${postId}/cancel-cooling-off`, 'POST');
+}
+
 // ── Export (returns raw text/csv or text/html) ────────────────────────────────
 
 async function apiRaw(path: string): Promise<{ content: string; contentType: string } | null> {

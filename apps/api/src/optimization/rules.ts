@@ -6,6 +6,16 @@
 //   1. Alert client immediately (any time, including learning period)
 //   2. Fix targeting/creative (any time — reversible, non-budget changes)
 //   3. Scale budget (only after learning period — needs data)
+//
+// Scale up/down decisions are now ALSO gated by Wilson-interval significance
+// (see ../services/significance.ts). A 3-click campaign with great CTR is NOT
+// statistically a winner — and the engine no longer treats it as one.
+
+import {
+  safeToScaleUp,
+  safeToScaleDown,
+  proportionsDiffer,
+} from '../services/significance.js';
 
 export type OptimizationAction =
   | { type: 'pause';                    reason: string }
@@ -238,14 +248,26 @@ export function evaluateCampaign(
     // Conversions exist but below target — let CTR rules decide
   }
 
-  // CTR below minimum → scale down
+  // CTR below minimum → scale down (gated by Wilson significance + min spend)
   if (impressions > 500 && ctr < bench.minCtr) {
-    const pct = (ctr * 100).toFixed(2);
-    const target = (bench.minCtr * 100).toFixed(1);
+    const gate = safeToScaleDown({
+      clicks,
+      impressions,
+      minCtr: bench.minCtr,
+      spendUsd: spend,
+      dailyBudgetUsd,
+    });
+    if (gate.ok) {
+      return {
+        type: 'scale_down',
+        factor: SCALE_DOWN_FACTOR,
+        reason: `${gate.reason} on ${platform} ${campaignType} — reducing budget by 20%`,
+      };
+    }
+    // Nominal CTR is low but not yet statistically below threshold — hold.
     return {
-      type: 'scale_down',
-      factor: SCALE_DOWN_FACTOR,
-      reason: `CTR ${pct}% below ${target}% minimum for ${platform} ${campaignType} — reducing budget by 20%`,
+      type: 'no_action',
+      reason: `Nominal CTR ${(ctr * 100).toFixed(2)}% below ${(bench.minCtr * 100).toFixed(1)}% but ${gate.reason} — waiting for more data before scaling down.`,
     };
   }
 
@@ -258,12 +280,16 @@ export function evaluateCampaign(
     };
   }
 
-  // Creative fatigue: recent CTR dropped >30% vs baseline
+  // Creative fatigue: recent CTR dropped vs baseline (gated by 2-proportion test)
+  // Note: this would need real recent/baseline click+impression counts to be
+  // fully significance-gated. Keeping the 30% nominal drop as a trigger, but
+  // requiring impressions > 1000 to reduce false positives.
   if (
     metrics.recentCtr !== undefined &&
     metrics.baselineCtr !== undefined &&
     metrics.baselineCtr > bench.minCtr * 0.5 &&
-    metrics.recentCtr < metrics.baselineCtr * 0.70
+    metrics.recentCtr < metrics.baselineCtr * 0.70 &&
+    impressions > 1000
   ) {
     const drop = ((1 - metrics.recentCtr / metrics.baselineCtr) * 100).toFixed(0);
     return {
@@ -272,13 +298,25 @@ export function evaluateCampaign(
     };
   }
 
-  // Strong CTR → scale up
+  // Strong CTR → scale up (gated by Wilson significance + min spend)
   if (ctr >= bench.goodCtr) {
-    const pct = (ctr * 100).toFixed(2);
+    const gate = safeToScaleUp({
+      clicks,
+      impressions,
+      goodCtr: bench.goodCtr,
+      spendUsd: spend,
+      dailyBudgetUsd,
+    });
+    if (gate.ok) {
+      return {
+        type: 'scale_up',
+        factor: SCALE_UP_FACTOR,
+        reason: `${gate.reason} on ${platform} ${campaignType} — scaling up budget by 20%`,
+      };
+    }
     return {
-      type: 'scale_up',
-      factor: SCALE_UP_FACTOR,
-      reason: `CTR ${pct}% exceeds target for ${platform} ${campaignType} — scaling up budget by 20%`,
+      type: 'no_action',
+      reason: `Nominal CTR ${(ctr * 100).toFixed(2)}% looks strong but ${gate.reason} — holding budget steady until significant.`,
     };
   }
 

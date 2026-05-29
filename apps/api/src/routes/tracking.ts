@@ -13,12 +13,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { db, encryptToken, decryptToken } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { fullSyncForTenant, registerProductWebhooks, applyProductWebhook } from '../services/shopify-sync.js';
 
 const API_URL = process.env.API_URL ?? 'https://vigmisapi-production.up.railway.app';
 const SHOPIFY_API_KEY    = process.env.SHOPIFY_API_KEY ?? '';
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET ?? '';
 const SHOPIFY_REDIRECT   = process.env.SHOPIFY_REDIRECT_URI ?? `${API_URL}/track/shopify/callback`;
-const SHOPIFY_SCOPES     = 'read_orders,read_products';
+const SHOPIFY_SCOPES     = 'read_orders,read_products,read_inventory,read_shipping';
 
 // ── Pixel JS template ─────────────────────────────────────────────────────────
 
@@ -424,9 +425,56 @@ export async function trackingRoutes(app: FastifyInstance) {
       payload:   { shop },
     });
 
+    // Background: full sync of products + settings + register product webhooks.
+    // Non-blocking so the redirect feels instant.
+    (async () => {
+      try {
+        await fullSyncForTenant(tenantId);
+        await registerProductWebhooks(tenantId);
+      } catch (err) {
+        console.error('[shopify] background sync/webhook register failed:', err);
+      }
+    })();
+
     // Redirect back to dashboard with success
     const webUrl = process.env.WEB_URL ?? 'https://vigmis.com';
     return reply.redirect(`${webUrl}/dashboard?shopify=connected`);
+  });
+
+  // ── POST /track/shopify/products-webhook — products/inventory deltas ────
+  app.post('/track/shopify/products-webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    const shopDomain = request.headers['x-shopify-shop-domain'] as string;
+    const hmacHeader = request.headers['x-shopify-hmac-sha256'] as string;
+    const topic = request.headers['x-shopify-topic'] as string;
+
+    if (!shopDomain || !hmacHeader || !topic) return reply.code(401).send('Missing headers');
+
+    const rawBody = JSON.stringify(request.body);
+    const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(rawBody).digest('base64');
+    if (!timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(hmacHeader))) {
+      return reply.code(401).send('Invalid HMAC');
+    }
+
+    // Resolve tenant from shop_domain
+    const { data: conn } = await db.from('shopify_connections')
+      .select('tenant_id')
+      .eq('shop', shopDomain)
+      .maybeSingle();
+    if (!conn?.tenant_id) return reply.code(200).send('No tenant for shop');
+
+    await applyProductWebhook(conn.tenant_id, topic, request.body).catch(() => null);
+    return reply.send({ ok: true });
+  });
+
+  // ── POST /track/shopify/cron-sync — nightly full sync ────────────────────
+  app.post('/track/shopify/cron-sync', async (request, reply) => {
+    const secret = (request.headers['x-cron-secret'] as string) ?? '';
+    if (secret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
+      return reply.code(401).send({ error: 'Unauthorized' });
+    }
+    const { dispatchShopifySyncCron } = await import('../services/shopify-sync.js');
+    const result = await dispatchShopifySyncCron();
+    return reply.send(result);
   });
 
   // ── POST /track/shopify/webhook — receive Shopify orders ─────────────────

@@ -4,6 +4,11 @@ import OpenAI from 'openai';
 import { route } from '@vigmis/ai-router';
 import type { StrategyPlan } from '@vigmis/db';
 import { scrapeWebsite } from './website-scraper.js';
+import { classifyAndLog, PolicyBlockedError } from './policy-gate.js';
+import { getBrandVoice, brandVoiceInstructions } from './brand-voice.js';
+import { getDefaultBrief, briefInstructions } from './creative-brief.js';
+import { verifyContent } from './truth-verifier.js';
+import { getGeoContext } from './geo-context.js';
 
 export interface SocialContentInput {
   tenantId: string;
@@ -131,7 +136,17 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
     throw new Error('INSUFFICIENT_WEBSITE_CONTENT: cannot generate post without real product data — re-run onboarding analysis or update the website URL.');
   }
 
-  const prompt = buildPrompt(input, websiteContent);
+  const basePrompt = buildPrompt(input, websiteContent);
+  // Prepend creative brief + brand voice instructions. Brief defines WHAT we say,
+  // voice defines HOW we say it. Both are load-bearing — without them the output
+  // is generic.
+  const [brief, brandVoiceProfile] = await Promise.all([
+    getDefaultBrief(input.tenantId).catch(() => null),
+    getBrandVoice(input.tenantId).catch(() => null),
+  ]);
+  const briefBlock = briefInstructions(brief);
+  const voiceBlock = brandVoiceInstructions(brandVoiceProfile);
+  const prompt = [briefBlock, voiceBlock, basePrompt].filter(Boolean).join('\n\n');
 
   const aiResponse = await route({
     task: 'copywriting',
@@ -155,6 +170,42 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
   // Honor the model's own honesty signal
   if (text === 'INSUFFICIENT_CONTENT') {
     throw new Error('INSUFFICIENT_WEBSITE_CONTENT: AI flagged the website content as too sparse — re-run onboarding analysis with a richer site.');
+  }
+
+  // Pre-flight policy gate — block before saving, before any image cost, before any platform call.
+  // The classifier persists its decision to content_decisions for audit either way.
+  // Pass geographic context so the classifier can apply per-country rules.
+  const geo = await getGeoContext(input.tenantId).catch(() => null);
+  const gate = await classifyAndLog({
+    tenantId: input.tenantId,
+    text,
+    kind: 'post',
+    source: 'pre_flight',
+    market: geo?.primary_target ?? undefined,
+    business_country: geo?.business_country ?? undefined,
+  });
+  if (gate.decision === 'block' || gate.decision === 'require_human_review') {
+    throw new PolicyBlockedError(
+      `POLICY_BLOCKED: ${gate.category} — ${gate.reason}`,
+      gate,
+    );
+  }
+  // If the classifier suggested a safer rewrite, prefer that.
+  if (gate.decision === 'rewrite_suggested' && gate.suggested_rewrite) {
+    text = gate.suggested_rewrite;
+  }
+
+  // Truth verifier — catches claims that contradict the customer's own site/store.
+  // Different gate than policy: this is about FACTUAL contradictions, not legal ones.
+  const truth = await verifyContent({
+    tenantId: input.tenantId,
+    contentText: text,
+    contentKind: 'post',
+  });
+  const blockingTruthIssues = truth.contradictions.filter((c) => c.severity === 'block');
+  if (blockingTruthIssues.length > 0) {
+    const lines = blockingTruthIssues.map((c) => `- ${c.category}: "${c.claim}" vs ${c.observed}`);
+    throw new Error(`TRUTH_VERIFICATION_FAILED: Generated post contradicts your business data.\n${lines.join('\n')}`);
   }
 
   let imageUrl: string | undefined;

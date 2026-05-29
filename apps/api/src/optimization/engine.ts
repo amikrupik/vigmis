@@ -417,6 +417,14 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
     errors: [],
   };
 
+  // Admin freeze — skip optimization entirely for frozen tenants.
+  const { isFrozenFor } = await import('../routes/admin.js');
+  const frozen = await isFrozenFor(tenantId, 'optimize');
+  if (frozen.frozen) {
+    result.errors.push(`Tenant frozen: ${frozen.reason}`);
+    return result;
+  }
+
   const { data: campaigns } = await db
     .from('campaigns')
     .select('*')

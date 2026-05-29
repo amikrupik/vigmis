@@ -24,6 +24,15 @@ import { publishSocialPost } from '../services/social-publisher.js';
 import { sendTenantNotification } from '../services/notify.js';
 import { createProtocol } from './protocols.js';
 import { fetchCommentsForTenant, sendCommentReply, hideComment } from '../services/social-comments.js';
+import { classifyAndLog } from '../services/policy-gate.js';
+import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
+import { evaluateTwoKey } from '../services/two-key.js';
+import { getTrustTier, actionGateForTier } from '../services/trust-tier.js';
+import { detectHighStakes } from '../services/high-stakes-detector.js';
+import { checkIndustryGate } from '../services/industry-gates.js';
+import { isFrozenFor } from './admin.js';
+
+const COOLING_OFF_MINUTES = 60;
 
 export async function socialRoutes(app: FastifyInstance) {
 
@@ -96,6 +105,101 @@ export async function socialRoutes(app: FastifyInstance) {
     if (!post) return reply.code(404).send({ error: 'Not found' });
     if (post.status === 'published') return reply.send({ success: true, alreadyPublished: true });
 
+    // Admin freeze gate — Vigmis-internal hard stop.
+    const frozen = await isFrozenFor(request.tenantId, 'publish');
+    if (frozen.frozen) {
+      return reply.code(423).send({
+        error: 'tenant_frozen',
+        capability: 'publish',
+        reason: frozen.reason,
+      });
+    }
+
+    // Trust Tier gate — restricted tenants cannot auto-publish.
+    const tier = await getTrustTier(request.tenantId).catch(() => 'standard' as const);
+    const tierGate = actionGateForTier(tier, publish_now ? 'auto_publish' : 'high_stakes_publish');
+    if (!tierGate.allow) {
+      return reply.code(403).send({
+        error: 'trust_tier_blocked',
+        tier,
+        reason: tierGate.reason,
+      });
+    }
+
+    // Final content the customer is approving (edits applied if present).
+    const finalText: string = edited_content?.trim() || post.client_edit?.trim() || post.content;
+
+    // ── Post-flight policy gate ────────────────────────────────────────────
+    // Customer may have edited the content since pre-flight at generation time.
+    // Re-classify the FINAL bytes before we record approval or publish.
+    const gate = await classifyAndLog({
+      tenantId: request.tenantId,
+      text: finalText,
+      kind: 'post',
+      source: 'post_flight',
+    });
+    if (gate.decision === 'block' || gate.decision === 'require_human_review') {
+      await db.from('social_posts').update({
+        status: 'blocked_by_policy',
+        updated_at: new Date().toISOString(),
+      }).eq('id', id);
+      return reply.code(422).send({
+        error: 'policy_blocked',
+        decision_id: gate.decision_id,
+        category: gate.category,
+        reason: gate.reason,
+        suggested_rewrite: gate.suggested_rewrite,
+        tier: gate.tier,
+      });
+    }
+
+    // Industry compliance gate — block regulated content without proper license attestation.
+    const industryGate = await checkIndustryGate({ tenantId: request.tenantId, text: finalText });
+    if (industryGate.blocked) {
+      return reply.code(412).send({
+        error: 'industry_attestation_required',
+        industry: industryGate.detected_industry,
+        required_license: industryGate.required_license,
+        reason: industryGate.reason,
+      });
+    }
+
+    // Two-Key — high-stakes content needs a second-pass classifier even after
+    // the first pass approved. Fetches approval_mode from social_settings.
+    const { data: socSettings } = await db.from('social_settings')
+      .select('approval_mode')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+    const approvalMode = (socSettings?.approval_mode as 'auto' | 'review' | 'strict' | undefined) ?? 'review';
+    const twoKey = await evaluateTwoKey({
+      tenantId: request.tenantId,
+      text: finalText,
+      firstPassResult: gate,
+      approvalMode,
+      isHighStakes: publish_now === true,
+    });
+    if (twoKey.final === 'block') {
+      await db.from('social_posts').update({
+        status: 'blocked_by_policy',
+        updated_at: new Date().toISOString(),
+      }).eq('id', id);
+      return reply.code(422).send({
+        error: 'two_key_blocked',
+        trigger: twoKey.trigger_reason,
+        concern: twoKey.second_pass_concern,
+        reason: twoKey.second_pass_reason,
+        suggested_rewrite: twoKey.second_pass_rewrite,
+      });
+    }
+    if (twoKey.final === 'requires_human' && publish_now) {
+      // AUTO would have published — but two-key forces a human review pause.
+      return reply.code(409).send({
+        error: 'requires_human_review',
+        trigger: twoKey.trigger_reason,
+        message: 'This content category requires a second human approval before publishing. Toggle off "publish now" and approve from the dashboard.',
+      });
+    }
+
     const update: any = {
       status: 'approved',
       updated_at: new Date().toISOString(),
@@ -116,14 +220,73 @@ export async function socialRoutes(app: FastifyInstance) {
       update.scheduled_for = new Date().toISOString();
     }
 
+    // ── Forensic approval snapshot ────────────────────────────────────────
+    // Captures exactly what the customer approved, before we touch status.
+    const snapshot = await captureApprovalSnapshot({
+      tenantId: request.tenantId,
+      clerkUserId: request.clerkUserId,
+      subjectKind: 'social_post',
+      subjectId: id,
+      contentSnapshot: {
+        platform: post.platform,
+        content: finalText,
+        image_url: post.image_url ?? null,
+        video_url: post.video_url ?? null,
+        hashtags: post.hashtags ?? [],
+        scheduled_for: update.scheduled_for ?? post.scheduled_for ?? null,
+      },
+      approvalMethod: publish_now ? 'web_click' : 'web_click',
+      clientIp: request.ip ?? null,
+      userAgent: (request.headers['user-agent'] as string | undefined) ?? null,
+      relatedDecisionId: gate.decision_id ?? null,
+    }).catch((err) => {
+      request.log.error({ err, postId: id }, 'approval snapshot failed; continuing');
+      return null;
+    });
+
+    // Pre-publish cooling-off — for high-stakes claims (price/promise/
+    // guarantee) we delay publish by COOLING_OFF_MINUTES even when the
+    // customer hit "publish now". Gives them a chance to cancel.
+    const highStakes = detectHighStakes(finalText);
+    if (publish_now && highStakes.is_high_stakes) {
+      const coolingUntil = new Date(Date.now() + COOLING_OFF_MINUTES * 60_000).toISOString();
+      update.status = 'cooling_off';
+      update.cooling_off_until = coolingUntil;
+      update.cooling_off_labels = highStakes.labels;
+      update.cooling_off_cancelled = false;
+      await db.from('social_posts').update(update).eq('id', id);
+
+      await db.from('audit_log').insert({
+        tenant_id: request.tenantId,
+        action: 'social.cooling_off_started',
+        platform: post.platform,
+        actor: 'user',
+        payload: { postId: id, labels: highStakes.labels, until: coolingUntil },
+      });
+
+      return reply.send({
+        success: true,
+        cooling_off: true,
+        cooling_off_until: coolingUntil,
+        labels: highStakes.labels,
+        message: `Publishing in ${COOLING_OFF_MINUTES} minutes. You can cancel from the Comments tab anytime before then.`,
+      });
+    }
+
     await db.from('social_posts').update(update).eq('id', id);
 
-    // Publish immediately
+    // Publish immediately (gate + snapshot already done above)
     let publishResult: { success: boolean; externalId?: string; error?: string } | null = null;
     if (publish_now) {
       try {
         const { publishSocialPost } = await import('../services/social-publisher.js');
-        const merged = { ...post, ...update, content: update.client_edit ?? post.client_edit ?? post.content };
+        const merged = {
+          ...post,
+          ...update,
+          content: update.client_edit ?? post.client_edit ?? post.content,
+          __approval_snapshot_id: snapshot?.id ?? null,
+          __approval_snapshot_hash: snapshot?.content_hash ?? null,
+        };
         publishResult = await publishSocialPost(merged);
         const now = new Date().toISOString();
         if (publishResult.success) {
@@ -231,6 +394,33 @@ export async function socialRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── Cancel cooling-off ────────────────────────────────────────────────────
+  app.post('/social/posts/:id/cancel-cooling-off', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as any;
+    const { data: post } = await db.from('social_posts')
+      .select('id, status')
+      .eq('id', id).eq('tenant_id', request.tenantId).single();
+    if (!post) return reply.code(404).send({ error: 'Not found' });
+    if (post.status !== 'cooling_off') {
+      return reply.code(400).send({ error: 'Post is not in cooling-off window' });
+    }
+    await db.from('social_posts')
+      .update({
+        status: 'pending_approval',
+        cooling_off_cancelled: true,
+        cooling_off_until: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'social.cooling_off_cancelled',
+      actor: 'user',
+      payload: { postId: id },
+    });
+    return reply.send({ success: true });
+  });
+
   // ── Reject ────────────────────────────────────────────────────────────────
   app.post('/social/posts/:id/reject', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as any;
@@ -246,6 +436,15 @@ export async function socialRoutes(app: FastifyInstance) {
 
   // ── Manual generate ───────────────────────────────────────────────────────
   app.post('/social/generate', { preHandler: authenticate }, async (request, reply) => {
+    const frozen = await isFrozenFor(request.tenantId, 'generation');
+    if (frozen.frozen) {
+      return reply.code(423).send({ error: 'tenant_frozen', capability: 'generation', reason: frozen.reason });
+    }
+    const tier = await getTrustTier(request.tenantId).catch(() => 'standard' as const);
+    const tierGate = actionGateForTier(tier, 'generation');
+    if (!tierGate.allow) {
+      return reply.code(403).send({ error: 'trust_tier_blocked', tier, reason: tierGate.reason });
+    }
     try {
       const result = await generateWeeklyPostsForTenant(request.tenantId);
       return reply.send(result);
@@ -308,7 +507,10 @@ export async function socialRoutes(app: FastifyInstance) {
     if (!activeTenants?.length) return reply.send({ processed: 0 });
 
     let processed = 0;
+    let skippedFrozen = 0;
     for (const row of activeTenants) {
+      const frozen = await isFrozenFor(row.tenant_id, 'generation');
+      if (frozen.frozen) { skippedFrozen++; continue; }
       try {
         await generateWeeklyPostsForTenant(row.tenant_id);
         processed++;
@@ -317,7 +519,7 @@ export async function socialRoutes(app: FastifyInstance) {
       }
     }
 
-    return reply.send({ processed });
+    return reply.send({ processed, skipped_frozen: skippedFrozen });
   });
 
   // ── Cron: publish scheduled posts ─────────────────────────────────────────
@@ -329,18 +531,52 @@ export async function socialRoutes(app: FastifyInstance) {
 
     const now = new Date().toISOString();
 
-    // Posts approved and scheduled for now or earlier
-    const { data: due } = await db
+    // Posts approved and scheduled for now or earlier, OR cooling-off posts past their window
+    const { data: approvedDue } = await db
       .from('social_posts')
       .select('*')
       .eq('status', 'approved')
       .lte('scheduled_for', now);
 
+    const { data: coolingOffDue } = await db
+      .from('social_posts')
+      .select('*')
+      .eq('status', 'cooling_off')
+      .eq('cooling_off_cancelled', false)
+      .lte('cooling_off_until', now);
+
+    const due = [...(approvedDue ?? []), ...(coolingOffDue ?? [])];
+
     if (!due?.length) return reply.send({ published: 0 });
 
     let published = 0;
+    let blocked = 0;
+    let skippedFrozen = 0;
     for (const post of due) {
       try {
+        // Admin freeze gate at cron level — skip frozen tenants.
+        const frozen = await isFrozenFor(post.tenant_id, 'publish');
+        if (frozen.frozen) { skippedFrozen++; continue; }
+        // Last line of defense: re-gate the FINAL bytes the cron is about to push.
+        // The PATCH endpoint lets approved-but-not-published posts be edited
+        // (issue #post-patch-bypass), so the content here may differ from what
+        // was approved. Cheap fast-path covers most cases.
+        const finalText: string = post.client_edit?.trim() || post.content;
+        const cronGate = await classifyAndLog({
+          tenantId: post.tenant_id,
+          text: finalText,
+          kind: 'post',
+          source: 'post_flight',
+        });
+        if (cronGate.decision === 'block' || cronGate.decision === 'require_human_review') {
+          await db.from('social_posts').update({
+            status: 'blocked_by_policy',
+            updated_at: new Date().toISOString(),
+          }).eq('id', post.id);
+          blocked++;
+          continue;
+        }
+
         const result = await publishSocialPost(post);
         if (result.success) {
           await db.from('social_posts').update({
@@ -388,7 +624,7 @@ export async function socialRoutes(app: FastifyInstance) {
       }
     }
 
-    return reply.send({ published });
+    return reply.send({ published, blocked, skipped_frozen: skippedFrozen });
   });
 
   // ── Cron: fetch engagement analytics for published posts ──────────────────
@@ -442,7 +678,9 @@ export async function socialRoutes(app: FastifyInstance) {
 
     if (!reply_text?.trim()) return reply.code(400).send({ error: 'reply_text required' });
 
-    const result = await sendCommentReply(request.tenantId, id, reply_text.trim());
+    const result = await sendCommentReply(request.tenantId, id, reply_text.trim(), {
+      editedByClerkUserId: request.clerkUserId,
+    });
     if (!result.success) return reply.code(500).send({ error: 'Failed to send reply' });
 
     await db.from('audit_log').insert({

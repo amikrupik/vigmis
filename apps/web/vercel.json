@@ -12,6 +12,17 @@
     { "path": "/api/cron/daily-report",    "schedule": "0 8 * * *" },
     { "path": "/api/cron/monthly-report",  "schedule": "0 7 2 * *" },
     { "path": "/api/cron/geo-refresh",     "schedule": "0 4 1 * *" },
-    { "path": "/api/cron/ga4-sync",        "schedule": "30 2 * * *" }
+    { "path": "/api/cron/ga4-sync",        "schedule": "30 2 * * *" },
+    { "path": "/api/cron/briefings",         "schedule": "0 * * * *" },
+    { "path": "/api/cron/comments-priority", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/comments-digest",   "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/comments-crisis",   "schedule": "0 * * * *" },
+    { "path": "/api/cron/comments-insights", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/reattestation",     "schedule": "0 9 * * *" },
+    { "path": "/api/cron/stop-loss",         "schedule": "0 10 * * *" },
+    { "path": "/api/cron/trust-recompute",   "schedule": "0 11 * * *" },
+    { "path": "/api/cron/shopify-sync",      "schedule": "0 3 * * *" },
+    { "path": "/api/cron/news-scan",         "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/weather",           "schedule": "0 6,18 * * *" }
   ]
 }

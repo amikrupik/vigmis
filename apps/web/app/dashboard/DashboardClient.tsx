@@ -19,7 +19,7 @@ import {
   deleteAccount, getExportUrl,
   getSocialSettings, updateSocialSettings, getSocialPosts, approveSocialPost, rejectSocialPost,
   generateSocialContent, getSocialAnalytics,
-  getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment,
+  getSocialComments, sendSocialCommentReply, ignoreSocialComment, hideSocialComment, cancelCoolingOff,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
   getMetaPages, selectMetaPage, type MetaPage,
   getMetaScopes, disconnectMeta,
@@ -3813,6 +3813,12 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
   }
 
   const pendingPosts = posts.filter(p => p.status === 'pending_approval');
+  const coolingOffPosts = posts.filter(p => p.status === 'cooling_off' && !p.cooling_off_cancelled);
+
+  async function handleCancelCoolingOff(postId: string) {
+    await cancelCoolingOff(postId);
+    await load();
+  }
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -3905,6 +3911,41 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
       {/* Posts section */}
       {activeSection === 'posts' && (
       <div className="space-y-6">
+
+      {/* Cooling-off banner — visible during 1-hour high-stakes delay */}
+      {coolingOffPosts.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-700 font-bold">⏳ Cooling-off in progress</span>
+            <span className="text-xs text-amber-600">High-stakes content auto-publishes after 1 hour. Cancel here if you change your mind.</span>
+          </div>
+          {coolingOffPosts.map(p => {
+            const remainingMs = p.cooling_off_until ? new Date(p.cooling_off_until).getTime() - Date.now() : 0;
+            const minsLeft = Math.max(0, Math.round(remainingMs / 60_000));
+            return (
+              <div key={p.id} className="bg-white rounded-xl p-3 flex items-start gap-3 border border-amber-100">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-400 mb-0.5"><span className="capitalize">{p.platform}</span> · publishes in {minsLeft} min</p>
+                  <p className="text-sm text-slate-700 truncate"><bdi>{p.client_edit || p.content}</bdi></p>
+                  {Array.isArray(p.cooling_off_labels) && p.cooling_off_labels.length > 0 && (
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {p.cooling_off_labels.map((l: string) => (
+                        <span key={l} className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">{l}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleCancelCoolingOff(p.id)}
+                  className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold px-3 py-1.5 rounded-lg"
+                >
+                  Cancel publish
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Analytics summary */}
       {analytics?.summary && (
@@ -4318,9 +4359,32 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
                   <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[comment.platform] ?? ''}`}>{comment.platform}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${SENTIMENT_STYLE[comment.sentiment] ?? ''}`}>{comment.sentiment}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${SENTIMENT_STYLE[comment.sentiment] ?? ''}`}>{comment.sentiment.replace('_', ' ')}</span>
                       {comment.author_name && <span className="text-xs text-slate-400">{comment.author_name}</span>}
-                      {comment.sentiment === 'complaint' && (
+                      {comment.priority_score != null && Number(comment.priority_score) >= 75 && (
+                        <span className="text-xs bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-full">🔥 HOT · {Math.round(Number(comment.priority_score))}</span>
+                      )}
+                      {comment.priority_score != null && Number(comment.priority_score) < 75 && Number(comment.priority_score) >= 50 && (
+                        <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">priority {Math.round(Number(comment.priority_score))}</span>
+                      )}
+                      {comment.classifier_confidence != null && Number(comment.classifier_confidence) < 0.85 && (
+                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full" title="Classifier not confident — human review recommended">
+                          confidence {Math.round(Number(comment.classifier_confidence) * 100)}%
+                        </span>
+                      )}
+                      {comment.do_not_engage && (
+                        <span className="text-xs bg-slate-700 text-white font-bold px-2 py-0.5 rounded-full" title={comment.no_engage_reason ?? ''}>do-not-engage</span>
+                      )}
+                      {comment.reply_blocked_by_policy && (
+                        <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">draft blocked</span>
+                      )}
+                      {comment.routing_recommendation === 'private_dm' && (
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">→ DM suggested</span>
+                      )}
+                      {comment.routing_recommendation === 'escalate' && (
+                        <span className="text-xs bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full">escalate</span>
+                      )}
+                      {(comment.sentiment === 'complaint' || comment.sentiment === 'angry' || comment.sentiment === 'legal_risk' || comment.sentiment === 'hate') && (
                         <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">URGENT</span>
                       )}
                     </div>

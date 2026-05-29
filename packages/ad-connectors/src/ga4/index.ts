@@ -66,9 +66,16 @@ export interface GA4DailyRow {
   active_users: number;
   conversions: number;
   purchase_revenue: number;
+  // New (Session 4.4) — incrementality split
+  new_users: number;
+  returning_users: number;
+  first_time_purchasers: number;
+  first_purchase_revenue: number;
 }
 
 // Pull yesterday's acquisition-by-campaign report.
+// Two GA4 calls — first the aggregate, then the newVsReturning split.
+// We merge them in-memory; storing only one row per (date,source,medium,campaign).
 export async function fetchGa4DailyAcquisition(
   tenantId: string,
   propertyId: string,
@@ -82,40 +89,88 @@ export async function fetchGa4DailyAcquisition(
   const start = new Date(end);
   start.setDate(start.getDate() - (daysBack - 1));
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const dateRange = { dateRanges: [{ startDate: fmt(start), endDate: fmt(end) }] };
 
-  // propertyId is "properties/123456789"; runReport expects it in the URL path
-  const res = await fetch(`${DATA_BASE}/${propertyId}:runReport`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      dateRanges: [{ startDate: fmt(start), endDate: fmt(end) }],
-      dimensions: [
-        { name: 'date' },
-        { name: 'sessionSource' },
-        { name: 'sessionMedium' },
-        { name: 'sessionCampaignName' },
-      ],
-      metrics: [
-        { name: 'sessions' },
-        { name: 'activeUsers' },
-        { name: 'conversions' },
-        { name: 'purchaseRevenue' },
-      ],
-      limit: 2000,
-    }),
-  });
+  // Call 1: aggregate metrics (existing behavior)
+  const aggBody = {
+    ...dateRange,
+    dimensions: [
+      { name: 'date' },
+      { name: 'sessionSource' },
+      { name: 'sessionMedium' },
+      { name: 'sessionCampaignName' },
+    ],
+    metrics: [
+      { name: 'sessions' },
+      { name: 'activeUsers' },
+      { name: 'conversions' },
+      { name: 'purchaseRevenue' },
+      { name: 'firstTimePurchasers' },
+    ],
+    limit: 2000,
+  };
 
-  if (!res.ok) return [];
-  const json = await res.json() as {
+  // Call 2: new vs returning split (separate report because adding the
+  // newVsReturning dimension changes the row cardinality)
+  const splitBody = {
+    ...dateRange,
+    dimensions: [
+      { name: 'date' },
+      { name: 'sessionSource' },
+      { name: 'sessionMedium' },
+      { name: 'sessionCampaignName' },
+      { name: 'newVsReturning' },
+    ],
+    metrics: [
+      { name: 'activeUsers' },
+      { name: 'purchaseRevenue' },
+    ],
+    limit: 4000,
+  };
+
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const [aggRes, splitRes] = await Promise.all([
+    fetch(`${DATA_BASE}/${propertyId}:runReport`, { method: 'POST', headers, body: JSON.stringify(aggBody) }),
+    fetch(`${DATA_BASE}/${propertyId}:runReport`, { method: 'POST', headers, body: JSON.stringify(splitBody) }),
+  ]);
+
+  if (!aggRes.ok) return [];
+
+  const aggJson = await aggRes.json() as {
     rows?: Array<{ dimensionValues: Array<{ value: string }>; metricValues: Array<{ value: string }> }>;
   };
 
-  return (json.rows ?? []).map(r => {
+  const splitJson = splitRes.ok
+    ? (await splitRes.json() as {
+        rows?: Array<{ dimensionValues: Array<{ value: string }>; metricValues: Array<{ value: string }> }>;
+      })
+    : { rows: [] };
+
+  // Map of "date|source|medium|campaign" → { new_users, returning_users, first_purchase_revenue }
+  const splitMap = new Map<string, { new_users: number; returning_users: number; first_purchase_revenue: number }>();
+  for (const r of splitJson.rows ?? []) {
+    const [d, source, medium, campaign, nvr] = r.dimensionValues.map(v => v.value);
+    const [activeUsers, revenue] = r.metricValues.map(v => Number(v.value ?? 0));
+    const date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    const key = `${date}|${source || '(direct)'}|${medium || '(none)'}|${campaign || '(not set)'}`;
+    const existing = splitMap.get(key) ?? { new_users: 0, returning_users: 0, first_purchase_revenue: 0 };
+    if (nvr === 'new') {
+      existing.new_users += Math.round(activeUsers);
+      existing.first_purchase_revenue += revenue;
+    } else if (nvr === 'returning') {
+      existing.returning_users += Math.round(activeUsers);
+    }
+    splitMap.set(key, existing);
+  }
+
+  return (aggJson.rows ?? []).map(r => {
     const [d, source, medium, campaign] = r.dimensionValues.map(v => v.value);
-    const [sessions, active_users, conversions, purchase_revenue] = r.metricValues.map(v => Number(v.value ?? 0));
+    const [sessions, active_users, conversions, purchase_revenue, first_time_purchasers] = r.metricValues.map(v => Number(v.value ?? 0));
+    const date = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    const key = `${date}|${source || '(direct)'}|${medium || '(none)'}|${campaign || '(not set)'}`;
+    const split = splitMap.get(key) ?? { new_users: 0, returning_users: 0, first_purchase_revenue: 0 };
     return {
-      // GA4 returns date as YYYYMMDD
-      date: `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`,
+      date,
       source: source || '(direct)',
       medium: medium || '(none)',
       session_campaign: campaign || '(not set)',
@@ -123,6 +178,10 @@ export async function fetchGa4DailyAcquisition(
       active_users: Math.round(active_users),
       conversions,
       purchase_revenue,
+      new_users: split.new_users,
+      returning_users: split.returning_users,
+      first_time_purchasers: Math.round(first_time_purchasers),
+      first_purchase_revenue: split.first_purchase_revenue,
     };
   });
 }

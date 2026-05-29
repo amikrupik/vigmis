@@ -10,6 +10,10 @@ import { authenticate } from '../middleware/auth.js';
 import { route } from '@vigmis/ai-router';
 import { getAllHistoricalData, fetchCompetitorAds } from '../services/historical.js';
 import { scrapeWebsite } from '../services/website-scraper.js';
+import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
+import { refreshBrandVoiceForTenant } from '../services/brand-voice.js';
+import { extractCreativeBrief, saveCreativeBrief } from '../services/creative-brief.js';
+import { auditConversionReadiness } from '../services/conversion-readiness.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -159,6 +163,23 @@ export async function onboardingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Validation error', details: result.error.flatten() });
       }
 
+      // Attestation gate — onboarding cannot complete without the master attestations.
+      // The frontend Continue button records these; if they're absent something is off.
+      const { data: attests } = await db
+        .from('content_attestations')
+        .select('attestation_kind')
+        .eq('tenant_id', request.tenantId)
+        .in('attestation_kind', ['onboarding_master', 'tos_acceptance', 'ai_disclosure_consent']);
+      const have = new Set((attests ?? []).map((a: { attestation_kind: string }) => a.attestation_kind));
+      const missing = ['onboarding_master', 'tos_acceptance', 'ai_disclosure_consent'].filter(k => !have.has(k));
+      if (missing.length > 0) {
+        return reply.code(412).send({
+          error: 'attestation_required',
+          missing,
+          message: 'Please confirm the consent statements on the previous step before continuing.',
+        });
+      }
+
       const data = result.data;
       const { error } = await db.from('client_settings').upsert(
         {
@@ -207,6 +228,21 @@ export async function onboardingRoutes(app: FastifyInstance) {
         );
       }
 
+      // Forensic snapshot of the complete onboarding submission. This is what the
+      // customer is going on record as having approved — strategy plan, budget,
+      // geo, exclusions, social opt-in, the works.
+      await captureApprovalSnapshot({
+        tenantId: request.tenantId,
+        clerkUserId: request.clerkUserId,
+        subjectKind: 'onboarding',
+        contentSnapshot: data,
+        approvalMethod: 'web_click',
+        clientIp: request.ip ?? null,
+        userAgent: (request.headers['user-agent'] as string | undefined) ?? null,
+      }).catch((err) => {
+        request.log.error({ err }, 'onboarding approval snapshot failed; continuing');
+      });
+
       // Audit log
       await db.from('audit_log').insert({
         tenant_id: request.tenantId,
@@ -224,6 +260,42 @@ export async function onboardingRoutes(app: FastifyInstance) {
       if (data.website_url) {
         const { runGeoAuditForTenant } = await import('./geo.js');
         runGeoAuditForTenant(request.tenantId, data.website_url).catch(err => { request.log.error({ err }, 'background geo audit failed'); });
+      }
+
+      // ── Background: brand voice + creative brief extraction + conversion readiness
+      // Non-blocking — onboarding can finish before these complete. If they
+      // fail, the customer can re-run from dashboard.
+      const tenantId = request.tenantId;
+      (async () => {
+        try {
+          await refreshBrandVoiceForTenant(tenantId);
+        } catch (err) { request.log.error({ err }, 'background brand voice extract failed'); }
+      })();
+
+      (async () => {
+        try {
+          const brief = await extractCreativeBrief({
+            websiteAnalysis: data.website_analysis ?? null,
+            businessGoal: data.goal,
+            heroProductName: data.hero_product_name ?? undefined,
+            productMarginPct: data.hero_product_margin_pct ?? data.margin_pct ?? null,
+          });
+          if (brief) {
+            await saveCreativeBrief(tenantId, brief, { isDefault: true });
+          }
+        } catch (err) { request.log.error({ err }, 'background creative brief extract failed'); }
+      })();
+
+      if (data.website_url) {
+        (async () => {
+          try {
+            await auditConversionReadiness({
+              tenantId,
+              websiteUrl: data.website_url!,
+              goal: data.goal,
+            });
+          } catch (err) { request.log.error({ err }, 'background readiness audit failed'); }
+        })();
       }
 
       return reply.code(201).send({ success: true });

@@ -4,7 +4,7 @@ import PublicFooter from '../components/PublicFooter';
 
 export const metadata = { title: "Terms of Service — Vigmis" };
 
-const LAST_UPDATED = "April 22, 2026";
+const LAST_UPDATED = "May 28, 2026";
 
 export default function TermsPage() {
   return (
@@ -65,8 +65,17 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">6. AI-Generated Content</h2>
-            <p className="mb-3">Vigmis uses artificial intelligence to generate campaign strategies, ad copy, creative content, social media posts, and video content. You acknowledge and agree that:</p>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">6. AI-Generated Content & Customer Content Responsibility</h2>
+            <p className="mb-3"><strong>You are the publisher.</strong> Vigmis is an advertising-automation tool that prepares draft content based on the business information you provide. You are the source of business truth and the publisher of every ad, post, image, video, and message that goes out under your name. Vigmis is not the legal author of any content published through the Service.</p>
+            <p className="mb-3"><strong>Your warranty to us.</strong> By submitting business information, creative assets, or approving content for publication, you represent and warrant that:</p>
+            <ul className="list-disc list-inside space-y-2 mb-3">
+              <li>All information, claims, prices, promises, guarantees, and business representations you provide are accurate, lawful, and not misleading</li>
+              <li>You own, or have written permission to use, every image, video, logo, brand mark, music track, and piece of copy you submit</li>
+              <li>You hold the professional licenses required to advertise services in your industry (medical, financial, legal, gambling, alcohol, cannabis, or other regulated categories) and the licenses are valid in every jurisdiction where your ads will run</li>
+              <li>You will keep this information current and re-attest periodically when prompted</li>
+            </ul>
+            <p className="mb-3"><strong>AI disclosure consent.</strong> You authorize Vigmis to label AI-generated content with platform-required disclosures, including Meta AI Info labels, TikTok AI-content labels, Google Ads synthetic-content notices, and EU AI Act Article 50 deployer notices. You understand omitting these labels is a violation of platform terms and applicable law.</p>
+            <p className="mb-3"><strong>You acknowledge:</strong></p>
             <ul className="list-disc list-inside space-y-2">
               <li>AI-generated content may contain errors, inaccuracies, offensive material, or legally problematic content</li>
               <li>You are solely responsible for reviewing all AI-generated content before publication</li>
@@ -107,16 +116,36 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">9. Prohibited Uses</h2>
-            <p className="mb-3">You may not use Vigmis to:</p>
+            <p className="mb-3">You may not use Vigmis to advertise or promote any of the categories listed in our <Link href="/acceptable-use" className="text-indigo-600 hover:underline font-semibold">Acceptable Use Policy</Link>, which is incorporated by reference into these Terms. The AUP defines three tiers of restriction: Tier 0 (hard-blocked), Tier 1 (requires license and human review), and Tier 2 (permitted with caveats).</p>
+            <p>In summary, you may not use Vigmis to:</p>
             <ul className="list-disc list-inside space-y-2">
               <li>Advertise illegal products, services, or activities in any jurisdiction</li>
-              <li>Run misleading, deceptive, fraudulent, or defamatory advertising</li>
+              <li>Run misleading, deceptive, fraudulent, or defamatory advertising — including ads that name competitor businesses or individuals in a negative light</li>
+              <li>Make absolute medical claims (e.g. "cures cancer", "100% effective")</li>
+              <li>Make guaranteed financial-return claims or operate pyramid/MLM-style schemes</li>
+              <li>Market alcohol, tobacco, gambling, or cannabis to minors or in jurisdictions where such marketing is unlawful</li>
               <li>Violate the advertising policies or terms of service of Google, Meta, or TikTok</li>
               <li>Infringe third-party intellectual property, trademark, or copyright rights</li>
               <li>Circumvent platform spending limits, policies, or safety systems</li>
-              <li>Promote hate speech, violence, discrimination, or harmful content</li>
-              <li>Engage in any activity that exposes Vigmis to legal liability</li>
+              <li>Promote hate speech, incitement to violence, or content targeting protected groups</li>
+              <li>Engage in any activity that exposes Vigmis to legal, reputational, or platform-relationship risk</li>
             </ul>
+          </section>
+
+          <section className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-3">9.A Vigmis's Sole Discretion to Refuse or Terminate Service</h2>
+            <p className="mb-3 font-semibold text-slate-800">VIGMIS RESERVES THE RIGHT TO REFUSE SERVICE, SUSPEND SERVICE, OR REMOVE CONTENT AT ITS SOLE DISCRETION — INCLUDING IN CASES THAT FALL OUTSIDE THE EXPLICITLY PROHIBITED CATEGORIES LISTED ABOVE.</p>
+            <p className="mb-3">Reasons for which Vigmis may refuse or terminate service include, but are not limited to:</p>
+            <ul className="list-disc list-inside space-y-2 mb-3">
+              <li>Reputational risk to Vigmis or to other customers using the platform</li>
+              <li>Risk to Vigmis's relationship with Meta, Google, TikTok, or any other ad platform — including any conduct that could lead to App Review revocation or platform-level sanctions</li>
+              <li>Ethical concerns about a business model, even where legally permitted</li>
+              <li>Repeated attempts to bypass policy gates, suggested rewrites, or human review</li>
+              <li>Patterns of misleading content, customer complaints, or chargeback activity</li>
+              <li>Inability or refusal to provide required eligibility attestations or professional license proof</li>
+            </ul>
+            <p className="mb-3">Service refusal or termination under this section does not entitle you to a refund. We will provide the reason in writing upon request, but the decision is final and not subject to external arbitration.</p>
+            <p className="text-sm text-slate-500"><strong>Why this clause exists:</strong> Vigmis operates on top of third-party advertising platforms whose terms apply to all of our customers simultaneously. A single customer's policy breach can result in platform-wide sanctions affecting every customer. We therefore enforce standards that may be stricter than the law itself.</p>
           </section>
 
           <section className="bg-red-50 border border-red-200 rounded-2xl p-6">

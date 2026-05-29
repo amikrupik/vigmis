@@ -6,6 +6,7 @@ import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
 import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
+import { recordAttestation } from '../components/attestation-actions';
 import {
   getMetaPages, selectMetaPage, type MetaPage,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
@@ -106,6 +107,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       window.location.href = `${API_URL}/auth/${platform}?token=${encodeURIComponent(token)}`;
     } catch {
       setError('Session error — please refresh the page');
+    }
+  }
+
+  // Records the three master attestations a tenant must sign at onboarding.
+  // Fire-and-forget on individual failures — we don't want to block onboarding
+  // if one attestation insert hiccups, since the master is the load-bearing one.
+  async function recordOnboardingAttestations() {
+    const results = await Promise.allSettled([
+      recordAttestation({ kind: 'onboarding_master' }),
+      recordAttestation({ kind: 'tos_acceptance' }),
+      recordAttestation({ kind: 'ai_disclosure_consent' }),
+    ]);
+    const masterResult = results[0];
+    if (masterResult.status === 'rejected') {
+      throw new Error(masterResult.reason instanceof Error ? masterResult.reason.message : 'attestation failed');
     }
   }
 
@@ -420,14 +436,28 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
             <div className="space-y-3">
               <button
-                onClick={() => setStep(connected.meta ? 'meta_assets' : 'chat')}
+                onClick={async () => {
+                  try {
+                    await recordOnboardingAttestations();
+                    setStep(connected.meta ? 'meta_assets' : 'chat');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Could not record your consent. Please refresh and try again.');
+                  }
+                }}
                 disabled={!termsAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Continue →
               </button>
               <button
-                onClick={() => setStep('chat')}
+                onClick={async () => {
+                  try {
+                    await recordOnboardingAttestations();
+                    setStep('chat');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Could not record your consent. Please refresh and try again.');
+                  }
+                }}
                 disabled={!termsAccepted}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >

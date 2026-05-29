@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Vigmis — רשימת פיצ'רים מלאה</title>
+<style>
+body { font-family: 'David', 'Arial', sans-serif; direction: rtl; text-align: right; line-height: 1.6; max-width: 900px; margin: 2em auto; padding: 0 1em; }
+h1 { color: #1a4d8f; border-bottom: 3px solid #1a4d8f; padding-bottom: 0.3em; }
+h2 { color: #2c5fa3; margin-top: 1.5em; border-bottom: 1px solid #ccc; padding-bottom: 0.2em; }
+h3 { color: #3a73b8; }
+table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+th, td { border: 1px solid #999; padding: 0.5em; text-align: right; }
+th { background: #e8f0f8; }
+code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: 'Courier New', monospace; }
+ul, ol { padding-right: 2em; }
+li { margin: 0.3em 0; }
+strong { color: #1a4d8f; }
+hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
+</style>
+</head>
+<body>
+
+<h1>Vigmis — רשימת פיצ'רים מלאה</h1>
+
+<p>מסמך זה מתאר את כל היכולות, השירותים והפיצ'רים של פלטפורמת Vigmis במצבה הנוכחי.<br>
+<em>תאריך עדכון: 2026-05-28.</em></p>
+
+<hr>
+
+<h2>1. תיאור הפלטפורמה בקצרה</h2>
+
+<p>Vigmis היא פלטפורמת SaaS שמנהלת לעסקים קטנים ובינוניים (SMB) <strong>באופן אוטומטי</strong> את כל מערך הפרסום הדיגיטלי שלהם — גם פרסום בתשלום (Google Ads, Meta Ads, TikTok Ads) וגם פרסום אורגני בסושיאל מדיה (Facebook, Instagram, TikTok).</p>
+
+<p>הלקוח עובר Onboarding חד-פעמי, וVigmis ממשיכה לבד: יוצרת אסטרטגיה, פותחת קמפיינים, מנהלת תקציבים, מייצרת תוכן יומיומי, מפרסמת פוסטים, ועוקבת אחרי תוצאות — בלי שהלקוח נדרש לדעת דבר על שיווק דיגיטלי.</p>
+
+<hr>
+
+<h2>2. תהליך הצטרפות (Onboarding)</h2>
+
+<h3>2.1 ניתוח אתר אוטומטי</h3>
+<ul>
+<li>Multi-page crawl: דף בית + עד 5 עמודי משנה (about, products, shop, collections, services, menu, faq).</li>
+<li>חילוץ Open Graph (og:title, og:description, og:site_name).</li>
+<li>חילוץ JSON-LD Product schema (Shopify, Wix, Squarespace).</li>
+<li>שימוש ב-User-Agent של דפדפן (לא bot string) כדי לעקוף חסימות בסיסיות.</li>
+<li>"Confidence gate": אם מצאנו פחות מ-500 תווים אחרי כל המאמץ — מסרבים להמשיך ומחזירים שגיאה מפורשת ללקוח (לא ממציאים תוכן).</li>
+<li>זיהוי שפה אוטומטי לפי טווחי Unicode (עברית / ערבית / רוסית / אנגלית).</li>
+<li>שמירת הניתוח בבסיס הנתונים (טבלת <code>client_settings.website_analysis</code>) — לשימוש חוזר בכל פעולה עתידית.</li>
+</ul>
+
+<h3>2.2 שאלון עסקי</h3>
+<ul>
+<li>מטרת הקמפיין (מכירות, לידים, תנועה).</li>
+<li>תקציב חודשי.</li>
+<li>אזורים גיאוגרפיים.</li>
+<li>אזורים להחרגה.</li>
+<li>מרווח רווח (Margin) למוצר.</li>
+<li>מוצר-דגל (Hero product).</li>
+<li>שאלות מותאמות לפי סוג העסק.</li>
+</ul>
+
+<h3>2.3 הגדרת מצב אישור (Approval Mode)</h3>
+<ul>
+<li><strong>Conservative</strong> — כל פעולה משמעותית של ה-engine יוצרת Decision Protocol שדורש אישור מהלקוח לפני ביצוע.</li>
+<li><strong>Active</strong> — הפעולות מתבצעות אוטומטית.</li>
+</ul>
+
+<hr>
+
+<h2>3. אינטגרציות לפלטפורמות חיצוניות (OAuth)</h2>
+
+<h3>3.1 Google Ads</h3>
+<ul>
+<li>חיבור דרך Google OAuth.</li>
+<li>Scope: <code>adwords</code> + Google Analytics readonly.</li>
+<li><strong>סטטוס:</strong> Basic Access אושר. עובד עם חשבונות Google Ads אמיתיים. מגבלה: 15,000 ops/יום (מספיק ל-~100 לקוחות פעילים).</li>
+<li>Standard Access ממתין: יוגש מחדש כשהיקף הפעילות יגיע ל-10,000 משתמשים.</li>
+</ul>
+
+<h3>3.2 Meta (Facebook + Instagram)</h3>
+<ul>
+<li>חיבור דרך Facebook Login.</li>
+<li>Scopes מבוקשים: <code>public_profile</code>, <code>ads_read</code>, <code>ads_management</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>business_management</code>, <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>instagram_manage_comments</code>.</li>
+<li>Token: long-lived (60 ימים), עם רענון אוטומטי.</li>
+<li><strong>סטטוס נכון לתאריך:</strong> רק <code>public_profile</code> אושר ב-App Review. שאר ה-scopes ממתינים להגשה מחודשת עם סרטון end-to-end מלא. הוגש 2026-05-03, נדחה בגלל סרטון לא מספיק. App Review הבא בהכנה.</li>
+<li>Business Verification אושר (Vigmis ID 3698041317002548).</li>
+<li>Access Verification — Tech Provider אושר.</li>
+</ul>
+
+<h3>3.3 TikTok</h3>
+<ul>
+<li>שני APIs נפרדים:
+  <ul>
+    <li><strong>TikTok for Developers</strong> (open.tiktokapis.com) — Content Posting API. אושר. Scopes: <code>user.info.basic</code>, <code>video.upload</code>, <code>video.publish</code>. תומך ב-Direct Post.</li>
+    <li><strong>TikTok for Business</strong> (business-api.tiktok.com) — Marketing API. הוגש, עוד לא אושר.</li>
+  </ul>
+</li>
+<li>העלאה דרך FILE_UPLOAD (לא PULL_FROM_URL) — חוסך verify domain.</li>
+</ul>
+
+<h3>3.4 Google Analytics 4 (GA4)</h3>
+<ul>
+<li>Properties Picker אוטומטי דרך Admin API.</li>
+<li>Sync יומי של נתונים (sessions, conversions, revenue per source/medium) דרך Data API.</li>
+<li>Cron אוטומטי ב-02:30 UTC.</li>
+<li>שמירה בטבלת <code>ga4_daily_metrics</code>.</li>
+</ul>
+
+<h3>3.5 Shopify</h3>
+<ul>
+<li>Webhooks ל-order events.</li>
+<li>Conversion tracking אמיתי (לא self-reporting של הפלטפורמות).</li>
+<li>חישוב AOV (Average Order Value) per customer.</li>
+</ul>
+
+<hr>
+
+<h2>4. ייצור אסטרטגיה אוטומטי</h2>
+
+<p>לפי ניתוח האתר + השאלון, ה-AI מייצרת תוכנית קמפיין מלאה:</p>
+<ul>
+<li>חלוקת תקציב בין הפלטפורמות (Google / Meta / TikTok).</li>
+<li>קהל יעד מומלץ.</li>
+<li>CPC משוער ו-custom benchmarks.</li>
+<li>רשימת המלצות לפעולה.</li>
+<li>בחירת פלטפורמות מתאימות לסוג העסק (לדוגמה — TikTok לא מתאים לעסקים מסוימים).</li>
+</ul>
+<p>האסטרטגיה נשמרת ב-<code>client_settings.strategy_plan</code> ונגישה ב-Strategy tab ב-Dashboard.</p>
+
+<hr>
+
+<h2>5. ניהול קמפיינים אוטומטי (Paid Ads)</h2>
+
+<h3>5.1 יצירה ותפעול</h3>
+<ul>
+<li>יצירת קמפיינים בפלטפורמות (Google + Meta + TikTok).</li>
+<li>הגדרת תקציבים יומיים וחודשיים.</li>
+<li>אופטימיזציית bid.</li>
+<li>A/B testing.</li>
+<li>Pause / Resume אוטומטי.</li>
+</ul>
+
+<h3>5.2 Optimization Engine</h3>
+<ul>
+<li>שואב metrics אמיתיים: clicks, impressions, conversions, revenue, ROAS, CPA.</li>
+<li>מקור נתונים: GA4 (ground truth) — לא ה-self-reporting של Meta/Google שמנופח.</li>
+<li>מחליט פעולות לפי כללים:
+  <ul>
+    <li>Scale up (+20% תקציב) אם ROAS &ge; 2.</li>
+    <li>Scale down (-20%) אם CPA חורג מ-maxCpa.</li>
+    <li>Pause אם 0 conversions לאחר חלון זמן.</li>
+    <li>Needs creative refresh (creative fatigue).</li>
+    <li>Needs targeting review.</li>
+    <li>Alerts וstagnation alerts.</li>
+  </ul>
+</li>
+</ul>
+
+<h3>5.3 תדירות אופטימיזציה</h3>
+<ul>
+<li><strong>Basic plan:</strong> 3 פעמים ביום (03:00, 11:00, 19:00 UTC).</li>
+<li><strong>Pro plan:</strong> 6 פעמים ביום (נוסף: 07:00, 15:00, 23:00 UTC).</li>
+</ul>
+
+<h3>5.4 Conservative Mode</h3>
+<ul>
+<li>כל פעולה יוצרת "Decision Protocol" — רשומה שמחכה לאישור הלקוח.</li>
+<li>הלקוח רואה את ההמלצה, מאשר/דוחה.</li>
+<li>ב-Active Mode הפעולות מתבצעות מיד.</li>
+</ul>
+
+<hr>
+
+<h2>6. תוכן ופרסום אורגני (Social Media)</h2>
+
+<h3>6.1 ייצור תוכן</h3>
+<ul>
+<li>ייצור פוסטים שבועי אוטומטי (Facebook + Instagram + TikTok).</li>
+<li>מבוסס על ניתוח האתר + האסטרטגיה.</li>
+<li><strong>גילוי שפה אוטומטי</strong> — פוסט נכתב בשפת השוק של הלקוח (אתר ישראלי = פוסט בעברית. אתר אנגלי = פוסט באנגלית).</li>
+<li>ייצור Hashtags רלוונטיים.</li>
+<li>ייצור תמונות (AI).</li>
+<li>ייצור וידאו דרך <strong>HeyGen</strong> (avatar-based videos).</li>
+<li>חלוקה לעמודות תוכן (pillars).</li>
+</ul>
+
+<h3>6.2 ניהול פוסטים</h3>
+<ul>
+<li>מצב Draft / Approved / Scheduled / Published.</li>
+<li>ויכולת Edit לפני אישור.</li>
+<li>אישור/דחייה ידני (תלוי במצב Approval).</li>
+<li>תזמון לתאריך/שעה ספציפיים.</li>
+</ul>
+
+<h3>6.3 פרסום אוטומטי</h3>
+<ul>
+<li><strong>Facebook:</strong> Page feed (טקסט / תמונה).</li>
+<li><strong>Instagram:</strong> Business account (תמונה + caption + hashtags). דורש image — לא תומך text-only.</li>
+<li><strong>TikTok:</strong> Direct Post via FILE_UPLOAD (כשvideo.publish יאושר). כרגע התשתית מוכנה, מחכה לאישור scope.</li>
+</ul>
+
+<h3>6.4 שליפת Page Access Token</h3>
+<ul>
+<li>שליפה מ-<code>/me/accounts</code> (לא מ-<code>/&lt;pageId&gt;?fields=access_token</code> שהיה לא אמין).</li>
+<li>שני failure modes ברורים:
+  <ul>
+    <li>"Vigmis does not have admin access to Page X" — הזמנה ברורה לבחור Page אחר.</li>
+    <li>"Page role too low" — הוראה ברורה לעדכן את התפקיד ב-Facebook Page Settings.</li>
+  </ul>
+</li>
+</ul>
+
+<hr>
+
+<h2>7. Attribution + אנליטיקס</h2>
+
+<h3>7.1 Ground Truth דרך GA4</h3>
+<ul>
+<li>כל הפלטפורמות מנפחות נתונים בגלל double-counting:
+  <ul>
+    <li>Google: 30 ימי post-click attribution.</li>
+    <li>Meta: 1-day view-through + 7-day click-through.</li>
+    <li>TikTok: דומה.</li>
+  </ul>
+</li>
+<li>GA4 = מקור יחיד באתר, ללא הטיה.</li>
+</ul>
+
+<h3>7.2 Match לפי UTM</h3>
+<ul>
+<li>כל קמפיין שVigmis יוצרת מקבל UTM אוטומטי.</li>
+<li>חיבור בין campaign_name ל-source/medium ב-GA4.</li>
+<li>Fallback ל-source/medium אם אין match.</li>
+</ul>
+
+<h3>7.3 חישוב Inflation Factor</h3>
+<ul>
+<li>השוואה GA4 vs platform self-report.</li>
+<li>תיקון החלטות ה-engine לפי הפער.</li>
+</ul>
+
+<h3>7.4 Sources חיצוניים שזמינים</h3>
+<ul>
+<li>Shopify orders (conversion + revenue).</li>
+<li>Vigmis Pixel (self-hosted ב-<code>/track.js</code>).</li>
+</ul>
+
+<hr>
+
+<h2>8. מעקב Conversions (Tracking)</h2>
+
+<h3>8.1 Vigmis Pixel</h3>
+<ul>
+<li>JavaScript snippet קצר שהלקוח מטמיע באתר.</li>
+<li>נשלח מ-<code>https://vigmisapi-production.up.railway.app/track.js?pid=&lt;tenantId&gt;</code>.</li>
+<li>שולח אירועים (pageview, conversion) חזרה ל-Vigmis API.</li>
+</ul>
+
+<h3>8.2 Shopify Webhooks</h3>
+<ul>
+<li>אינטגרציה אוטומטית עם חנויות Shopify.</li>
+<li>מעקב אחרי orders/checkout/cancellations.</li>
+<li>AOV model — חישוב Average Order Value per customer.</li>
+<li>כתובת webhook: <code>${API_URL}/track/shopify/webhook</code>.</li>
+</ul>
+
+<h3>8.3 Tracking Guide למשתמש</h3>
+<ul>
+<li>Email אוטומטי ביום 1 עם הוראות התקנת Pixel.</li>
+</ul>
+
+<hr>
+
+<h2>9. צ'אט גלובלי (AI Assistant)</h2>
+
+<p>זמין בכל עמוד באפליקציה (mounted ב-root layout דרך Clerk auth — רק למשתמשים מחוברים).</p>
+
+<h3>9.1 מודעות הקשר אוטומטית</h3>
+<ul>
+<li>אוסף <code>usePathname()</code> ושולח אותו כ-pageContext לכל קריאה.</li>
+<li>ה-AI יודע באיזה עמוד המשתמש עכשיו ומציע פעולות רלוונטיות.</li>
+</ul>
+
+<h3>9.2 פעולות זמינות (Pipe Syntax)</h3>
+<ul>
+<li><code>create_post|platform|pillar</code> — AI מייצר פוסט חדש לפי האסטרטגיה.</li>
+<li><code>write_post|platform|pillar|text</code> — כתיבת פוסט מותאם מהמשתמש.</li>
+<li><code>edit_post|postId|new_text</code> — עריכת פוסט קיים (לא לפוסטים שכבר פורסמו).</li>
+<li><code>set_post_image|postId|url</code> — הוספת תמונה דרך URL.</li>
+<li><code>approve_post|postId</code> — אישור פוסט לפרסום.</li>
+<li><code>reject_post|postId|reason</code> — דחיית פוסט עם סיבה.</li>
+<li><code>schedule_post|postId|ISO_datetime</code> — תזמון לתאריך.</li>
+<li><code>select_ad_account|act_xxx</code> — בחירת Ad Account ל-Meta.</li>
+</ul>
+
+<h3>9.3 Context שהצ'אט מקבל</h3>
+<ul>
+<li>20 הפוסטים האחרונים.</li>
+<li><code>social_settings</code> של הלקוח.</li>
+<li>Ad Account שנבחר ב-Meta.</li>
+</ul>
+
+<hr>
+
+<h2>10. Strategy Viewer + History</h2>
+
+<p>לשונית Strategy ב-Dashboard. מציגה:</p>
+<ul>
+<li><strong>מה Vigmis הבינה על העסק</strong> — <code>website_analysis</code>.</li>
+<li><strong>תוכנית הקמפיין</strong> — פלטפורמות, חלוקת תקציב, קהל יעד, CPC, המלצות, custom benchmarks.</li>
+<li><strong>Inputs</strong> — מטרה, תקציב, גיאוגרפיה, החרגות, margin, hero product.</li>
+<li><strong>Change History</strong> — מ-<code>audit_log</code>: scale_up/down, pause, alert, recalibrated.</li>
+<li><strong>כפתור "Re-analyze website"</strong> — ריצה חוזרת של ניתוח האתר על ה-settings הקיימים.</li>
+<li><strong>לינק "Rethink strategy"</strong> — חזרה ל-onboarding לעדכון פרמטרים.</li>
+</ul>
+
+<hr>
+
+<h2>11. Connect Tab — חיבור פלטפורמות</h2>
+
+<p>3 קלפים פשוטים (UI באנגלית, ייהפך ל-רב-לשוני בעתיד):</p>
+
+<h3>11.1 Facebook Page (+ Instagram auto-linked)</h3>
+<ul>
+<li>"Load my pages" → רשימת Pages של המשתמש (אינסטגרם מקושר מוצג אוטומטית לכל Page).</li>
+<li>בחירה שומרת ב-<code>social_settings.facebook_page_id</code> + <code>instagram_user_id</code> + ממלאת <code>platforms</code> JSONB array.</li>
+<li>ללא ניחושים אוטומטיים (מנענו את "Goodland incident" — Vigmis לקחה page[0] ופרסמה לעמוד אישי במקום עסקי).</li>
+</ul>
+
+<h3>11.2 Meta Ad Account</h3>
+<ul>
+<li>"Load my ad accounts" → רשימה של כל Ad Accounts (id, name, currency, business, active/inactive).</li>
+<li>בחירה שומרת ב-<code>platform_tokens.account_id</code> בפורמט <code>act_xxx</code>.</li>
+</ul>
+
+<h3>11.3 Google Analytics (אופציונלי)</h3>
+<ul>
+<li>"Load my GA4 properties" → רשימה.</li>
+<li>בחירה שומרת ב-<code>ga4_settings</code>.</li>
+<li>כפתור "Sync now" ל-sync ידני.</li>
+</ul>
+
+<h3>11.4 Disconnect</h3>
+<ul>
+<li>POST <code>/connectors/meta/disconnect</code>:
+  <ul>
+    <li>Revoke ב-Facebook (<code>DELETE /me/permissions</code>) כדי שVigmis תיעלם מ-Apps &amp; Websites של המשתמש.</li>
+    <li>מחיקת token מ-DB.</li>
+    <li>ניקוי <code>social_settings</code> (page IDs, platforms array).</li>
+  </ul>
+</li>
+</ul>
+
+<h3>11.5 Reconnect Modal</h3>
+<ul>
+<li>כשpublish נכשל בגלל permissions → מודאל פשוט בעברית "Your Facebook permissions for Vigmis are out of date".</li>
+<li>כפתור אחד — Reconnect Facebook.</li>
+<li><code>&lt;details&gt;</code> עם Technical details (rawError) לתמיכה.</li>
+<li>Regex זיהוי שגיאות permission: <code>pages_manage_posts|publish_to_groups|permission|#100|#200|#10|scope|not allowed</code>.</li>
+</ul>
+
+<hr>
+
+<h2>12. Multi-tenancy</h2>
+<ul>
+<li>בידוד ברמת לקוח (<code>tenant_id</code> בכל טבלה).</li>
+<li>Clerk לאימות משתמשים.</li>
+<li>Tenant נוצר אוטומטית בסיגנאפ ראשון (טבלה <code>tenants</code> עם <code>clerk_user_id</code>).</li>
+<li>Supabase row-level isolation דרך מפתחות.</li>
+</ul>
+
+<hr>
+
+<h2>13. תשתית טכנית</h2>
+
+<h3>13.1 Frontend</h3>
+<ul>
+<li><strong>Next.js 16</strong> App Router (לא Pages Router).</li>
+<li>Vercel deployment.</li>
+<li>Tailwind CSS.</li>
+<li>shadcn/ui components.</li>
+<li>Clerk authentication.</li>
+<li><code>bidi safety</code> — עטיפת ערכים דינמיים ב-<code>&lt;bdi&gt;</code> למניעת LTR/RTL conflicts.</li>
+</ul>
+
+<h3>13.2 API</h3>
+<ul>
+<li><strong>Fastify</strong> ב-Node.js (TypeScript).</li>
+<li>Railway deployment (<code>vigmisapi-production.up.railway.app</code>).</li>
+<li>Clerk JWT verification middleware.</li>
+</ul>
+
+<h3>13.3 Database</h3>
+<ul>
+<li><strong>Supabase</strong> (Postgres).</li>
+<li>Storage לתמונות/וידאו.</li>
+<li>21 migrations עד כה.</li>
+<li>טבלאות עיקריות: <code>tenants</code>, <code>client_settings</code>, <code>platform_tokens</code>, <code>social_settings</code>, <code>social_posts</code>, <code>audit_log</code>, <code>ga4_settings</code>, <code>ga4_daily_metrics</code>, <code>campaigns</code>, ועוד.</li>
+</ul>
+
+<h3>13.4 AI / Content Generation</h3>
+<ul>
+<li><strong>OpenAI / Claude</strong> — טקסט (פוסטים, ad copy, אסטרטגיה).</li>
+<li><strong>HeyGen API</strong> — סרטונים מבוססי avatar (pay-as-you-go, $10 בחשבון).</li>
+<li><strong>DALL-E / equivalent</strong> — תמונות.</li>
+</ul>
+
+<h3>13.5 Auth</h3>
+<ul>
+<li>Clerk (JWT).</li>
+<li>Bearer token בכל request ל-API.</li>
+<li>Fallback: <code>?token=</code> query param ל-OAuth redirect flows.</li>
+</ul>
+
+<h3>13.6 Email + Domains</h3>
+<ul>
+<li>Google Workspace על tmgt.co.il + vigmis.com (alias domain).</li>
+<li>5 Groups: billing/legal/privacy/security/support @vigmis.com.</li>
+<li>DNS מנוהל ב-Namecheap (לא Vercel).</li>
+</ul>
+
+<hr>
+
+<h2>14. אבטחה ותאימות</h2>
+<ul>
+<li><strong>Token Encryption</strong> — <code>encryptToken()</code> / <code>decryptToken()</code> ב-<code>@vigmis/db</code>. tokens של Meta/Google/TikTok לעולם לא נשמרים בטקסט חופשי.</li>
+<li><strong>Audit Log</strong> — כל פעולה משמעותית (חיבור, ניתוק, scale_up, pause, וכו') נכתבת ל-<code>audit_log</code>.</li>
+<li><strong>State Validation</strong> ב-OAuth — <code>crypto.randomBytes(16)</code> + Map עם expiry של 10 דקות. מונע CSRF.</li>
+<li><strong>No Silent Fallbacks</strong> — אין ניחושים אוטומטיים (לא pages[0], לא ad_accounts[0]). הלקוח חייב לבחור במפורש.</li>
+<li><strong>GDPR / Privacy</strong> — Privacy policy + Terms ב-vigmis.com. Unsubscribe endpoint.</li>
+</ul>
+
+<hr>
+
+<h2>15. Billing (בתכנון)</h2>
+<ul>
+<li><strong>שלב 1:</strong> Meshulam (סליקה ישראלית) — לא MoR, לא אכפת להם מ-AI/ad tech.</li>
+<li><strong>שלב 2:</strong> חברת בת בחו"ל + Stripe ישיר.</li>
+<li><strong>לא בדרך:</strong> Stripe Direct (לא תומך בישראל), Lemon Squeezy (נדחה), 2Checkout (נדחה), Paddle (לא תומך בישראל).</li>
+</ul>
+
+<hr>
+
+<h2>16. Cron Jobs פעילים</h2>
+<p>(Vercel Cron config ב-<code>apps/web/vercel.json</code>)</p>
+
+<table>
+<tr><th>Cron</th><th>תדירות</th><th>פעולה</th></tr>
+<tr><td><code>optimize</code> (Basic)</td><td>03:00, 11:00, 19:00 UTC</td><td>אופטימיזציה לכל לקוחות Basic</td></tr>
+<tr><td><code>optimize-pro</code></td><td>07:00, 15:00, 23:00 UTC</td><td>אופטימיזציה נוספת ל-Pro</td></tr>
+<tr><td><code>ga4-sync</code></td><td>02:30 UTC</td><td>sync יומי של GA4 metrics</td></tr>
+<tr><td><code>weekly-generator</code></td><td>שבועי</td><td>ייצור פוסטים שבועי</td></tr>
+</table>
+
+<hr>
+
+<h2>17. מה לא מוכן עדיין / משימות פתוחות</h2>
+<ul>
+<li><strong>Meta App Review</strong> — pages_manage_posts + Instagram scopes טרם אושרו. הגשה חוזרת עם סרטון end-to-end מלא בהכנה.</li>
+<li><strong>TikTok Marketing API</strong> — Standard Access ממתין.</li>
+<li><strong>Google Ads Standard Access</strong> — יוגש כשנגיע ל-10,000 משתמשים.</li>
+<li><strong>Billing</strong> — Meshulam טרם מומש.</li>
+<li><strong>Multi-language UI</strong> — כרגע אנגלית בלבד. תרגומים אחרי גמר פיתוח.</li>
+<li><strong>Comment management UI</strong> — Instagram comments scope קיים בבקשה, UI ייבנה בסבב הבא.</li>
+</ul>
+
+<hr>
+
+<h2>18. סטטיסטיקת קוד</h2>
+<ul>
+<li>Monorepo (npm workspaces).</li>
+<li>Apps: <code>apps/web</code> (Next.js), <code>apps/api</code> (Fastify).</li>
+<li>Packages: <code>@vigmis/db</code>, <code>@vigmis/ad-connectors</code>, <code>@vigmis/ai</code>, <code>@vigmis/shared</code>.</li>
+<li>21 migrations.</li>
+</ul>
+
+<hr>
+
+<h2>נספח: זרימה של לקוח חדש (Customer Journey)</h2>
+<ol>
+<li>הלקוח מגיע ל-vigmis.com → Sign Up → Clerk.</li>
+<li>Onboarding: מילוי שאלון + הזנת URL של האתר.</li>
+<li>Vigmis סורקת את האתר ומבינה את העסק.</li>
+<li>הלקוח מחבר Facebook (OAuth) → בוחר Page + Instagram + Ad Account.</li>
+<li>הלקוח מחבר Google Ads (OAuth, אופציונלי).</li>
+<li>הלקוח מחבר GA4 + Shopify (אופציונלי).</li>
+<li>Vigmis מייצרת תוכנית קמפיין → הלקוח מאשר.</li>
+<li>Vigmis פותחת קמפיינים בפלטפורמות.</li>
+<li>Vigmis מייצרת פוסטים שבועיים → הלקוח מאשר/דוחה דרך הצ'אט.</li>
+<li>Vigmis מפרסמת פוסטים מאושרים.</li>
+<li>Vigmis מבצעת אופטימיזציה אוטומטית 3-6 פעמים ביום.</li>
+<li>הלקוח רואה Dashboard עם metrics אמיתיים (GA4) + change history.</li>
+</ol>
+
+<hr>
+
+<p><em>סוף המסמך.</em></p>
+
+</body>
+</html>

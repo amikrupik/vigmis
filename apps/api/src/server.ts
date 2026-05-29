@@ -22,6 +22,15 @@ import { exportRoutes } from './routes/export.js';
 import { trackingRoutes } from './routes/tracking.js';
 import { geoRoutes } from './routes/geo.js';
 import { historyRoutes } from './routes/history.js';
+import { policyRoutes } from './routes/policy.js';
+import { attestationRoutes } from './routes/attestations.js';
+import { readinessRoutes } from './routes/readiness.js';
+import { briefingRoutes } from './routes/briefings.js';
+import { commentsIntelligenceRoutes } from './routes/comments-intelligence.js';
+import { adminRoutes } from './routes/admin.js';
+import { explainabilityRoutes } from './routes/explainability.js';
+import { complianceCronRoutes } from './routes/compliance-cron.js';
+import { operationalRoutes } from './routes/operational.js';
 
 const app = Fastify({ logger: true });
 
@@ -79,6 +88,15 @@ await app.register(exportRoutes);
 await app.register(trackingRoutes);
 await app.register(geoRoutes);
 await app.register(historyRoutes);
+await app.register(policyRoutes);
+await app.register(attestationRoutes);
+await app.register(readinessRoutes);
+await app.register(briefingRoutes);
+await app.register(commentsIntelligenceRoutes);
+await app.register(adminRoutes);
+await app.register(explainabilityRoutes);
+await app.register(complianceCronRoutes);
+await app.register(operationalRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';

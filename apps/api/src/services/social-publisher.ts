@@ -1,6 +1,31 @@
 // Social post publisher — dispatches to Meta Pages API or TikTok Content Posting API
 
 import { db, decryptToken } from '@vigmis/db';
+import { applyDisclosure, type AIComponent } from './ai-disclosure.js';
+import { getGeoContext } from './geo-context.js';
+
+// Default AI-component map per platform.
+// If the customer fully rewrote the text via client_edit, text is no longer AI-generated.
+// Images/videos are AI-generated regardless (Vigmis produced them via DALL-E/HeyGen).
+function inferAIComponents(post: any, platform: 'facebook' | 'instagram' | 'tiktok'): AIComponent[] {
+  const components: AIComponent[] = [];
+  // Treat client_edit as "text is now human-authored" only if the edit is
+  // substantive (>30% length change from AI original). For now, presence of
+  // client_edit = human authored; revisit if false-positives appear.
+  const textIsAI = !post.client_edit || post.client_edit.trim().length === 0;
+  if (textIsAI) components.push('text');
+  if (platform === 'tiktok' && post.video_url) components.push('video');
+  if ((platform === 'facebook' || platform === 'instagram') && post.image_url) components.push('image');
+  return components;
+}
+
+// Heuristic language for disclosure suffix wording — derived from the content itself.
+function detectLanguage(text: string): 'en' | 'he' | 'ar' | 'ru' {
+  if (/[֐-׿]/.test(text)) return 'he';
+  if (/[؀-ۿ]/.test(text)) return 'ar';
+  if (/[Ѐ-ӿ]/.test(text)) return 'ru';
+  return 'en';
+}
 
 export interface PublishResult {
   success: boolean;
@@ -75,7 +100,18 @@ async function getPageConfig(tenantId: string, platform: 'facebook' | 'instagram
 async function publishToFacebook(post: any): Promise<PublishResult> {
   const { pageId, token } = await getPageConfig(post.tenant_id, 'facebook');
 
-  const content = post.client_edit?.trim() || post.content;
+  const rawContent = post.client_edit?.trim() || post.content;
+  const geo = await getGeoContext(post.tenant_id).catch(() => null);
+  // AI disclosure — Meta requires "AI Info" labeling for synthetic media.
+  // EU markets get the verbose disclosure per EU AI Act Art. 50.
+  const disclosed = applyDisclosure({
+    body: rawContent,
+    platform: 'facebook',
+    components: inferAIComponents(post, 'facebook'),
+    language: detectLanguage(rawContent),
+    market: geo?.primary_target ?? undefined,
+  });
+  const content = disclosed.body;
   const body: Record<string, string> = {
     message: content,
     access_token: token,
@@ -107,7 +143,16 @@ async function publishToFacebook(post: any): Promise<PublishResult> {
 async function publishToInstagram(post: any): Promise<PublishResult> {
   const { pageId: igUserId, token: userToken } = await getPageConfig(post.tenant_id, 'instagram');
 
-  const content = post.client_edit?.trim() || post.content;
+  const rawContent = post.client_edit?.trim() || post.content;
+  const igGeo = await getGeoContext(post.tenant_id).catch(() => null);
+  const disclosed = applyDisclosure({
+    body: rawContent,
+    platform: 'instagram',
+    components: inferAIComponents(post, 'instagram'),
+    language: detectLanguage(rawContent),
+    market: igGeo?.primary_target ?? undefined,
+  });
+  const content = disclosed.body;
   const captionWithTags = post.hashtags?.length
     ? `${content}\n\n${(post.hashtags as string[]).map((t) => `#${t}`).join(' ')}`
     : content;
@@ -159,7 +204,18 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
   if (!tokenRow) return { success: false, error: 'No TikTok token' };
   const accessToken = decryptToken(tokenRow.access_token);
 
-  const content = post.client_edit?.trim() || post.content;
+  const rawContent = post.client_edit?.trim() || post.content;
+  const ttGeo = await getGeoContext(post.tenant_id).catch(() => null);
+  // TikTok mandates AI-content labeling for synthetic media via the API.
+  const disclosed = applyDisclosure({
+    body: rawContent,
+    platform: 'tiktok',
+    components: inferAIComponents(post, 'tiktok'),
+    language: detectLanguage(rawContent),
+    market: ttGeo?.primary_target ?? undefined,
+  });
+  const content = disclosed.body;
+  const tikTokAIFlag = Boolean((disclosed.platformMetadata as any).ai_generated);
 
   // Step 1: fetch the video bytes from wherever they're hosted (Supabase, etc.)
   const videoRes = await fetch(post.video_url);
@@ -188,6 +244,8 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
         disable_duet: false,
         disable_stitch: false,
         disable_comment: false,
+        // TikTok AI-content disclosure — required for synthetic video.
+        is_ai_generated: tikTokAIFlag,
       },
       source_info: {
         source: 'FILE_UPLOAD',
