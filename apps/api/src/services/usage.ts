@@ -148,3 +148,42 @@ export async function checkCommentQuota(
   }
   return { allowed: true, remaining, breaker: ctx.breaker, degrade };
 }
+
+/** Non-essential crons (news / weather / insights) skip throttled tenants. */
+export async function isThrottled(tenantId: string): Promise<boolean> {
+  const ctx = await getBillingContext(tenantId);
+  await syncBreaker(tenantId, ctx);
+  return ctx.breaker !== 'ok';
+}
+
+export interface UsageSummary {
+  plan: Plan;
+  tier: number;
+  feeUsd: number;
+  spendUsd: number;
+  breaker: 'ok' | 'degrade' | 'freeze';
+  aiCostUsd: number;
+  conversations: { used: number; limit: number };
+  comments: { used: number; limit: number };
+  activeCampaigns: { limit: number | null }; // null = unlimited
+}
+
+/** UI-facing snapshot of plan, allowances, and consumption this month. */
+export async function getUsageSummary(tenantId: string): Promise<UsageSummary> {
+  const ctx = await getBillingContext(tenantId);
+  const finite = (n: number) => (Number.isFinite(n) ? n : null);
+  return {
+    plan: ctx.plan,
+    tier: ctx.allowances.tier,
+    feeUsd: ctx.feeUsd,
+    spendUsd: ctx.spendUsd,
+    breaker: ctx.breaker,
+    aiCostUsd: ctx.usage.ai_cost_usd,
+    conversations: {
+      used: Math.ceil(ctx.usage.chat_messages / MESSAGES_PER_CONVERSATION),
+      limit: ctx.allowances.conversations,
+    },
+    comments: { used: ctx.usage.comments_handled, limit: ctx.allowances.commentsHandled },
+    activeCampaigns: { limit: finite(ctx.allowances.activeCampaigns) },
+  };
+}

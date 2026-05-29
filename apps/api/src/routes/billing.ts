@@ -17,10 +17,17 @@ import {
   verifyPaddleWebhook,
 } from '../billing/paddle.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
+import { getUsageSummary } from '../services/usage.js';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 export async function billingRoutes(app: FastifyInstance) {
+
+  // ── Usage & quota snapshot (for the dashboard widget) ──────────────────────
+  app.get('/billing/usage', { preHandler: authenticate }, async (request, reply) => {
+    const summary = await getUsageSummary(request.tenantId);
+    return reply.send(summary);
+  });
 
   // ── Status ─────────────────────────────────────────────────────────────────
   app.get('/billing/status', { preHandler: authenticate }, async (request, reply) => {

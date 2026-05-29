@@ -35,3 +35,7 @@ export async function openPortal(): Promise<{ url: string }> {
 export async function getInvoices(): Promise<{ invoices: any[] }> {
   return apiCall('/billing/invoices');
 }
+
+export async function getUsage() {
+  return apiCall('/billing/usage');
+}

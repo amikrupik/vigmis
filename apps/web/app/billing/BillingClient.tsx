@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { getBillingStatus, startCheckout, openPortal, getInvoices } from './actions';
+import { getBillingStatus, startCheckout, openPortal, getInvoices, getUsage } from './actions';
 
 type BillingStatus = {
   plan: 'free' | 'pro';
@@ -18,9 +18,22 @@ type BillingStatus = {
   };
 };
 
+type Usage = {
+  plan: 'free' | 'pro';
+  tier: number;
+  feeUsd: number;
+  spendUsd: number;
+  breaker: 'ok' | 'degrade' | 'freeze';
+  aiCostUsd: number;
+  conversations: { used: number; limit: number };
+  comments: { used: number; limit: number };
+  activeCampaigns: { limit: number | null };
+};
+
 export default function BillingClient() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +43,12 @@ export default function BillingClient() {
   const canceledMsg = searchParams.get('canceled') === 'true';
 
   useEffect(() => {
-    Promise.all([getBillingStatus(), getInvoices().catch(() => ({ invoices: [] }))])
-      .then(([s, inv]) => { setStatus(s); setInvoices(inv?.invoices ?? []); })
+    Promise.all([
+      getBillingStatus(),
+      getInvoices().catch(() => ({ invoices: [] })),
+      getUsage().catch(() => null),
+    ])
+      .then(([s, inv, u]) => { setStatus(s); setInvoices(inv?.invoices ?? []); setUsage(u); })
       .catch(() => setError('Failed to load billing information'))
       .finally(() => setLoading(false));
   }, []);
@@ -114,16 +131,16 @@ export default function BillingClient() {
                 )}
               </div>
               <div>
-                <p className="text-3xl font-bold text-slate-900">$0</p>
-                <p className="text-sm text-slate-400 mt-0.5">per month</p>
+                <p className="text-3xl font-bold text-slate-900">7%</p>
+                <p className="text-sm text-slate-400 mt-0.5">of ad spend · $29/mo minimum</p>
               </div>
               <ul className="space-y-2.5 text-sm text-slate-600">
                 {[
                   '7% of managed ad spend',
-                  'Optimization once per day',
-                  'Google + Meta + TikTok',
-                  'AI chat assistant',
-                  'Basic dashboard',
+                  'Allowances scale with your budget',
+                  'Optimization 3× per day',
+                  'AI chat assistant (monthly quota)',
+                  'Weekly briefing',
                 ].map(f => (
                   <li key={f} className="flex items-center gap-2">
                     <span className="text-emerald-500 font-bold">✓</span> {f}
@@ -144,16 +161,16 @@ export default function BillingClient() {
                 )}
               </div>
               <div>
-                <p className="text-3xl font-bold text-slate-900">$15</p>
-                <p className="text-sm text-slate-400 mt-0.5">per month + 5% spend</p>
+                <p className="text-3xl font-bold text-slate-900">$49</p>
+                <p className="text-sm text-slate-400 mt-0.5">per month + 6% spend</p>
               </div>
               <ul className="space-y-2.5 text-sm text-slate-600">
                 {[
-                  '5% of managed ad spend (saves 2%)',
-                  'Optimization 4× per day',
-                  'All Free features',
-                  'Priority AI support',
-                  'Advanced reporting',
+                  '6% of managed ad spend (cheaper at scale)',
+                  'Optimization 6× per day',
+                  'Higher conversation & comment quotas',
+                  'All channels + daily briefing',
+                  '1 video + 2 banners included monthly',
                 ].map(f => (
                   <li key={f} className="flex items-center gap-2">
                     <span className="text-emerald-500 font-bold">✓</span> {f}
@@ -212,6 +229,48 @@ export default function BillingClient() {
 
             <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
               * Final amount is calculated at month end based on actual spend from Google, Meta, and TikTok.
+            </p>
+          </div>
+        )}
+
+        {/* Usage & Limits this month */}
+        {usage && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <h2 className="font-bold text-slate-900">Usage &amp; Limits</h2>
+              <span className="text-xs text-slate-400">Tier {usage.tier} · {usage.plan === 'pro' ? 'Pro' : 'Starter'}</span>
+            </div>
+
+            {usage.breaker !== 'ok' && (
+              <div className={`rounded-xl p-3 text-sm ${usage.breaker === 'freeze' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-amber-50 border border-amber-200 text-amber-700'}`}>
+                {usage.breaker === 'freeze'
+                  ? 'AI features are paused this month — usage passed your plan fair-use limit. They resume on the 1st, or upgrade to continue now.'
+                  : 'You are close to your plan fair-use limit. Routine AI tasks are running in a lighter mode to keep things efficient.'}
+              </div>
+            )}
+
+            {[
+              { label: 'AI conversations', u: usage.conversations.used, l: usage.conversations.limit },
+              { label: 'Comments handled', u: usage.comments.used, l: usage.comments.limit },
+            ].map(({ label, u, l }) => {
+              const pct = l > 0 ? Math.min(100, Math.round((u / l) * 100)) : 0;
+              const bar = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-indigo-500';
+              return (
+                <div key={label} className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">{label}</span>
+                    <span className="font-semibold text-slate-800">{u} / {l}</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
+              Allowances scale with your ad budget. Active campaigns allowed: {usage.activeCampaigns.limit ?? 'unlimited'}.
+              {usage.plan === 'free' && ' Upgrade to Pro for higher quotas.'}
             </p>
           </div>
         )}

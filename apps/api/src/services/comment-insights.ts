@@ -19,6 +19,7 @@
 import { db } from '@vigmis/db';
 import { route } from '@vigmis/ai-router';
 import type { Sentiment } from './social-comments.js';
+import { isThrottled } from './usage.js';
 
 const MIN_OCCURRENCE_FOR_INSIGHT = 3;       // need ≥3 examples to count as recurring
 const MAX_COMMENTS_PER_RUN = 200;
@@ -174,9 +175,12 @@ export async function dispatchInsightsCron(): Promise<{ tenants: number; themes:
   const unique = [...new Set((tenants ?? []).map((t: { tenant_id: string }) => t.tenant_id))];
 
   let totalThemes = 0;
+  let processed = 0;
   for (const t of unique) {
+    if (await isThrottled(t).catch(() => false)) continue; // degrade/freeze → skip non-essential
     const r = await mineInsightsForTenant(t).catch(() => ({ themes_persisted: 0 }));
     totalThemes += r.themes_persisted;
+    processed++;
   }
-  return { tenants: unique.length, themes: totalThemes };
+  return { tenants: processed, themes: totalThemes };
 }

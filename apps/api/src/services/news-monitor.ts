@@ -11,6 +11,7 @@
 import { db } from '@vigmis/db';
 import { route } from '@vigmis/ai-router';
 import { sendTenantNotification } from './notify.js';
+import { isThrottled } from './usage.js';
 
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY ?? '';
 const NEWSAPI_BASE = 'https://newsapi.org/v2';
@@ -203,9 +204,12 @@ export async function dispatchNewsScanCron(): Promise<{ tenants: number; relevan
   if (!tenants?.length) return { tenants: 0, relevant: 0 };
 
   let totalRelevant = 0;
+  let scanned = 0;
   for (const t of tenants) {
+    if (await isThrottled(t.tenant_id).catch(() => false)) continue; // degrade/freeze → skip non-essential
     const r = await scanNewsForTenant(t.tenant_id).catch(() => ({ relevant: 0 }));
     totalRelevant += r.relevant;
+    scanned++;
   }
-  return { tenants: tenants.length, relevant: totalRelevant };
+  return { tenants: scanned, relevant: totalRelevant };
 }

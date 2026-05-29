@@ -6,6 +6,7 @@
 // Used by operational-awareness to bump or dampen ad spend based on weather.
 
 import { db } from '@vigmis/db';
+import { isThrottled } from './usage.js';
 
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY ?? '';
 
@@ -161,11 +162,14 @@ export async function dispatchWeatherCron(): Promise<{ tenants: number; updated:
     .eq('weather_sensitive', true);
   if (!tenants?.length) return { tenants: 0, updated: 0 };
   let updated = 0;
+  let checked = 0;
   for (const t of tenants) {
+    if (await isThrottled(t.tenant_id).catch(() => false)) continue; // degrade/freeze → skip non-essential
     const r = await refreshWeatherForTenant(t.tenant_id).catch(() => null);
     if (r) updated++;
+    checked++;
   }
-  return { tenants: tenants.length, updated };
+  return { tenants: checked, updated };
 }
 
 /**

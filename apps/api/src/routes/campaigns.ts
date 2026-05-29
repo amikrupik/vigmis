@@ -27,6 +27,7 @@ import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
 import { isFrozenFor } from './admin.js';
 import { getTrustTier, actionGateForTier } from '../services/trust-tier.js';
 import { checkIndustryGate } from '../services/industry-gates.js';
+import { getBillingContext } from '../services/usage.js';
 
 // How to name campaigns consistently
 function buildCampaignName(platform: string, type: string): string {
@@ -115,6 +116,22 @@ export async function campaignRoutes(app: FastifyInstance) {
         industry: industryGate.detected_industry,
         required_license: industryGate.required_license,
         reason: industryGate.reason,
+      });
+    }
+
+    // Plan cap — active campaigns allowed scales with ad spend (pricing.ts).
+    const billingCtx = await getBillingContext(request.tenantId);
+    const { count: activeCount } = await db
+      .from('campaigns')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', request.tenantId)
+      .eq('status', 'active');
+    if ((activeCount ?? 0) >= billingCtx.allowances.activeCampaigns) {
+      return reply.code(409).send({
+        error: 'campaign_limit_reached',
+        limit: billingCtx.allowances.activeCampaigns,
+        plan: billingCtx.plan,
+        message: `Your plan allows ${billingCtx.allowances.activeCampaigns} active campaigns at the current ad budget. Raise the budget tier or upgrade to launch more.`,
       });
     }
 
