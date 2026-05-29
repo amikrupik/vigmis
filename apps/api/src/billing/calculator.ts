@@ -1,6 +1,7 @@
 // Fee calculator — computes what VIGMIS charges for a billing period
 
 import { db } from '@vigmis/db';
+import { PLAN_PRICING, monthlyFee, type Plan } from './pricing.js';
 
 export interface BillingPeriod {
   start: Date;
@@ -9,12 +10,15 @@ export interface BillingPeriod {
 
 export interface FeeCalculation {
   managedSpendUsd: number;
-  feePercentage: number;      // 7 or 5
+  feePercentage: number;      // 7 (Starter) or 6 (Pro)
   percentageFeeUsd: number;
-  subscriptionUsd: number;    // 0 (free) or 15 (pro)
+  subscriptionUsd: number;    // 0 (Starter) or 49 (Pro)
+  floorUsd: number;           // minimum management charge
+  floorApplied: boolean;      // true when the floor lifted the fee above raw
+  managementFeeUsd: number;   // max(subscription + percentage, floor)
   socialServicesUsd: number;  // social posts + comment replies billed this period
   totalUsd: number;
-  plan: 'free' | 'pro';
+  plan: Plan;
 }
 
 export function currentMonth(): BillingPeriod {
@@ -75,12 +79,14 @@ export async function calculateFee(
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
-  const plan = (billing?.plan ?? 'free') as 'free' | 'pro';
+  const plan = (billing?.plan ?? 'free') as Plan;
   const managedSpendUsd = await estimateManagedSpend(tenantId, period);
 
-  const feePercentage = plan === 'pro' ? 5 : 7;
+  const { ratePct: feePercentage, subscriptionUsd, floorUsd } = PLAN_PRICING[plan];
   const percentageFeeUsd = Math.round(managedSpendUsd * feePercentage) / 100;
-  const subscriptionUsd = plan === 'pro' ? 15 : 0;
+  const rawManagementUsd = subscriptionUsd + percentageFeeUsd;
+  const managementFeeUsd = monthlyFee(plan, managedSpendUsd); // applies the floor
+  const floorApplied = managementFeeUsd > rawManagementUsd;
 
   // Social services: per-post and per-reply charges billed this period
   const [postsRes, commentsRes] = await Promise.all([
@@ -103,13 +109,16 @@ export async function calculateFee(
       (commentsRes.data ?? []).reduce((s, c) => s + (c.cost_usd ?? 0), 0)) * 100
   ) / 100;
 
-  const totalUsd = Math.round((percentageFeeUsd + subscriptionUsd + socialServicesUsd) * 100) / 100;
+  const totalUsd = Math.round((managementFeeUsd + socialServicesUsd) * 100) / 100;
 
   return {
     managedSpendUsd,
     feePercentage,
     percentageFeeUsd,
     subscriptionUsd,
+    floorUsd,
+    floorApplied,
+    managementFeeUsd,
     socialServicesUsd,
     totalUsd,
     plan,

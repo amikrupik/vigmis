@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { monthlyFee } from '../billing/pricing.js';
 
 const FROM_EMAIL = 'digest@vigmis.com';
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
@@ -317,10 +318,10 @@ function buildDigestHtml(tenantData: {
 
   // Pro upsell calculation (Free users only)
   const monthlySpend = totalBudget * 30;
-  const freeFee = monthlySpend * 0.07;
-  const proFee = 15 + monthlySpend * 0.05;
+  const freeFee = monthlyFee('free', monthlySpend);
+  const proFee = monthlyFee('pro', monthlySpend);
   const proSavings = parseFloat((freeFee - proFee).toFixed(2));
-  const showProUpsell = plan === 'free';
+  const showProUpsell = plan === 'free' && proSavings > 0;
 
   const campaignRows = campaigns.slice(0, 8).map(c => `
     <tr style="border-bottom:1px solid #f1f5f9">
@@ -795,10 +796,8 @@ export async function notificationRoutes(app: FastifyInstance) {
 
         // Fee estimate
         const feeRow = await db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle();
-        const plan = feeRow.data?.plan ?? 'free';
-        const feePct = plan === 'pro' ? 0.05 : 0.07;
-        const subFee = plan === 'pro' ? 15 : 0;
-        const totalFeeUsd = parseFloat((currS.spend * feePct + subFee).toFixed(2));
+        const plan = (feeRow.data?.plan ?? 'free') as 'free' | 'pro';
+        const totalFeeUsd = monthlyFee(plan, currS.spend);
 
         const campaignMetrics = campaigns.map((c: any) => {
           const seed = c.id.split('').reduce((a: number, ch: string) => a + ch.charCodeAt(0), 0);
