@@ -5,7 +5,8 @@ export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET ?? 'vigmis-cron';
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return new Response('Server misconfiguration: CRON_SECRET not set', { status: 500 });
   if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const res = await fetch(`${apiUrl}/compliance/cron/stop-loss`, {
       method: 'POST',
+      body: '{}',
       headers: { 'x-cron-secret': cronSecret, 'Content-Type': 'application/json' },
     });
     if (!res.ok) return Response.json({ error: 'stop-loss cron failed', details: await res.text() }, { status: 500 });

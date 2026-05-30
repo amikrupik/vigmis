@@ -5,7 +5,8 @@ export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET ?? 'vigmis-cron';
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return new Response('Server misconfiguration: CRON_SECRET not set', { status: 500 });
 
   if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     res = await fetch(`${apiUrl}/social/cron/publish`, {
       method: 'POST',
+      body: '{}',
       headers: { 'x-cron-secret': cronSecret, 'Content-Type': 'application/json' },
     });
   } catch (err) {

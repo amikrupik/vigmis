@@ -5,7 +5,8 @@ export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET ?? 'vigmis-cron';
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return new Response('Server misconfiguration: CRON_SECRET not set', { status: 500 });
 
   if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
 
   const res = await fetch(`${apiUrl}/protocols/expire-all`, {
     method: 'POST',
+    body: '{}',
     headers: { 'x-cron-secret': cronSecret, 'Content-Type': 'application/json' },
   });
 

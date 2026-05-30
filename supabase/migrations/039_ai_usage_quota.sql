@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS ai_usage_monthly (
 );
 
 ALTER TABLE ai_usage_monthly ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "tenant_isolation" ON ai_usage_monthly
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+DO $$ BEGIN
+  CREATE POLICY "tenant_isolation" ON ai_usage_monthly
+    USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Atomic increment — one statement so concurrent calls don't lose updates.
 CREATE OR REPLACE FUNCTION bump_ai_usage(

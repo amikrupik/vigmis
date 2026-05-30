@@ -850,4 +850,476 @@ Each gate is enforced at multiple entry points:
 
 ---
 
-*סוף המסמך.*
+## נספח ב׳: תוכנות ושירותים משתתפים
+
+> מדריך מלא לכל שירות חיצוני שVigmis מתחבר אליו — מה תפקידו, איפה הוא קיים בקוד, ואיך הוא מחובר.
+
+---
+
+### קטגוריה 1 — ענן ותשתית
+
+---
+
+#### 1.1 Vercel
+**תפקיד:** Hosting לאפליקציית ה-Web (frontend + crons)
+
+**מה רץ שם:**
+- `apps/web` — כל ממשק המשתמש (Next.js 16, App Router)
+- 24 Cron Jobs — מתוזמנים דרך `vercel.json` crons configuration
+- Edge Middleware (proxy.ts) — Clerk auth על כל route מוגן
+
+**חיבור בקוד:**
+- `apps/web/` — כל קוד ה-Next.js מ-deployed אוטומטית
+- `apps/web/proxy.ts` — middleware שמריץ Clerk auth (מחליף middleware.ts)
+- `vercel.json` — הגדרת crons (schedule + secret)
+- env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_API_URL`
+
+**חשוב לדעת:**
+- Web app ו-API רצים על שני שירותים נפרדים (Vercel + Railway)
+- `NEXT_PUBLIC_API_URL` חייב לפנות ל-Railway API URL בפרודקשן
+- Crons מופעלים מ-Vercel ומעבירים את הבקשה ל-Railway API
+
+---
+
+#### 1.2 Railway
+**תפקיד:** Hosting ל-Backend API (Fastify server)
+
+**מה רץ שם:**
+- `apps/api` — כל שרת ה-Fastify (30 route modules, 37 services)
+- בניה מ-Dockerfile (`Dockerfile` בשורש הפרויקט)
+
+**חיבור בקוד:**
+- `apps/api/src/server.ts` — נקודת הכניסה לשרת
+- `railway.toml` — הגדרת health check (`/health`), restart policy
+- `Dockerfile` — בניה ל-production image
+- env vars: כל המשתנים הסודיים (Supabase, OpenAI, Meta, Google, Paddle, Stripe)
+
+**URL בפרודקשן:** `https://vigmisapi-production.up.railway.app`
+
+**חשוב לדעת:**
+- Railway מריץ את ה-API ישירות מ-Node.js (לא serverless) — חיבורי DB קבועים
+- Health check על `/health` — Railway מריץ restart אוטומטי אם נכשל
+- שינויים ב-`apps/api` דורשים `railway up` לדיפלוי ידני (לא automatic deploy)
+
+---
+
+#### 1.3 Supabase
+**תפקיד:** בסיס נתונים ראשי (PostgreSQL) + Auth Infrastructure + Storage
+
+**מה מאוחסן שם:**
+- כל טבלאות המערכת (39 migrations, ~50 טבלאות)
+- OAuth tokens מוצפנים (platform_tokens)
+- נתוני לקוחות, קמפיינים, פוסטים, תגובות, חיוב
+- Audit log מלא
+- Approval snapshots (forensic records)
+
+**חיבור בקוד:**
+- `packages/db/src/client.ts` — Supabase client (service role — גישה מלאה מה-API)
+- `packages/db/src/crypto.ts` — הצפנת tokens לפני שמירה (AES-256-GCM)
+- `supabase/migrations/*.sql` — 39 קבצי migration, schema מלא
+- כל service ב-`apps/api/src/services/` קורא ל-`db` מ-`@vigmis/db`
+- env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+
+**Row Level Security (RLS):**
+- כל טבלה עם `tenant_id` מוגנת עם policy: `tenant_id = current_setting('app.tenant_id')`
+- Service Role מ-API מעקף RLS (גישה מלאה) — לכן ה-API אחראי על isolation
+- Anon key (frontend) — אסור לו לגשת ישירות לטבלאות (web app לא מתחבר לSupabase ישירות)
+
+**חשוב לדעת:**
+- URL הפרויקט: `rzgkyzjetnrpcqmzfjtv.supabase.co`
+- migrations מורצות ידנית ע"י מפתח עם sbp_ token (לא אוטומטי ב-CI)
+- Service Role Key — **לא** נחשף ל-frontend בשום מצב
+
+---
+
+### קטגוריה 2 — אימות ומשתמשים
+
+---
+
+#### 2.1 Clerk
+**תפקיד:** ניהול משתמשים, אימות (Auth), sign-in/sign-up UI
+
+**מה עושה:**
+- UI מוכן לsign-in / sign-up (דפי `/sign-in`, `/sign-up`)
+- JWT generation — כל request מ-frontend נושא Clerk JWT
+- Webhook על `user.created` — יוצר tenant row ב-Supabase
+- Protected routes — `proxy.ts` בודק JWT לפני כל route מוגן
+
+**חיבור בקוד:**
+- `apps/web/proxy.ts` — `clerkMiddleware()` מגן על כל דפי ה-app
+- `apps/api/src/middleware/auth.ts` — `verifyToken()` מאמת JWT ב-API + resolves `tenantId`
+- `apps/web/app/api/webhooks/clerk/route.ts` — מאזין ל-`user.created`, יוצר tenant
+- env vars: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (web), `CLERK_SECRET_KEY` (web + api)
+
+**חשוב לדעת:**
+- כל request ל-API חייב Authorization: Bearer <clerk_jwt>
+- API auth middleware יוצר tenant אוטומטית אם לא קיים (auto-provisioning)
+- Clerk Dashboard: app.clerk.com → vigmis → API Keys
+
+---
+
+### קטגוריה 3 — פלטפורמות פרסום
+
+---
+
+#### 3.1 Google Ads
+**תפקיד:** פרסום בתשלום — Search, Display, Performance Max
+
+**מה עושה:**
+- פתיחת קמפיינים, הגדרת תקציבים, ניהול ad groups
+- שליפת נתוני ביצועים (impressions, clicks, conversions, ROAS)
+- OAuth לחיבור חשבון לקוח
+
+**חיבור בקוד:**
+- `packages/ad-connectors/src/google/` — כל לוגיקת Google Ads
+- `apps/api/src/routes/connectors.ts` — OAuth initiation + callback + token save
+- `apps/api/src/services/engine.ts` — מפעיל Google Ads API לשינוי קמפיינים
+- OAuth tokens מוצפנים ב-`platform_tokens` (AES-256-GCM)
+- env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_ADS_DEVELOPER_TOKEN`
+
+**חשוב לדעת:**
+- נדרש Developer Token (Standard Access לסקייל מלא, Basic Access בשימוש כעת)
+- OAuth Redirect URI חייב להיות זהה ב-Google Cloud Console ובenv
+- Rate limit: 15,000 mutate ops/day (Basic Access)
+
+---
+
+#### 3.2 Meta (Facebook + Instagram)
+**תפקיד:** פרסום בתשלום + ניהול תוכן אורגני
+
+**שני שימושים:**
+1. **Meta Ads API** — קמפיינים בתשלום (Facebook + Instagram Ads)
+2. **Meta Graph API** — פרסום פוסטים אורגניים, שליפת תגובות, ניתוח engagement
+
+**חיבור בקוד:**
+- `packages/ad-connectors/src/meta/` — Meta Ads API
+- `apps/api/src/services/social-publisher.ts` — Graph API לפוסטים ותגובות
+- `apps/api/src/services/social-comments.ts` — שליפת תגובות
+- `apps/api/src/routes/connectors.ts` — OAuth flow
+- `apps/api/src/routes/social.ts` — CRUD פוסטים + inbox תגובות
+- env vars: `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`, `FB_ACCESS_TOKEN`
+
+**Scopes שנדרשים:**
+`ads_management`, `ads_read`, `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`
+
+**חשוב לדעת:**
+- App חייב להיות ב-Development mode עד שעובר App Review מלא
+- Testers בלבד יכולים לחבר במצב Development — אחרת Scopes לא זמינים
+- Graph API version: נדרש לעדכן ל-v21.0+ מדי שנה
+
+---
+
+#### 3.3 TikTok Ads
+**תפקיד:** פרסום בתשלום על TikTok
+
+**חיבור בקוד:**
+- `packages/ad-connectors/src/tiktok/` — TikTok Ads API
+- `apps/api/src/routes/connectors.ts` — OAuth
+- env vars: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
+
+**חשוב לדעת:**
+- TikTok Ads API דורש Business Center access
+- פחות mature מ-Meta/Google — פחות rate limits אבל API לא יציב
+
+---
+
+### קטגוריה 4 — AI ומודלים
+
+---
+
+#### 4.1 OpenAI
+**תפקיד:** מודל AI ראשי לכל פעולות התוכן והניתוח
+
+**שימושים בקוד:**
+- Chat advisor — `gpt-4o-mini` לשיחות ניהול
+- ייצור פוסטים לסושיאל מדיה
+- ניתוח sentiment תגובות
+- Policy classifier — בדיקת תוכן לפני פרסום
+- Brief generation — תוכנית יצירתית
+- Crisis detection — זיהוי תגובות קריטיות
+
+**חיבור בקוד:**
+- `packages/ai-router/src/router.ts` — ניתוב בין providers
+- `packages/ai-router/src/providers/` — OpenAI, Anthropic, Gemini adapters
+- `apps/api/src/routes/chat.ts` — chat handler → ai-router
+- `apps/api/src/services/social-content.ts` — post generation
+- `apps/api/src/services/comment-insights.ts` — sentiment
+- env vars: `OPENAI_API_KEY`
+
+**חשוב לדעת:**
+- המודל העיקרי: `gpt-4o-mini` (עלות נמוכה, מהיר)
+- עלות ה-AI היא העלות הגדולה ביותר בפרויקט — circuit breaker מגן על רווחיות
+- `ai_usage_monthly` מאכסן את העלות הצבורה per tenant per month
+
+---
+
+#### 4.2 Anthropic (Claude)
+**תפקיד:** Provider משני — בשימוש ל-tasks שדורשים הבנה עמוקה יותר
+
+**חיבור בקוד:**
+- `packages/ai-router/src/providers/anthropic.ts` — adapter מוכן
+- מנוהל דרך `ai-router` — ניתוב אוטומטי לפי task type
+- env vars: `ANTHROPIC_API_KEY`
+
+**חשוב לדעת:**
+- מוגדר אך לא בשימוש ראשי כרגע — ai-router מנתב ל-OpenAI כברירת מחדל
+
+---
+
+#### 4.3 Google Gemini
+**תפקיד:** Provider שלישי — גיבוי / tasks מסוימים
+
+**חיבור בקוד:**
+- `packages/ai-router/src/providers/gemini.ts`
+- env vars: `GEMINI_API_KEY`
+
+**חשוב לדעת:**
+- מוגדר, לא פעיל בתהליכי ייצור עיקריים
+
+---
+
+#### 4.4 HeyGen
+**תפקיד:** יצירת וידאו עם avatar מדבר (AI video generation)
+
+**חיבור בקוד:**
+- מוזכר כ-add-on בתמחור (`videoCinematic`, `videoAvatar`)
+- env vars: `HEYGEN_API_KEY`
+
+**חשוב לדעת:**
+- פיצ'ר בשלב beta — עדיין לא מחובר לUI
+
+---
+
+#### 4.5 Replicate
+**תפקיד:** מודלים נוספים לתמונות / וידאו
+
+**חיבור בקוד:**
+- env vars: `REPLICATE_API_TOKEN` (כרגע placeholder בלבד)
+
+---
+
+### קטגוריה 5 — תשלומים וחיוב
+
+---
+
+#### 5.1 Paddle
+**תפקיד:** מנוע subscription ותשלום (מחליף Stripe כברירת מחדל)
+
+**מה עושה:**
+- ניהול מנויים (Free / Pro)
+- Checkout hosted (אין טיפול ב-CC data אצלנו)
+- Webhook events: `subscription.created`, `subscription.cancelled`, `payment.succeeded`
+- Customer portal (self-service לביטול / שינוי)
+
+**חיבור בקוד:**
+- `apps/api/src/billing/paddle.ts` — `getOrCreatePaddleCustomer`, `createPaddleCheckout`, `createPaddlePortalSession`, `verifyPaddleWebhook`
+- `apps/api/src/routes/billing.ts` — `/billing/checkout`, `/billing/portal`, `/billing/webhook`
+- `apps/api/src/billing/calculator.ts` — חישוב חיוב חודשי
+- `apps/api/src/billing/pricing.ts` — הגדרת תוכניות, תמחור, circuit breaker
+- env vars: `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`
+
+**חשוב לדעת:**
+- Paddle 2023 API (לא הישנה) — billing entity = Paddle, לא Vigmis
+- Paddle הוא ה-Merchant of Record — מטפל במע"מ / VAT אוטומטית
+
+---
+
+#### 5.2 Stripe
+**תפקיד:** תשלום חלופי / add-ons (מוגדר אך לא ראשי)
+
+**חיבור בקוד:**
+- `apps/api/src/billing/stripe.ts` (אם קיים) — לא בשימוש ראשי
+- env vars: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`
+
+**חשוב לדעת:**
+- מפתחות test בסביבת dev (prefix `sk_test_`, `pk_test_`)
+- Paddle הוא ה-primary — Stripe גיבוי
+
+---
+
+### קטגוריה 6 — Analytics ו-Tracking
+
+---
+
+#### 6.1 Google Analytics 4 (GA4)
+**תפקיד:** מקור אמת להמרות ו-ROAS אמיתי
+
+**מה עושה:**
+- שליפת conversion events אמיתיים (purchases, leads)
+- מחשב ROAS אמיתי (revenue / ad spend) במקום attribution של הפלטפורמה
+- מסנכרן ל-`ga4_daily_metrics` ב-DB
+
+**חיבור בקוד:**
+- `apps/api/src/routes/ga4.ts` — חיבור property, שליפת נתונים
+- `apps/web/app/api/cron/ga4-sync/route.ts` — cron יומי לסנכרון
+- `apps/api/src/services/` — incrementality analysis משתמש ב-GA4 data
+- env vars: דרך Google OAuth (אותו `GOOGLE_CLIENT_ID` + Refresh Token per tenant)
+
+**חשוב לדעת:**
+- כל tenant מחבר Property ID משלו
+- GA4 Data API דורש scope: `https://www.googleapis.com/auth/analytics.readonly`
+
+---
+
+### קטגוריה 7 — תקשורת ו-Notifications
+
+---
+
+#### 7.1 SendGrid
+**תפקיד:** שליחת אימיילים (daily reports, alerts, invoices)
+
+**חיבור בקוד:**
+- `apps/api/src/services/notify.ts` — `sendEmail()` function
+- נקרא מ: briefings, stop-loss alerts, AI breaker freeze, monthly reports
+- env vars: `SENDGRID_API_KEY`
+
+**חשוב לדעת:**
+- כל notification email עובר דרך SendGrid
+- OPS_ALERT_EMAIL — כתובת admin לqibbles קריטיים (circuit breaker freeze)
+
+---
+
+#### 7.2 Twilio
+**תפקיד:** WhatsApp messaging (Comment-to-Lead)
+
+**חיבור בקוד:**
+- env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `WHATSAPP_FROM`
+- מוגדר לשליחת WhatsApp messages ללידים שמגיעים מתגובות
+
+**חשוב לדעת:**
+- Sandbox: `whatsapp:+14155238886` — sandbox של Twilio, לא מספר עסקי אמיתי
+- לפרודקשן: נדרש Twilio WhatsApp Business account עם מספר מאושר
+
+---
+
+### קטגוריה 8 — E-Commerce
+
+---
+
+#### 8.1 Shopify
+**תפקיד:** סנכרון נתוני מכירות ו-AOV (Average Order Value)
+
+**מה עושה:**
+- שליפת orders + revenue data אמיתית
+- מחשב ROAS אמיתי על בסיס מכירות Shopify (לא platform attribution)
+- מסנכרן ל-`shopify_tables` ב-DB
+
+**חיבור בקוד:**
+- `apps/api/src/services/shopify-sync.ts`
+- `apps/web/app/api/cron/shopify-sync/route.ts` — cron יומי
+- migration 036 — `shopify_tables`
+
+**חשוב לדעת:**
+- דורש Shopify Private App token per tenant
+- חלופה לGA4 לעסקי e-commerce — נתוני מכירות ישירים
+
+---
+
+### קטגוריה 9 — Monitoring ומידע חיצוני
+
+---
+
+#### 9.1 Weather API
+**תפקיד:** נתוני מזג אוויר לקמפיינים geo-based
+
+**חיבור בקוד:**
+- `apps/api/src/services/weather.ts`
+- `apps/web/app/api/cron/weather/route.ts` — מסנכרן יומי
+- `weather_data` table ב-DB
+- env vars: מוגדר בservice (API key ספציפי לספק שנבחר)
+
+---
+
+#### 9.2 News Monitoring
+**תפקיד:** ניטור חדשות לזיהוי אירועים שמשפיעים על מותג הלקוח
+
+**חיבור בקוד:**
+- `apps/api/src/services/news-monitor.ts`
+- `apps/web/app/api/cron/news-scan/route.ts` — סריקה יומית
+- `news_alerts` table ב-DB
+
+---
+
+### קטגוריה 10 — מפות ו-Code
+
+---
+
+#### 10.1 GitHub / Version Control
+**תפקיד:** שמירת קוד המקור
+
+**מבנה ה-Repo:**
+```
+vigmis-main/
+├── apps/
+│   ├── api/          → Railway (Fastify backend)
+│   ├── web/          → Vercel (Next.js frontend + crons)
+│   └── marketing/    → Vercel (landing page)
+├── packages/
+│   ├── db/           → Supabase client + crypto
+│   ├── ad-connectors/→ Google, Meta, TikTok adapters
+│   ├── ai-router/    → OpenAI, Anthropic, Gemini router
+│   └── config/       → shared config
+└── supabase/
+    └── migrations/   → 39 SQL migration files
+```
+
+---
+
+### מפת חיבורים מהירה
+
+| שירות | מחובר ל | דרך |
+|-------|---------|-----|
+| Vercel | Railway API | `NEXT_PUBLIC_API_URL` env var |
+| Vercel | Clerk | `CLERK_SECRET_KEY` + middleware |
+| Railway API | Supabase | `SUPABASE_URL` + `SERVICE_ROLE_KEY` |
+| Railway API | OpenAI | `OPENAI_API_KEY` |
+| Railway API | Meta Graph API | OAuth token per tenant (encrypted in DB) |
+| Railway API | Google Ads | OAuth token per tenant (encrypted in DB) |
+| Railway API | SendGrid | `SENDGRID_API_KEY` |
+| Railway API | Paddle | `PADDLE_API_KEY` + webhook |
+| Railway API | Twilio | `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` |
+| Web (Next.js) | Clerk | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` |
+| Crons (Vercel) | Railway API | `NEXT_PUBLIC_API_URL` + `CRON_SECRET` |
+
+---
+
+### Environment Variables — מיפוי מלא
+
+| משתנה | נמצא ב | שירות |
+|-------|--------|-------|
+| `SUPABASE_URL` | Railway | Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Railway | Supabase |
+| `CLERK_SECRET_KEY` | Railway + Vercel | Clerk |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Vercel | Clerk |
+| `OPENAI_API_KEY` | Railway | OpenAI |
+| `ANTHROPIC_API_KEY` | Railway | Anthropic |
+| `GEMINI_API_KEY` | Railway | Google Gemini |
+| `HEYGEN_API_KEY` | Railway | HeyGen |
+| `TOKEN_ENCRYPTION_KEY` | Railway | הצפנת OAuth tokens |
+| `GOOGLE_CLIENT_ID` | Railway | Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Railway | Google OAuth |
+| `GOOGLE_REDIRECT_URI` | Railway | Google OAuth |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Railway | Google Ads |
+| `META_APP_ID` | Railway | Meta OAuth |
+| `META_APP_SECRET` | Railway | Meta OAuth |
+| `META_REDIRECT_URI` | Railway | Meta OAuth |
+| `FB_ACCESS_TOKEN` | Railway | Meta Graph API |
+| `TIKTOK_CLIENT_KEY` | Railway | TikTok OAuth |
+| `TIKTOK_CLIENT_SECRET` | Railway | TikTok OAuth |
+| `TIKTOK_REDIRECT_URI` | Railway | TikTok OAuth |
+| `PADDLE_API_KEY` | Railway | Paddle billing |
+| `PADDLE_WEBHOOK_SECRET` | Railway | Paddle webhooks |
+| `STRIPE_SECRET_KEY` | Railway | Stripe (גיבוי) |
+| `STRIPE_PUBLISHABLE_KEY` | Railway | Stripe (גיבוי) |
+| `SENDGRID_API_KEY` | Railway | SendGrid email |
+| `TWILIO_ACCOUNT_SID` | Railway | Twilio WhatsApp |
+| `TWILIO_AUTH_TOKEN` | Railway | Twilio WhatsApp |
+| `WHATSAPP_FROM` | Railway | Twilio WhatsApp |
+| `CRON_SECRET` | Railway + Vercel | אבטחת crons |
+| `NEXT_PUBLIC_API_URL` | Vercel | כתובת ה-API |
+| `WEB_URL` | Railway | כתובת ה-Web (CORS) |
+| `PORT` | Railway | פורט שרת API |
+
+---
+
+*עדכון אחרון: 2026-05-30 — על בסיס QA פנימי + Railway env pull.*

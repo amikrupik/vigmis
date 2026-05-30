@@ -94,7 +94,8 @@ export function breakerState(
 ): 'ok' | 'degrade' | 'freeze' {
   if (feeUsd <= 0) return aiCostUsd > 0 ? 'freeze' : 'ok';
   const pct = (aiCostUsd / feeUsd) * 100;
-  if (pct >= BREAKER.freezeAtPct) return 'freeze';
+  const freezeAt = PLAN_PRICING[plan].breakerFreezePct;
+  if (pct >= freezeAt) return 'freeze';
   if (pct >= BREAKER.degradeAtPct) return 'degrade';
   return 'ok';
 }
