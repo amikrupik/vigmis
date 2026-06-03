@@ -79,6 +79,11 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   "hashtags": ["<tag1>", "<tag2>", ...]
 }
 
+CALL-TO-ACTION RULE:
+${input.websiteUrl
+  ? `- END EVERY POST with a call-to-action. Use the business website URL: ${input.websiteUrl}`
+  : `- END EVERY POST with a call-to-action. Encourage the reader to contact the business (e.g. "DM us", "Contact us today", or similar).`}
+
 Rules:
 - The post MUST be about the actual business above — its actual products. NEVER invent products that aren't in the content.
 - If the content above is empty or you cannot tell what the business sells, return {"text": "INSUFFICIENT_CONTENT", "hashtags": []} and stop.

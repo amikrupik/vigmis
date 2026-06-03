@@ -208,6 +208,52 @@ export async function accountRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── Save logo URL ─────────────────────────────────────────────────────────
+  app.put('/settings/logo', { preHandler: authenticate }, async (request, reply) => {
+    const { logo_url } = request.body as { logo_url?: string };
+    if (typeof logo_url !== 'string') {
+      return reply.code(400).send({ error: 'logo_url (string) is required' });
+    }
+    const { error } = await db
+      .from('client_settings')
+      .update({ logo_url: logo_url || null })
+      .eq('tenant_id', request.tenantId);
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ success: true });
+  });
+
+  // ── Upload logo to Supabase Storage ──────────────────────────────────────
+  app.post('/settings/logo/upload', { preHandler: authenticate }, async (request, reply) => {
+    const data = await request.file?.();
+    if (!data) return reply.code(400).send({ error: 'No file uploaded' });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+
+    if (buffer.length > 2 * 1024 * 1024) {
+      return reply.code(400).send({ error: 'File too large — maximum 2 MB' });
+    }
+
+    const ext = data.mimetype === 'image/png' ? 'png' : data.mimetype === 'image/gif' ? 'gif' : 'jpg';
+    const path = `${request.tenantId}/logo.${ext}`;
+
+    const { error: uploadError } = await db.storage.from('logos').upload(path, buffer, {
+      contentType: data.mimetype,
+      upsert: true,
+    });
+
+    if (uploadError) return reply.code(500).send({ error: uploadError.message });
+
+    const { data: urlData } = db.storage.from('logos').getPublicUrl(path);
+    const url = `${urlData.publicUrl}?v=${Date.now()}`;
+
+    // Also save to client_settings
+    await db.from('client_settings').update({ logo_url: url }).eq('tenant_id', request.tenantId);
+
+    return reply.send({ url });
+  });
+
   // ── Unsubscribe (no auth — token = tenantId) ───────────────────────────────
   app.post('/account/unsubscribe', async (request, reply) => {
     const { token } = request.body as { token?: string };

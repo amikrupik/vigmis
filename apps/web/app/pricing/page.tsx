@@ -64,7 +64,7 @@ export default function PricingPage() {
               <ul className="space-y-3 text-sm text-slate-700 flex-1 mb-8">
                 <li className="flex items-start gap-2">{CHECK}<span>Google, Meta & TikTok management</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>100 AI reply drafts</strong> included / month</span></li>
-                <li className="flex items-start gap-2">{CHECK}<span>AI optimization <strong>3× / day</strong></span></li>
+                <li className="flex items-start gap-2">{CHECK}<span>AI Optimization</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>Weekly</strong> performance briefing (WhatsApp / email)</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span>AI social posts — caption + image + publish</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span>Analytics & reporting dashboard</span></li>
@@ -108,7 +108,7 @@ export default function PricingPage() {
                 <li className="flex items-start gap-2">{CHECK}<span>Everything in Grow</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>5 social posts</strong> included / month (caption + image + publish)</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>300 AI reply drafts</strong> included / month</span></li>
-                <li className="flex items-start gap-2">{CHECK}<span>AI optimization <strong>6× / day</strong></span></li>
+                <li className="flex items-start gap-2">{CHECK}<span>Advanced AI Optimization</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>Daily</strong> performance briefing (WhatsApp / email)</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>1 video</strong> + <strong>3 image creatives</strong> included / month</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>Up to 3 users</strong> per workspace</span></li>
@@ -165,9 +165,9 @@ export default function PricingPage() {
                   <td className="px-6 py-3 text-center text-indigo-700">Google, Meta, TikTok</td>
                 </tr>
                 <tr>
-                  <td className="px-6 py-3 text-slate-700">Optimization runs</td>
-                  <td className="px-6 py-3 text-center">3× / day</td>
-                  <td className="px-6 py-3 text-center font-medium text-indigo-700">6× / day</td>
+                  <td className="px-6 py-3 text-slate-700">AI Optimization</td>
+                  <td className="px-6 py-3 text-center">AI Optimization</td>
+                  <td className="px-6 py-3 text-center font-medium text-indigo-700">Advanced AI Optimization</td>
                 </tr>
 
                 <tr className="bg-slate-50/50">

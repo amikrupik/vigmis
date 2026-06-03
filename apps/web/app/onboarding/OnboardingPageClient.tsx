@@ -73,6 +73,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [error, setError] = useState<string | null>(
     initialError ? (OAUTH_ERROR_MESSAGES[initialError] ?? 'Connection error') : null,
   );
+  const [errorCode] = useState<string | null>(initialError ?? null);
   const [pendingSettings, setPendingSettings] = useState<OnboardingSettings | null>(null);
   const [pendingConversation, setPendingConversation] = useState<ConversationMessage[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
@@ -358,6 +359,44 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>
+            )}
+
+            {(errorCode === 'google_denied' || errorCode === 'meta_denied') && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 space-y-2">
+                <p className="font-semibold">
+                  {errorCode === 'google_denied'
+                    ? "Don't have a Google Ads account yet?"
+                    : "Don't have a Meta Business account yet?"}
+                </p>
+                <p>
+                  It looks like the connection didn&apos;t complete. If you don&apos;t have a{' '}
+                  {errorCode === 'google_denied' ? 'Google Ads' : 'Meta Business'} account yet,
+                  you can create one for free — it takes about 5 minutes.
+                </p>
+                {errorCode === 'google_denied' && (
+                  <a
+                    href="https://ads.google.com/start"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                  >
+                    Create a Google Ads account →
+                  </a>
+                )}
+                {errorCode === 'meta_denied' && (
+                  <a
+                    href="https://www.facebook.com/business/help/1710077379203657"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                  >
+                    Create a Meta Business account →
+                  </a>
+                )}
+                <p className="text-xs text-blue-600">
+                  Once your account is set up, come back here and click Connect again.
+                </p>
+              </div>
             )}
 
             <div className="space-y-3">

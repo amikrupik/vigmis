@@ -190,12 +190,45 @@ export default function DashboardClient() {
                   </span>
                 )}
               </button>
+              <a href="/settings/general" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Settings</a>
               <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Billing</a>
               <ClerkSignOutButton />
             </div>
           </div>
         </div>
       </header>
+
+      {/* Platform status bar */}
+      <div className="bg-white border-b border-slate-100 px-6 py-2">
+        <div className="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">Connections</span>
+          {[
+            { name: 'Google Ads', key: 'google' as const, connected: connected.google },
+            { name: 'Meta Ads', key: 'meta' as const, connected: connected.meta },
+            { name: 'TikTok', key: 'tiktok' as const, connected: !!connected.tiktok },
+          ].map(p => (
+            <span
+              key={p.key}
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                p.connected
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.connected ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+              {p.name}
+              {!p.connected && (
+                <button
+                  onClick={() => setTab('social')}
+                  className="ml-0.5 underline underline-offset-2 hover:no-underline text-amber-600"
+                >
+                  Connect
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
 
       {/* Tab nav */}
       <div className="bg-white border-b border-slate-200 px-6">
@@ -3984,6 +4017,18 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {/* Posts section */}
       {activeSection === 'posts' && (
       <div className="space-y-6">
+
+      {/* Connection-aware informational banner */}
+      {metaConnected && !googleConnected && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+          <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>
+            Publishing to Facebook &amp; Instagram. Connect Google Ads to manage paid campaigns too.
+          </span>
+        </div>
+      )}
 
       {/* Cooling-off banner — visible during 1-hour high-stakes delay */}
       {coolingOffPosts.length > 0 && (
