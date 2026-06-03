@@ -193,6 +193,62 @@ Customers can't evaluate frequency — daily vs weekly briefing is the felt diff
 
 ---
 
+---
+
+## CATEGORY F — Multi-Language & Multi-Market
+
+### F1. Multi-market onboarding — target languages per market
+**Priority:** High | **Size:** Medium  
+**What:** During onboarding questionnaire, add explicit step:
+- "Which countries/regions do you sell to?" → multi-select
+- Per selected country: auto-suggest the primary language(s)
+  - Israel → Hebrew + Arabic (optional)
+  - France → French
+  - UK / US → English
+  - Greece → Greek
+  - Germany → German
+  - etc.
+- Customer can override (e.g., Israeli company selling to English-speaking tourists → English)
+- Stored in `client_settings.target_markets: [{ country: 'FR', language: 'fr' }, { country: 'GB', language: 'en' }]`
+
+**Already exists:** Auto language detection from website. 4-language briefings (en/he/ar/ru).  
+**Missing:** Multi-market config, per-campaign language assignment, onboarding market step.  
+**Files:** `apps/api/src/routes/onboarding.ts`, `client_settings` schema, onboarding UI.
+
+### F2. Per-campaign and per-post language selection
+**Priority:** High | **Size:** Medium  
+**What:**
+- Each campaign has a `target_language` field (defaults from target_markets)
+- Each post inherits language from its campaign, can be overridden
+- When generating content: AI receives explicit language instruction
+- Multi-market companies get separate content streams per language
+  - E.g., French posts for France campaign, Greek posts for Greece campaign
+
+**Files:** Campaign schema, social content generation service, post generation UI.
+
+### F3. Multi-language content generation
+**Priority:** High | **Size:** Small (foundation already exists)  
+**What:**
+- AI generates posts/scripts in any language (not just en/he/ar/ru)
+- Image captions/overlaid text in the correct language
+- Video scripts in the correct language
+- Customer can write to Vigmis in their own language (chat, briefs) — AI responds in same language
+- Platform-specific character limits respected per language (e.g., CJK characters count differently)
+
+**Already works:** Hebrew, Arabic, Russian, English. Need: French, Greek, German, Spanish, Italian, etc.  
+**Files:** `packages/ai-router`, system prompts in social content service.
+
+### F4. Language detection from customer input
+**Priority:** Low | **Size:** Tiny  
+**What:** When customer types a brief or chat message in French/Greek/etc., Vigmis:
+1. Detects the language
+2. Responds in the same language
+3. Generates content in that language (unless overridden by campaign setting)
+
+**Files:** Chat route, content generation pipeline.
+
+---
+
 ## Suggested Batch Order
 
 ### Batch 1 — Quick wins (1-2 days)
@@ -219,6 +275,12 @@ Customers can't evaluate frequency — daily vs weekly briefing is the felt diff
 
 ### Batch 5 — Strategy & Budget UX (2-3 days)
 - A7: Budget recommendation respects connected platforms
+
+### Batch 6 — Multi-language & Multi-market (3-4 days)
+- F1: Multi-market onboarding step
+- F2: Per-campaign language assignment
+- F3: Full multi-language content generation
+- F4: Language detection from customer input
 
 ---
 
