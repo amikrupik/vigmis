@@ -85,10 +85,13 @@ export class TikTokAdsConnector implements AdConnector {
       body: body.toString(),
     });
 
-    const json = (await res.json()) as TikTokTokenResponse;
+    const rawBody = await res.text();
+    let json: TikTokTokenResponse;
+    try { json = JSON.parse(rawBody) as TikTokTokenResponse; }
+    catch { throw new Error(`TikTok token exchange: non-JSON response (${res.status}): ${rawBody.slice(0, 300)}`); }
 
     if (!res.ok || json.error || !json.access_token) {
-      throw new Error(`TikTok token exchange failed: ${json.error_description ?? json.error ?? 'unknown error'}`);
+      throw new Error(`TikTok token exchange failed (${res.status}): error=${json.error} desc=${json.error_description} raw=${rawBody.slice(0, 500)}`);
     }
 
     const expiresAt = new Date(Date.now() + json.expires_in * 1000);
