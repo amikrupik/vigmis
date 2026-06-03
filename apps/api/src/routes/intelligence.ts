@@ -9,6 +9,7 @@ import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { route } from '@vigmis/ai-router';
 import { createMetaAdSet } from '@vigmis/ad-connectors';
+import { analyzeCreativeThemesForTenant } from '../services/creative-theme-insights.js';
 
 export async function intelligenceRoutes(app: FastifyInstance) {
 
@@ -658,6 +659,13 @@ Return ONLY valid JSON:
     }
 
     return reply.send({ ...audit, website_url, goal });
+  });
+
+  // ── Creative Themes ───────────────────────────────────────────────────────────
+  // GET /intelligence/creative-themes — cross-creative theme learning
+  app.get('/intelligence/creative-themes', { preHandler: authenticate }, async (request, reply) => {
+    const result = await analyzeCreativeThemesForTenant(request.tenantId);
+    return reply.send(result);
   });
 
   // ── Budget Pacing ────────────────────────────────────────────────────────────

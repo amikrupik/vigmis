@@ -423,8 +423,14 @@ export async function rejectSocialPost(id: string, reason?: string) {
   return apiCall(`/social/posts/${id}/reject`, 'POST', { reason });
 }
 
-export async function generateSocialContent() {
-  return apiCall('/social/generate', 'POST');
+export async function generateSocialContent(brief?: {
+  product?: string;
+  message?: string;
+  style?: string;
+  cta?: string;
+  restrictions?: string;
+} | null) {
+  return apiCall('/social/generate', 'POST', brief ? { brief } : {});
 }
 
 export async function getSocialAnalytics() {
@@ -499,6 +505,32 @@ export async function exportMarketingPlanHTML() {
 
 export async function exportInvoiceHTML() {
   return apiRaw('/export/invoice?format=html');
+}
+
+// ── Batch 8: Creative Scoring (vision) ───────────────────────────────────────
+
+export async function scoreCreativeAsset(
+  imageUrl: string,
+  platform: string,
+  goal?: string,
+) {
+  return apiCall('/creatives/score', 'POST', {
+    image_url: imageUrl,
+    platform,
+    goal: goal ?? 'awareness',
+  });
+}
+
+// ── Batch 8: Creative Theme Insights ─────────────────────────────────────────
+
+export async function getCreativeThemes() {
+  return apiCall('/intelligence/creative-themes');
+}
+
+// ── Batch 8: Budget Scenario Forecast ────────────────────────────────────────
+
+export async function getBudgetForecast(budget: number) {
+  return apiCall(`/analytics/budget-forecast?budget=${encodeURIComponent(budget)}`);
 }
 
 // ── Conversion Readiness ──────────────────────────────────────────────────────

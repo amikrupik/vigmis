@@ -18,6 +18,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { scoreCreativeImage } from '../services/creative-scorer.js';
 
 // ── Supabase Storage upload ───────────────────────────────────────────────────
 // Copies a provider video URL to Supabase Storage bucket "creatives"
@@ -254,9 +255,49 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'type and brief are required' });
     }
 
+    // Enrich the brief with brand context from client_settings
+    const { data: clientSettings } = await db
+      .from('client_settings')
+      .select('logo_url, website_url')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    const logoUrl: string | null = (clientSettings as any)?.logo_url ?? null;
+    const websiteUrl: string | null = (clientSettings as any)?.website_url ?? null;
+
+    // Enrich avatar brief: inject logo + CTA into script
+    const enrichedBrief = { ...brief };
+    if (type === 'avatar' && typeof enrichedBrief.script === 'string') {
+      if (logoUrl) {
+        enrichedBrief.script = `${enrichedBrief.script}`;
+        // Logo reference for avatar: pass as background hint
+        if (!enrichedBrief.background) {
+          enrichedBrief._logo_url = logoUrl;
+        }
+      }
+      // Append CTA to script if not already ending with website/contact
+      if (websiteUrl && !enrichedBrief.script.includes(websiteUrl)) {
+        enrichedBrief.script = `${enrichedBrief.script} Visit us at ${websiteUrl}.`;
+      }
+    }
+
+    // Enrich cinematic/animation brief: inject logo and CTA into prompt
+    if ((type === 'cinematic' || type === 'animation') && typeof enrichedBrief.prompt === 'string') {
+      const additions: string[] = [];
+      if (logoUrl) {
+        additions.push(`Incorporate the brand identity and logo style from ${logoUrl}.`);
+      }
+      if (websiteUrl) {
+        additions.push(`End with a call-to-action: visit ${websiteUrl} or contact the business.`);
+      }
+      if (additions.length > 0) {
+        enrichedBrief.prompt = `${enrichedBrief.prompt} ${additions.join(' ')}`;
+      }
+    }
+
     const providerReady = isProviderReady(type);
 
-    // Insert job record
+    // Insert job record (store the enriched brief so future polling can reconstruct context)
     const { data: job, error: insertErr } = await db
       .from('creative_jobs')
       .insert({
@@ -264,7 +305,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         campaign_id: campaign_id ?? null,
         type,
         platform: platform ?? null,
-        brief,
+        brief: enrichedBrief,
         status: providerReady ? 'queued' : 'pending_setup',
         provider_job_id: null,
         output_url: null,
@@ -290,18 +331,18 @@ export async function creativeRoutes(app: FastifyInstance) {
       });
     }
 
-    // Submit to provider
+    // Submit to provider using enriched brief
     try {
       let providerJobId: string;
 
       if (type === 'avatar') {
-        const result = await submitHeyGenJob(brief as any);
+        const result = await submitHeyGenJob(enrichedBrief as any);
         providerJobId = result.jobId;
       } else if (type === 'cinematic') {
-        const result = await submitCinematicJob(brief as any);
+        const result = await submitCinematicJob(enrichedBrief as any);
         providerJobId = result.jobId;
       } else {
-        const result = await submitAnimationJob(brief as any);
+        const result = await submitAnimationJob(enrichedBrief as any);
         providerJobId = result.jobId;
       }
 
@@ -469,5 +510,29 @@ export async function creativeRoutes(app: FastifyInstance) {
       .limit(50);
 
     return reply.send({ jobs: jobs ?? [] });
+  });
+
+  // POST /creatives/score — vision-based pre-launch scoring
+  app.post('/creatives/score', { preHandler: authenticate }, async (request, reply) => {
+    const { image_url, platform, goal } = request.body as {
+      image_url: string;
+      platform: string;
+      goal?: string;
+    };
+
+    if (!image_url || !platform) {
+      return reply.code(400).send({ error: 'image_url and platform are required' });
+    }
+
+    try {
+      const score = await scoreCreativeImage(image_url, {
+        platform,
+        goal: goal ?? 'awareness',
+      });
+      return reply.send(score);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Scoring failed';
+      return reply.code(500).send({ error: message });
+    }
   });
 }

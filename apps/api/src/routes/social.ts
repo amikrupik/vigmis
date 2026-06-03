@@ -446,7 +446,8 @@ export async function socialRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: 'trust_tier_blocked', tier, reason: tierGate.reason });
     }
     try {
-      const result = await generateWeeklyPostsForTenant(request.tenantId);
+      const body = (request.body ?? {}) as { brief?: Record<string, string> };
+      const result = await generateWeeklyPostsForTenant(request.tenantId, body.brief ?? null);
       return reply.send(result);
     } catch (err) {
       request.log.error({ err, tenantId: request.tenantId }, 'Social generate failed');
@@ -746,7 +747,10 @@ export async function socialRoutes(app: FastifyInstance) {
 
 // ── Weekly generation logic ───────────────────────────────────────────────────
 
-async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generated: number; skipped: number }> {
+async function generateWeeklyPostsForTenant(
+  tenantId: string,
+  brief?: Record<string, string> | null,
+): Promise<{ generated: number; skipped: number }> {
   const { data: settings } = await db
     .from('social_settings')
     .select('*')
@@ -758,7 +762,7 @@ async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generat
 
   const { data: clientSettings } = await db
     .from('client_settings')
-    .select('website_url, website_analysis, goal, strategy_plan')
+    .select('website_url, website_analysis, goal, strategy_plan, logo_url, content_language')
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
@@ -815,6 +819,9 @@ async function generateWeeklyPostsForTenant(tenantId: string): Promise<{ generat
         goal: clientSettings?.goal ?? 'leads',
         strategyPlan: clientSettings?.strategy_plan ?? undefined,
         brandVoice: settings.brand_voice ?? undefined,
+        logoUrl: (clientSettings as any)?.logo_url ?? undefined,
+        contentLanguage: (clientSettings as any)?.content_language ?? undefined,
+        brief: brief ?? undefined,
       });
 
       const scheduledFor = getOptimalPostTime(platform, nextMonday);

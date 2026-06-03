@@ -132,7 +132,7 @@ async function executeActions(
       if (!isPlatform(platform)) { results.push({ type, success: false, detail: `Invalid platform "${platform}"` }); continue; }
       try {
         const [{ data: cs }, { data: ss }] = await Promise.all([
-          db.from('client_settings').select('website_url, website_analysis, goal, strategy_plan').eq('tenant_id', tenantId).maybeSingle(),
+          db.from('client_settings').select('website_url, website_analysis, goal, strategy_plan, content_language').eq('tenant_id', tenantId).maybeSingle(),
           db.from('social_settings').select('brand_voice, approval_mode').eq('tenant_id', tenantId).maybeSingle(),
         ]);
         const content = await generateSocialContent({
@@ -144,6 +144,7 @@ async function executeActions(
           goal: cs?.goal ?? 'leads',
           strategyPlan: cs?.strategy_plan ?? undefined,
           brandVoice: ss?.brand_voice ?? undefined,
+          contentLanguage: (cs as any)?.content_language ?? undefined,
         });
         const scheduledFor = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const { data: post } = await db.from('social_posts').insert({

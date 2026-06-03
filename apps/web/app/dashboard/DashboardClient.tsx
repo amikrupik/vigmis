@@ -32,6 +32,7 @@ import {
   exportCampaignsCSV, exportCampaignsHTML,
   exportSocialCSV, exportSocialHTML,
   exportMarketingPlanHTML, exportInvoiceHTML,
+  scoreCreativeAsset, getCreativeThemes, getBudgetForecast,
 } from './actions';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
@@ -1299,6 +1300,10 @@ function CreativeTab({ settings }: any) {
   const [videoJob, setVideoJob] = useState<any>(null);
   const [jobs, setJobs] = useState<CreativeJob[]>([]);
 
+  // Pre-launch creative scoring (G1)
+  const [jobScores, setJobScores] = useState<Record<string, any>>({});
+  const [scoringJobId, setScoringJobId] = useState<string | null>(null);
+
   useEffect(() => {
     getCreatives().then(res => setJobs(res?.jobs ?? []));
   }, []);
@@ -1390,6 +1395,13 @@ function CreativeTab({ settings }: any) {
     const res = await scoreCreative(scoreForm.type, scoreForm.description, scoreForm.audience, platform, settings?.goal ?? 'leads');
     setScoreResult(res);
     setScoreLoading(false);
+  }
+
+  async function handleScoreJob(jobId: string, imageUrl: string) {
+    setScoringJobId(jobId);
+    const res = await scoreCreativeAsset(imageUrl, platform, settings?.goal ?? 'awareness');
+    setJobScores(prev => ({ ...prev, [jobId]: res }));
+    setScoringJobId(null);
   }
 
   const statusColor = (s: string) =>
@@ -1609,6 +1621,63 @@ function CreativeTab({ settings }: any) {
                         </a>
                       </div>
                     )}
+
+                    {/* G1: Pre-launch Creative Scoring */}
+                    {job.status === 'completed' && job.output_url && (
+                      <div className="px-3 pb-3 space-y-2">
+                        {!jobScores[job.id] && (
+                          <button
+                            onClick={() => handleScoreJob(job.id, job.output_url!)}
+                            disabled={scoringJobId === job.id}
+                            className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {scoringJobId === job.id ? 'Scoring...' : 'Score this creative'}
+                          </button>
+                        )}
+                        {jobScores[job.id] && (() => {
+                          const s = jobScores[job.id];
+                          const scoreColor =
+                            s.score >= 80 ? 'text-emerald-600' :
+                            s.score >= 60 ? 'text-amber-500' :
+                            s.score >= 40 ? 'text-orange-500' : 'text-red-500';
+                          const badgeBg =
+                            s.score >= 80 ? 'bg-emerald-100 border-emerald-200' :
+                            s.score >= 60 ? 'bg-amber-100 border-amber-200' :
+                            s.score >= 40 ? 'bg-orange-100 border-orange-200' : 'bg-red-100 border-red-200';
+                          return (
+                            <div className={`border rounded-xl p-3 space-y-2 ${badgeBg}`}>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-3xl font-black ${scoreColor}`}>{s.score}</span>
+                                <div>
+                                  <p className={`text-sm font-bold capitalize ${scoreColor}`}>{s.verdict}</p>
+                                  <div className="flex gap-2 text-xs text-slate-500 mt-0.5">
+                                    <span>Attention: {s.attention}</span>
+                                    <span>Clarity: {s.clarity}</span>
+                                    <span>Emotion: {s.emotion}</span>
+                                    <span>CTA: {s.cta_presence}</span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setJobScores(prev => { const n = { ...prev }; delete n[job.id]; return n; })}
+                                  className="ml-auto text-xs text-slate-400 hover:text-slate-600"
+                                >
+                                  Re-score
+                                </button>
+                              </div>
+                              {s.tips?.length > 0 && (
+                                <ul className="space-y-0.5">
+                                  {s.tips.map((tip: string, i: number) => (
+                                    <li key={i} className="text-xs text-slate-600 flex gap-1.5">
+                                      <span className="text-amber-500 flex-shrink-0">→</span>{tip}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1731,7 +1800,7 @@ function CreativeTab({ settings }: any) {
 // ── Intelligence Tab ──────────────────────────────────────────────────────────
 
 function IntelligenceTab({ settings, connected, campaigns }: any) {
-  const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro'>('territory');
+  const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro' | 'themes'>('territory');
   const [audiences, setAudiences] = useState<any[]>([]);
   const [audiencesLoading, setAudiencesLoading] = useState(false);
   const [territory, setTerritory] = useState<any>(null);
@@ -1756,6 +1825,10 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   // CRO Audit
   const [croAudit, setCroAudit] = useState<any>(null);
   const [croLoading, setCroLoading] = useState(false);
+
+  // Creative Themes (G2)
+  const [creativeThemes, setCreativeThemes] = useState<any>(null);
+  const [themesLoading, setThemesLoading] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -1837,12 +1910,20 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
     setCroLoading(false);
   }
 
+  async function handleCreativeThemes() {
+    setThemesLoading(true);
+    const res = await getCreativeThemes();
+    setCreativeThemes(res);
+    setThemesLoading(false);
+  }
+
   const SUB_TABS = [
     { key: 'territory', label: 'Territory' },
     { key: 'audiences', label: 'Audiences' },
     { key: 'competitors', label: 'Competitors' },
     { key: 'ab', label: 'A/B Testing' },
     { key: 'elements', label: 'Creative Elements' },
+    { key: 'themes', label: 'Creative Themes' },
     { key: 'budget', label: 'Budget Shift' },
     { key: 'cro', label: 'CRO Audit' },
   ] as const;
@@ -2107,6 +2188,61 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
                   <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Next Test to Run</p>
                   <p className="text-sm text-slate-700">{elementAnalysis.next_test}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Creative Themes (G2) */}
+      {subTab === 'themes' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">Creative Themes</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Patterns in your last 90 days of social posts — what's working and what to avoid</p>
+            </div>
+            <button
+              onClick={handleCreativeThemes}
+              disabled={themesLoading}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            >
+              {themesLoading ? 'Analyzing...' : 'Analyze Themes'}
+            </button>
+          </div>
+
+          {!creativeThemes && !themesLoading && (
+            <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
+              <p className="text-sm font-semibold text-slate-600">No theme analysis yet</p>
+              <p className="text-xs text-slate-400">Click "Analyze Themes" to surface patterns across your published posts.</p>
+            </div>
+          )}
+
+          {creativeThemes && (
+            <div className="space-y-4">
+              {creativeThemes.topPerforming && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Top Performing Pattern</p>
+                  <p className="text-sm text-slate-800">{creativeThemes.topPerforming}</p>
+                </div>
+              )}
+              {creativeThemes.toAvoid && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Pattern to Avoid</p>
+                  <p className="text-sm text-slate-800">{creativeThemes.toAvoid}</p>
+                </div>
+              )}
+              {creativeThemes.insights?.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Theme Insights</p>
+                  {creativeThemes.insights.map((ins: any, i: number) => (
+                    <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-1 hover:border-indigo-200 transition-colors">
+                      <p className="text-sm font-semibold text-slate-900">{ins.theme}</p>
+                      <p className="text-xs text-slate-500">{ins.performance}</p>
+                      <p className="text-xs text-indigo-600 font-medium">→ {ins.recommendation}</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -2627,6 +2763,11 @@ function StrategyTab({ settings: _settings }: any) {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [reanalyzeMsg, setReanalyzeMsg] = useState<string | null>(null);
 
+  // G3: Budget Scenario Modeling
+  const [forecastBudget, setForecastBudget] = useState('');
+  const [forecastResult, setForecastResult] = useState<any>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+
   async function load() {
     setLoading(true);
     const res = await getStrategy();
@@ -2645,6 +2786,15 @@ function StrategyTab({ settings: _settings }: any) {
     else setReanalyzeMsg('Re-analyzed. Reload to see the new strategy.');
     setReanalyzing(false);
     await load();
+  }
+
+  async function handleForecast() {
+    const budget = parseFloat(forecastBudget);
+    if (!budget || isNaN(budget) || budget <= 0) return;
+    setForecastLoading(true);
+    const res = await getBudgetForecast(budget);
+    setForecastResult(res);
+    setForecastLoading(false);
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
@@ -2793,6 +2943,71 @@ function StrategyTab({ settings: _settings }: any) {
           {s.exclusions && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Hard exclusions</dt><dd className="font-medium whitespace-pre-wrap">{s.exclusions}</dd></div>}
           {s.open_notes && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Notes</dt><dd className="font-medium whitespace-pre-wrap">{s.open_notes}</dd></div>}
         </dl>
+      </div>
+
+      {/* G3: Budget Scenario Modeling */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <div>
+          <h3 className="font-bold text-slate-900">Budget Scenarios</h3>
+          <p className="text-sm text-slate-500 mt-0.5">What-if forecasts based on your ROAS history</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+            <input
+              type="number"
+              min={1}
+              value={forecastBudget}
+              onChange={e => setForecastBudget(e.target.value)}
+              placeholder="Monthly ad budget"
+              className="w-full border border-slate-200 rounded-xl pl-7 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            onClick={handleForecast}
+            disabled={forecastLoading || !forecastBudget}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            {forecastLoading ? 'Forecasting...' : 'Run forecast'}
+          </button>
+        </div>
+
+        {forecastResult && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400">Based on {forecastResult.basedOn}</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pr-4">Budget</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">Est. Leads</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">Est. Revenue</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">ROAS</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pl-2">Confidence</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {forecastResult.scenarios?.map((s: any, i: number) => (
+                    <tr key={i} className={i === 1 ? 'bg-indigo-50' : ''}>
+                      <td className="py-2.5 pr-4">
+                        <span className="font-semibold text-slate-900">${s.budgetUsd.toLocaleString()}</span>
+                        <span className="text-xs text-slate-400 ml-2">{s.note}</span>
+                      </td>
+                      <td className="text-right py-2.5 px-2 font-medium text-slate-700">{s.estimatedLeads.toLocaleString()}</td>
+                      <td className="text-right py-2.5 px-2 font-medium text-slate-700">${s.estimatedRevenue.toLocaleString()}</td>
+                      <td className="text-right py-2.5 px-2 font-bold text-slate-900">{s.estimatedRoas}x</td>
+                      <td className="text-right py-2.5 pl-2">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' : s.confidence === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {s.confidence}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Change history */}
@@ -4210,9 +4425,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   async function runGenerateSocialContent(brief: CreativeBriefData | null) {
     setSocialBriefData(brief);
     setGenerating(true);
-    // Brief data is stored in state for context; the existing generateSocialContent API
-    // call proceeds as before. The brief context can be plumbed into the API in a future step.
-    const result = await generateSocialContent();
+    const result = await generateSocialContent(brief);
     await load();
     setGenerating(false);
     if (!result) {

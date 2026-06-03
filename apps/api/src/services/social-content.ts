@@ -19,6 +19,16 @@ export interface SocialContentInput {
   goal: string;
   strategyPlan?: StrategyPlan | null;
   brandVoice?: string;
+  logoUrl?: string;
+  /** Explicit content language from client_settings. 'auto' or undefined = detect from website. */
+  contentLanguage?: string | null;
+  brief?: {
+    product?: string;
+    message?: string;
+    style?: string;
+    cta?: string;
+    restrictions?: string;
+  } | null;
 }
 
 export interface SocialContentOutput {
@@ -57,7 +67,29 @@ function buildPrompt(input: SocialContentInput, websiteContent: string): string 
   const audience = input.strategyPlan?.target_audience ?? 'general business audience';
   const voice = input.brandVoice ?? 'professional but approachable';
   const marketInsights = input.strategyPlan?.market_insights ?? '';
-  const lang = detectLanguage(websiteContent || '');
+
+  // Use explicit content_language from settings if set; fall back to Unicode heuristic.
+  const explicitLang = input.contentLanguage && input.contentLanguage !== 'auto'
+    ? input.contentLanguage
+    : null;
+  const lang: { code: string; name: string } = explicitLang
+    ? { code: explicitLang, name: explicitLang }
+    : detectLanguage(websiteContent || '');
+
+  // Build brief block if the user provided one-time context
+  const briefLines: string[] = [];
+  if (input.brief?.product)  briefLines.push(`Focus on this product/service: ${input.brief.product}`);
+  if (input.brief?.message)  briefLines.push(`Key message: ${input.brief.message}`);
+  if (input.brief?.style)    briefLines.push(`Style preference: ${input.brief.style}`);
+  if (input.brief?.cta)      briefLines.push(`CTA to use: ${input.brief.cta}`);
+  if (input.brief?.restrictions) briefLines.push(`Avoid: ${input.brief.restrictions}`);
+  const briefBlock = briefLines.length > 0
+    ? `\nONE-TIME BRIEF FROM CUSTOMER:\n${briefLines.join('\n')}\n`
+    : '';
+
+  const logoBlock = input.logoUrl
+    ? `\nBRAND LOGO: The business has a logo at ${input.logoUrl}. When generating image prompts, always include the logo or brand name prominently. The AI image generation should incorporate the brand identity.\n`
+    : '';
 
   return `You are a social media copywriter. Generate a ${input.platform} post for the following business.
 
@@ -66,7 +98,7 @@ LANGUAGE: write the post in ${lang.name}. The website is in ${lang.name} — the
 ACTUAL WEBSITE CONTENT (use this — do not guess what the business does):
 ${websiteContent || '(website content unavailable — see URL: ' + (input.websiteUrl ?? 'unknown') + ')'}
 
-${marketInsights ? `MARKET INSIGHTS:\n${marketInsights.slice(0, 600)}\n` : ''}
+${marketInsights ? `MARKET INSIGHTS:\n${marketInsights.slice(0, 600)}\n` : ''}${briefBlock}${logoBlock}
 Business goal: ${input.goal}
 Target audience: ${audience}
 Brand voice: ${voice}
@@ -80,9 +112,11 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 }
 
 CALL-TO-ACTION RULE:
-${input.websiteUrl
-  ? `- END EVERY POST with a call-to-action. Use the business website URL: ${input.websiteUrl}`
-  : `- END EVERY POST with a call-to-action. Encourage the reader to contact the business (e.g. "DM us", "Contact us today", or similar).`}
+${input.brief?.cta
+  ? `- END EVERY POST with this call-to-action: ${input.brief.cta}`
+  : input.websiteUrl
+    ? `- END EVERY POST with a call-to-action. Use the business website URL: ${input.websiteUrl}`
+    : `- END EVERY POST with a call-to-action. Encourage the reader to contact the business (e.g. "DM us", "Contact us today", or similar).`}
 
 Rules:
 - The post MUST be about the actual business above — its actual products. NEVER invent products that aren't in the content.
@@ -126,7 +160,18 @@ async function generateImage(prompt: string): Promise<string | undefined> {
 
 function buildImagePrompt(input: SocialContentInput, postText: string): string {
   const audience = input.strategyPlan?.target_audience ?? 'general business';
-  return `Professional marketing photo for a ${input.platform} post. Pillar: ${input.pillar}. Audience: ${audience}. Mood based on: "${postText.slice(0, 120)}". Clean, modern, bright. No text overlays. No logos.`;
+
+  const logoInstruction = input.logoUrl
+    ? ` Incorporate the brand identity — the brand logo can be found at ${input.logoUrl}; reference its colors and style.`
+    : '';
+
+  const ctaInstruction = input.brief?.cta
+    ? ` Include a clear call-to-action text overlay reading: "${input.brief.cta}".`
+    : input.websiteUrl
+      ? ` Include a subtle call-to-action text overlay with the website: ${input.websiteUrl}.`
+      : '';
+
+  return `Professional marketing photo for a ${input.platform} post. Pillar: ${input.pillar}. Audience: ${audience}. Mood based on: "${postText.slice(0, 120)}". Clean, modern, bright.${logoInstruction}${ctaInstruction}`;
 }
 
 export async function generateSocialContent(input: SocialContentInput): Promise<SocialContentOutput> {

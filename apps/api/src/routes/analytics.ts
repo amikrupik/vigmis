@@ -8,6 +8,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { forecastBudgetScenarios } from '../services/forecast.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -250,6 +251,19 @@ export async function analyticsRoutes(app: FastifyInstance) {
         data_source:         settingsRes.data?.shopify_domain ? 'shopify' : purchases.length > 0 ? 'pixel' : 'none',
       },
     });
+  });
+
+  // GET /analytics/budget-forecast?budget=<number>
+  app.get('/analytics/budget-forecast', { preHandler: authenticate }, async (request, reply) => {
+    const { budget } = request.query as { budget?: string };
+    const budgetUsd = budget ? parseFloat(budget) : 0;
+
+    if (!budgetUsd || isNaN(budgetUsd) || budgetUsd <= 0) {
+      return reply.code(400).send({ error: 'budget query param must be a positive number' });
+    }
+
+    const result = await forecastBudgetScenarios(request.tenantId, budgetUsd);
+    return reply.send(result);
   });
 
   // GET /analytics/daily — today vs yesterday for live overview
