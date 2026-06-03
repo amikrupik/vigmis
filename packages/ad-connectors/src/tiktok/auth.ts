@@ -45,28 +45,36 @@ interface TikTokTokenResponse {
 export class TikTokAdsConnector implements AdConnector {
   readonly platform = 'tiktok' as const;
 
-  getAuthUrl(_tenantId: string, state: string): string {
+  getAuthUrl(_tenantId: string, state: string, codeChallenge?: string): string {
     const { clientKey, redirectUri } = getConfig();
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       client_key: clientKey,
       scope: SCOPES,
       response_type: 'code',
       redirect_uri: redirectUri,
       state,
-    });
-    return `${TIKTOK_AUTH_URL}?${params.toString()}`;
+    };
+    // TikTok v2 requires PKCE
+    if (codeChallenge) {
+      params['code_challenge'] = codeChallenge;
+      params['code_challenge_method'] = 'S256';
+    }
+    return `${TIKTOK_AUTH_URL}?${new URLSearchParams(params).toString()}`;
   }
 
-  async handleCallback(code: string, tenantId: string): Promise<OAuthTokens> {
+  async handleCallback(code: string, tenantId: string, codeVerifier?: string): Promise<OAuthTokens> {
     const { clientKey, clientSecret, redirectUri } = getConfig();
 
-    const body = new URLSearchParams({
+    const bodyParams: Record<string, string> = {
       client_key: clientKey,
       client_secret: clientSecret,
       code,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
-    });
+    };
+    if (codeVerifier) bodyParams['code_verifier'] = codeVerifier;
+
+    const body = new URLSearchParams(bodyParams);
 
     const res = await fetch(TIKTOK_TOKEN_URL, {
       method: 'POST',

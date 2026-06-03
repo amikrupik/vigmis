@@ -23,19 +23,28 @@ const tiktok = new TikTokAdsConnector();
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 // Temporary in-memory store for OAuth state validation (use Redis in production)
-const pendingStates = new Map<string, { tenantId: string; platform: string; expiresAt: number }>();
+const pendingStates = new Map<string, { tenantId: string; platform: string; expiresAt: number; codeVerifier?: string }>();
 
-function generateState(tenantId: string, platform: string): string {
+function generateState(tenantId: string, platform: string, codeVerifier?: string): string {
   const state = crypto.randomBytes(16).toString('hex');
-  pendingStates.set(state, { tenantId, platform, expiresAt: Date.now() + 10 * 60 * 1000 });
+  pendingStates.set(state, { tenantId, platform, expiresAt: Date.now() + 10 * 60 * 1000, codeVerifier });
   return state;
 }
 
-function consumeState(state: string): { tenantId: string; platform: string } | null {
+function consumeState(state: string): { tenantId: string; platform: string; codeVerifier?: string } | null {
   const entry = pendingStates.get(state);
   pendingStates.delete(state);
   if (!entry || entry.expiresAt < Date.now()) return null;
-  return { tenantId: entry.tenantId, platform: entry.platform };
+  return { tenantId: entry.tenantId, platform: entry.platform, codeVerifier: entry.codeVerifier };
+}
+
+// PKCE helpers for TikTok v2 OAuth
+function generateCodeVerifier(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
 
 export async function connectorRoutes(app: FastifyInstance) {
@@ -127,20 +136,22 @@ export async function connectorRoutes(app: FastifyInstance) {
 
   app.get('/auth/tiktok', { preHandler: authenticate }, async (request, reply) => {
     try {
-      const state = generateState(request.tenantId, 'tiktok');
-      const url = tiktok.getAuthUrl(request.tenantId, state);
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+      const state = generateState(request.tenantId, 'tiktok', codeVerifier);
+      const url = tiktok.getAuthUrl(request.tenantId, state, codeChallenge);
       return reply.redirect(url);
     } catch (err) {
-      // TikTok env vars not configured yet
       app.log.warn({ err }, 'TikTok OAuth not configured');
       return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_not_configured`);
     }
   });
 
   app.get('/auth/tiktok/callback', async (request, reply) => {
-    const { code, state, error } = request.query as Record<string, string>;
+    const { code, state, error, error_description } = request.query as Record<string, string>;
 
     if (error) {
+      app.log.warn({ error, error_description }, 'TikTok OAuth denied by user or platform');
       return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_denied`);
     }
 
@@ -150,7 +161,7 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
 
     try {
-      await tiktok.handleCallback(code, stateData.tenantId);
+      await tiktok.handleCallback(code, stateData.tenantId, stateData.codeVerifier);
 
       await db.from('audit_log').insert({
         tenant_id: stateData.tenantId,
@@ -160,7 +171,6 @@ export async function connectorRoutes(app: FastifyInstance) {
         payload: {},
       });
 
-      // Fire-and-forget: pull last 30 days of historical data
       fetchAndStoreHistoricalData(stateData.tenantId, 'tiktok').catch(() => {});
 
       return reply.redirect(`${WEB_URL}/onboarding?connected=tiktok`);
