@@ -237,10 +237,9 @@ export async function connectorRoutes(app: FastifyInstance) {
 
   app.get('/auth/tiktok', { preHandler: authenticate }, async (request, reply) => {
     try {
-      const codeVerifier = generateCodeVerifier();
-      const codeChallenge = generateCodeChallenge(codeVerifier);
-      const state = generateState(request.tenantId, 'tiktok', codeVerifier);
-      const url = tiktok.getAuthUrl(request.tenantId, state, codeChallenge);
+      // TikTok v2 — no PKCE (causes token exchange failure with this app config)
+      const state = generateState(request.tenantId, 'tiktok');
+      const url = tiktok.getAuthUrl(request.tenantId, state);
       return reply.redirect(url);
     } catch (err) {
       app.log.warn({ err }, 'TikTok OAuth not configured');
@@ -262,7 +261,7 @@ export async function connectorRoutes(app: FastifyInstance) {
     }
 
     try {
-      await tiktok.handleCallback(code, stateData.tenantId, stateData.codeVerifier);
+      await tiktok.handleCallback(code, stateData.tenantId);
 
       await db.from('audit_log').insert({
         tenant_id: stateData.tenantId,
