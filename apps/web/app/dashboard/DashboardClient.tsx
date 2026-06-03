@@ -3638,13 +3638,69 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
     setAdAccountLoading(false);
   }
 
-  const [editing, setEditing] = useState<null | 'page' | 'account' | 'ga4'>(null);
+  const [editing, setEditing] = useState<null | 'page' | 'account' | 'ga4' | 'google_account'>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  // Google Ads account selector state
+  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string }[] | null>(null);
+  const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
+  const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
+  const [googleAccountError, setGoogleAccountError] = useState<string | null>(null);
+  const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
 
   async function handleConnectMeta() {
     const tok = await (window as any).Clerk?.session?.getToken();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
     window.location.href = `${apiUrl}/auth/meta?token=${encodeURIComponent(tok ?? '')}`;
+  }
+
+  async function handleConnectGoogleAds() {
+    const tok = await (window as any).Clerk?.session?.getToken();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+    window.location.href = `${apiUrl}/auth/google?token=${encodeURIComponent(tok ?? '')}`;
+  }
+
+  async function handleConnectGoogleAnalytics() {
+    const tok = await (window as any).Clerk?.session?.getToken();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+    window.location.href = `${apiUrl}/auth/google/analytics?token=${encodeURIComponent(tok ?? '')}`;
+  }
+
+  async function loadGoogleAccounts() {
+    setGoogleAccountLoading(true);
+    setGoogleAccountError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const tok = await (window as any).Clerk?.session?.getToken();
+      const res = await fetch(`${apiUrl}/connectors/google/accounts`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setGoogleAccounts(data.accounts);
+      setGoogleAccountSelected(data.selected);
+    } catch {
+      setGoogleAccountError('Could not load Google Ads accounts — make sure Google is connected.');
+    }
+    setGoogleAccountLoading(false);
+  }
+
+  async function handleSelectGoogleAccount(id: string) {
+    setGoogleAccountSaving(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const tok = await (window as any).Clerk?.session?.getToken();
+      await fetch(`${apiUrl}/connectors/google/select-account`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: id }),
+      });
+      setGoogleAccountSelected(id);
+      setEditing(null);
+    } catch {
+      setGoogleAccountError('Failed to save selection — try again.');
+    }
+    setGoogleAccountSaving(false);
   }
 
   async function handleDisconnectMeta() {
@@ -4340,6 +4396,127 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
               </div>
             </>
           )}
+
+          {/* ── Google Ads ── */}
+          {!connected.google ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Google Ads</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
+                Connect your Google Ads account. After connecting, you'll choose which ad account Vigmis should manage.
+              </p>
+              <button
+                onClick={handleConnectGoogleAds}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+              >
+                Connect Google Ads
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Ads Account</p>
+                  {googleAccountSelected ? (
+                    <p className="text-base font-bold text-slate-900 mt-0.5">Account {googleAccountSelected}</p>
+                  ) : (
+                    <p className="text-sm text-amber-600 mt-0.5">No ad account selected yet</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => { if (editing !== 'google_account') { loadGoogleAccounts(); setEditing('google_account'); } else { setEditing(null); } }}
+                  className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
+                >
+                  {editing === 'google_account' ? 'Close' : googleAccountSelected ? 'Change' : 'Choose Account'}
+                </button>
+              </div>
+
+              {editing === 'google_account' && (
+                <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                  {googleAccountLoading && <p className="text-sm text-slate-500">Loading accounts from Google…</p>}
+                  {googleAccountError && <p className="text-xs text-red-600">{googleAccountError}</p>}
+                  {googleAccounts && googleAccounts.length === 0 && (
+                    <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                      No Google Ads accounts found. Make sure you have access to at least one account at ads.google.com.
+                    </p>
+                  )}
+                  {googleAccounts?.map(a => {
+                    const isSelected = a.id === googleAccountSelected;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => handleSelectGoogleAccount(a.id)}
+                        disabled={googleAccountSaving}
+                        className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                          isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-slate-900">{a.name}</p>
+                        {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Google Analytics (separate connection) ── */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Analytics 4</p>
+                {ga4Settings ? (
+                  <>
+                    <p className="text-base font-bold text-slate-900 mt-0.5">{ga4Settings.property_name ?? 'Connected'}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Real conversion data — not platform estimates</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    Optional but recommended. Uses a separate Google login — can be a different account than Google Ads.
+                  </p>
+                )}
+              </div>
+              {ga4Settings ? (
+                <button
+                  onClick={() => { if (editing !== 'ga4') { loadGa4(); setEditing('ga4'); } else { setEditing(null); } }}
+                  className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
+                >
+                  {editing === 'ga4' ? 'Close' : 'Change'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectGoogleAnalytics}
+                  className="text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-xl"
+                >
+                  Connect Analytics
+                </button>
+              )}
+            </div>
+
+            {editing === 'ga4' && (
+              <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
+                {ga4Loading && <p className="text-sm text-slate-500">Loading properties from Google Analytics…</p>}
+                {ga4Error && <p className="text-xs text-red-600">{ga4Error}</p>}
+                {ga4Properties?.map(p => {
+                  const isSelected = p.property_id === ga4Settings?.property_id;
+                  return (
+                    <button
+                      key={p.property_id}
+                      onClick={async () => { await handleSelectGa4(p); setEditing(null); }}
+                      disabled={ga4Saving}
+                      className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                        isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-green-300 hover:bg-green-50'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-slate-900">{p.display_name}</p>
+                      {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 

@@ -7,11 +7,19 @@ import type { AdConnector, OAuthTokens } from '../connector.interface.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const SCOPES = [
+// Google Ads scopes only — Analytics is a separate OAuth flow
+const SCOPES_ADS = [
   'https://www.googleapis.com/auth/adwords',
-  'https://www.googleapis.com/auth/analytics.readonly',  // GA4 Admin + Data API
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
+
+// Google Analytics scopes only — separate flow so different accounts can be used
+const SCOPES_ANALYTICS = [
+  'https://www.googleapis.com/auth/analytics.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+].join(' ');
+
+const SCOPES = SCOPES_ADS; // default (kept for backward compat)
 
 function getConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -26,22 +34,32 @@ function getConfig() {
 export class GoogleAdsConnector implements AdConnector {
   readonly platform = 'google' as const;
 
-  getAuthUrl(tenantId: string, state: string): string {
+  getAuthUrl(tenantId: string, state: string, flow: 'ads' | 'analytics' = 'ads'): string {
     const { clientId, redirectUri } = getConfig();
+    const scope = flow === 'analytics' ? SCOPES_ANALYTICS : SCOPES_ADS;
     const params = new URLSearchParams({
       client_id: clientId,
-      redirect_uri: redirectUri,
+      redirect_uri: flow === 'analytics'
+        ? redirectUri.replace('/auth/google/callback', '/auth/google/analytics/callback')
+        : redirectUri,
       response_type: 'code',
-      scope: SCOPES,
-      access_type: 'offline',   // needed for refresh_token
-      prompt: 'consent',        // always show consent to guarantee refresh_token
+      scope,
+      access_type: 'offline',
+      prompt: 'consent',
       state,
     });
     return `${GOOGLE_AUTH_URL}?${params.toString()}`;
   }
 
-  async handleCallback(code: string, tenantId: string): Promise<OAuthTokens> {
+  getAnalyticsAuthUrl(tenantId: string, state: string): string {
+    return this.getAuthUrl(tenantId, state, 'analytics');
+  }
+
+  async handleCallback(code: string, tenantId: string, platform: 'google' | 'google_analytics' = 'google'): Promise<OAuthTokens> {
     const { clientId, clientSecret, redirectUri } = getConfig();
+    const callbackUri = platform === 'google_analytics'
+      ? redirectUri.replace('/auth/google/callback', '/auth/google/analytics/callback')
+      : redirectUri;
 
     const res = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
@@ -50,7 +68,7 @@ export class GoogleAdsConnector implements AdConnector {
         code,
         client_id: clientId,
         client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        redirect_uri: callbackUri,
         grant_type: 'authorization_code',
       }),
     });
@@ -75,7 +93,7 @@ export class GoogleAdsConnector implements AdConnector {
       scope: data.scope,
     };
 
-    await this.persistTokens(tenantId, tokens);
+    await this.persistTokens(tenantId, tokens, platform);
     return tokens;
   }
 
@@ -151,10 +169,10 @@ export class GoogleAdsConnector implements AdConnector {
     }
   }
 
-  private async persistTokens(tenantId: string, tokens: OAuthTokens) {
+  private async persistTokens(tenantId: string, tokens: OAuthTokens, platform: 'google' | 'google_analytics' = 'google') {
     const row = {
       tenant_id: tenantId,
-      platform: 'google' as const,
+      platform: platform as 'google',
       access_token: encryptToken(tokens.accessToken),
       refresh_token: tokens.refreshToken ? encryptToken(tokens.refreshToken) : null,
       expires_at: tokens.expiresAt?.toISOString() ?? null,

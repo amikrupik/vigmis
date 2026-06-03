@@ -48,11 +48,11 @@ function generateCodeChallenge(verifier: string): string {
 }
 
 export async function connectorRoutes(app: FastifyInstance) {
-  // ─── Google ────────────────────────────────────────────────────────────────
+  // ─── Google Ads ────────────────────────────────────────────────────────────
 
   app.get('/auth/google', { preHandler: authenticate }, async (request, reply) => {
     const state = generateState(request.tenantId, 'google');
-    const url = google.getAuthUrl(request.tenantId, state);
+    const url = google.getAuthUrl(request.tenantId, state, 'ads');
     return reply.redirect(url);
   });
 
@@ -79,13 +79,114 @@ export async function connectorRoutes(app: FastifyInstance) {
         payload: {},
       });
 
-      // Fire-and-forget: pull last 30 days of historical data
       fetchAndStoreHistoricalData(stateData.tenantId, 'google').catch(() => {});
 
-      return reply.redirect(`${WEB_URL}/onboarding?connected=google`);
+      // Redirect to onboarding with flag to show account selector
+      return reply.redirect(`${WEB_URL}/onboarding?connected=google&select_account=1`);
     } catch (err) {
       app.log.error({ err }, 'Google OAuth callback failed');
       return reply.redirect(`${WEB_URL}/onboarding?error=google_failed`);
+    }
+  });
+
+  // ─── Google: list ad accounts + select one ────────────────────────────────
+
+  app.get('/connectors/google/accounts', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+      if (!devToken) return reply.code(503).send({ error: 'Google Ads developer token not configured' });
+
+      const { data: tokenRow } = await db
+        .from('platform_tokens')
+        .select('access_token, account_id')
+        .eq('tenant_id', request.tenantId)
+        .eq('platform', 'google')
+        .maybeSingle();
+
+      if (!tokenRow) return reply.code(404).send({ error: 'Google not connected' });
+
+      const { decryptToken } = await import('@vigmis/db');
+      const accessToken = decryptToken(tokenRow.access_token);
+
+      const res = await fetch(
+        `https://googleads.googleapis.com/v18/customers:listAccessibleCustomers`,
+        { headers: { Authorization: `Bearer ${accessToken}`, 'developer-token': devToken } }
+      );
+
+      if (!res.ok) {
+        const body = await res.text();
+        app.log.error({ body }, 'Google listAccessibleCustomers failed');
+        return reply.code(502).send({ error: 'Could not load Google Ads accounts' });
+      }
+
+      const json = await res.json() as { resourceNames: string[] };
+      const accounts = (json.resourceNames ?? []).map((r: string) => {
+        const id = r.split('/')[1];
+        return { id, name: `Google Ads — ${id}` };
+      });
+
+      return reply.send({ accounts, selected: tokenRow.account_id ?? null });
+    } catch (err) {
+      app.log.error({ err }, 'Google accounts list failed');
+      return reply.code(500).send({ error: 'Failed to load accounts' });
+    }
+  });
+
+  app.post('/connectors/google/select-account', { preHandler: authenticate }, async (request, reply) => {
+    const { accountId } = request.body as { accountId: string };
+    if (!accountId) return reply.code(400).send({ error: 'accountId required' });
+
+    await db
+      .from('platform_tokens')
+      .update({ account_id: accountId })
+      .eq('tenant_id', request.tenantId)
+      .eq('platform', 'google');
+
+    await db.from('audit_log').insert({
+      tenant_id: request.tenantId,
+      action: 'connector.google.account_selected',
+      platform: 'google',
+      actor: 'user',
+      payload: { accountId },
+    });
+
+    return reply.send({ success: true });
+  });
+
+  // ─── Google Analytics (separate OAuth flow) ────────────────────────────────
+
+  app.get('/auth/google/analytics', { preHandler: authenticate }, async (request, reply) => {
+    const state = generateState(request.tenantId, 'google_analytics');
+    const url = google.getAnalyticsAuthUrl(request.tenantId, state);
+    return reply.redirect(url);
+  });
+
+  app.get('/auth/google/analytics/callback', async (request, reply) => {
+    const { code, state, error } = request.query as Record<string, string>;
+
+    if (error) return reply.redirect(`${WEB_URL}/onboarding?error=analytics_denied`);
+
+    const stateData = consumeState(state);
+    if (!stateData || stateData.platform !== 'google_analytics') {
+      return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
+    }
+
+    try {
+      // Store analytics token separately with platform = 'google_analytics'
+      await google.handleCallback(code, stateData.tenantId, 'google_analytics');
+
+      await db.from('audit_log').insert({
+        tenant_id: stateData.tenantId,
+        action: 'connector.google_analytics.connected',
+        platform: 'google_analytics',
+        actor: 'user',
+        payload: {},
+      });
+
+      return reply.redirect(`${WEB_URL}/onboarding?connected=google_analytics`);
+    } catch (err) {
+      app.log.error({ err }, 'Google Analytics OAuth callback failed');
+      return reply.redirect(`${WEB_URL}/onboarding?error=analytics_failed`);
     }
   });
 
