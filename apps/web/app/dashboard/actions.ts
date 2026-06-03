@@ -500,3 +500,23 @@ export async function exportMarketingPlanHTML() {
 export async function exportInvoiceHTML() {
   return apiRaw('/export/invoice?format=html');
 }
+
+// ── Conversion Readiness ──────────────────────────────────────────────────────
+
+export async function getReadinessScore(): Promise<{
+  score: number;
+  report: { verdict: string; issues: string[] } | null;
+  evaluated_at: string | null;
+} | null> {
+  const data = await apiCall('/readiness');
+  if (!data) return null;
+  return {
+    score: data.score ?? 0,
+    report: data.report ?? null,
+    evaluated_at: data.evaluated_at ?? null,
+  };
+}
+
+export async function runReadinessAudit(): Promise<{ report: any } | null> {
+  return apiCall('/readiness/audit', 'POST');
+}

@@ -26,6 +26,7 @@ import {
   updateSocialPost, deleteSocialPost,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
+  getReadinessScore, runReadinessAudit,
   runGeoAudit, getGeoReport, getHistoryTimeline,
   exportAnalyticsCSV, exportAnalyticsHTML,
   exportCampaignsCSV, exportCampaignsHTML,
@@ -34,6 +35,7 @@ import {
 } from './actions';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
+import LanguageSelector from '../components/LanguageSelector';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -192,6 +194,7 @@ export default function DashboardClient() {
               </button>
               <a href="/settings/general" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Settings</a>
               <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Billing</a>
+              <LanguageSelector />
               <ClerkSignOutButton />
             </div>
           </div>
@@ -2513,6 +2516,111 @@ function ProtocolsTab() {
 // Read-only view of the current campaign strategy + the audit trail of changes.
 // Lets the client see what Vigmis decided, on what basis, and what has changed since.
 
+function ReadinessWidget() {
+  const [readiness, setReadiness] = useState<Awaited<ReturnType<typeof getReadinessScore>> | null | 'not_found'>(null);
+  const [loading, setLoading] = useState(true);
+  const [auditing, setAuditing] = useState(false);
+  const [auditMsg, setAuditMsg] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const res = await getReadinessScore();
+    setReadiness(res ?? 'not_found');
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleRecheck() {
+    setAuditing(true);
+    setAuditMsg(null);
+    const res = await runReadinessAudit();
+    if (res?.report) {
+      setAuditMsg('Audit complete — score updated.');
+      await load();
+    } else {
+      setAuditMsg('Audit failed. Make sure a website URL is set in your settings.');
+    }
+    setAuditing(false);
+  }
+
+  if (loading) return (
+    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-3 text-sm text-slate-500">
+      <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+      Loading conversion readiness…
+    </div>
+  );
+
+  if (readiness === 'not_found' || readiness === null) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-bold text-slate-900">Conversion Readiness</h3>
+            <p className="text-sm text-slate-500 mt-1">No audit has been run yet. Click Re-check to scan your landing page.</p>
+          </div>
+          <button
+            onClick={handleRecheck}
+            disabled={auditing}
+            className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+          >
+            {auditing ? 'Auditing…' : 'Re-check'}
+          </button>
+        </div>
+        {auditMsg && <p className="text-xs text-slate-600 mt-2">{auditMsg}</p>}
+      </div>
+    );
+  }
+
+  const score = readiness.score ?? 0;
+  const { colorClass, bgClass, borderClass, verdict } =
+    score >= 71
+      ? { colorClass: 'text-emerald-700', bgClass: 'bg-emerald-50', borderClass: 'border-emerald-200', verdict: 'Ready to advertise' }
+      : score >= 41
+      ? { colorClass: 'text-amber-700', bgClass: 'bg-amber-50', borderClass: 'border-amber-200', verdict: 'Some improvements needed' }
+      : { colorClass: 'text-red-700', bgClass: 'bg-red-50', borderClass: 'border-red-200', verdict: 'Not ready for ads' };
+
+  const issues: string[] = Array.isArray(readiness.report?.issues) ? readiness.report!.issues.slice(0, 3) : [];
+
+  return (
+    <div className={`border rounded-xl p-5 shadow-sm ${bgClass} ${borderClass}`}>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-4">
+          <div className="text-center">
+            <div className={`text-4xl font-black ${colorClass}`}>{score}</div>
+            <div className="text-xs text-slate-500 mt-0.5">/ 100</div>
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900">Conversion Readiness</h3>
+            <p className={`text-sm font-semibold mt-0.5 ${colorClass}`}>{verdict}</p>
+            {readiness.evaluated_at && (
+              <p className="text-xs text-slate-400 mt-0.5">Checked {new Date(readiness.evaluated_at).toLocaleDateString()}</p>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={handleRecheck}
+          disabled={auditing}
+          className="text-sm border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
+        >
+          {auditing ? 'Auditing…' : 'Re-check'}
+        </button>
+      </div>
+      {issues.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {issues.map((issue, i) => (
+            <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
+              <span className={`mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full ${score >= 71 ? 'bg-emerald-500' : score >= 41 ? 'bg-amber-500' : 'bg-red-500'}`} />
+              {issue}
+            </li>
+          ))}
+        </ul>
+      )}
+      {auditMsg && <p className="text-xs text-slate-600 mt-2">{auditMsg}</p>}
+    </div>
+  );
+}
+
 function StrategyTab({ settings: _settings }: any) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getStrategy>> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2556,6 +2664,8 @@ function StrategyTab({ settings: _settings }: any) {
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
+      <ReadinessWidget />
+
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Current Strategy</h2>

@@ -351,7 +351,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
     type ScrapedSiteResult = Awaited<ReturnType<typeof scrapeWebsite>>;
     let scrapedSite: ScrapedSiteResult = null;
 
-    const [websiteResult, historical, metaTokenRow] = await Promise.all([
+    const [websiteResult, historical, metaTokenRow, connectedPlatformsRow] = await Promise.all([
       // Website scan — real multi-page + JSON-LD extraction
       (async () => {
         try {
@@ -391,6 +391,8 @@ ${scrapedSite.text.slice(0, 8000)}`,
       getAllHistoricalData(request.tenantId),
       // Meta token for Ad Library competitor search
       db.from('platform_tokens').select('access_token').eq('tenant_id', request.tenantId).eq('platform', 'meta').maybeSingle(),
+      // All connected platforms for budget allocation guidance
+      db.from('platform_tokens').select('platform').eq('tenant_id', request.tenantId),
     ]);
 
     websiteAnalysis = websiteResult;
@@ -410,6 +412,12 @@ ${scrapedSite.text.slice(0, 8000)}`,
 
     // Build historical context string for AI prompts
     const historicalContext = buildHistoricalContext(historical);
+
+    // Build connected platforms list for budget allocation guidance
+    const connectedPlatformNames: string[] = (connectedPlatformsRow.data ?? []).map((r: { platform: string }) => r.platform);
+    const connectedPlatformsNote = connectedPlatformNames.length > 0
+      ? `CONNECTED PLATFORMS: ${connectedPlatformNames.join(', ')}\nIMPORTANT: Only recommend budget allocation for platforms that are connected. If a platform is NOT in the list above, do NOT include it in the budget breakdown. Instead, briefly mention it as an opportunity: "Connecting X could add Y% more reach."`
+      : `CONNECTED PLATFORMS: none yet\nIMPORTANT: The client has not connected any ad platforms yet. Do not include any platform in the budget breakdown. Focus on which platform to connect first and why.`;
 
     // Phase 2: Market research
     const managedBudget = Math.round(
@@ -451,6 +459,8 @@ PARAMETERS:
 - Target geography: ${(settings.geo_include ?? []).join(', ')}
 - Exclusions: ${settings.exclusions ?? 'none'}
 - Has parallel campaigns outside Vigmis: ${settings.has_parallel_campaigns ? 'yes' : 'no'}
+
+${connectedPlatformsNote}
 
 PLATFORM SELECTION RULES (apply strictly — do not include platforms that don't fit):
 - Google Search: only if there is clear search intent for this product/service

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import LanguageSelector from './LanguageSelector';
 
 const NAV_LINKS = [
   { href: '/pricing', label: 'Pricing' },
@@ -25,6 +26,7 @@ export default function PublicNav() {
         {NAV_LINKS.map(l => (
           <Link key={l.href} href={l.href} className="text-sm text-slate-500 hover:text-slate-800 font-medium">{l.label}</Link>
         ))}
+        <LanguageSelector />
         <Link href="/sign-in" className="text-sm text-slate-600 hover:text-slate-900 font-semibold">Sign in</Link>
         <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
           Get Started →
