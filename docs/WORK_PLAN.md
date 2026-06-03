@@ -313,14 +313,23 @@ This feeds back into content generation — Vigmis gets smarter with every campa
 ### Batch 5 — Strategy & Budget UX (2-3 days)
 - A7: Budget recommendation respects connected platforms
 
-### Batch 6 — Multi-language & Multi-market (3-4 days)
-- F1: Multi-market onboarding step
-- F2: Per-campaign language assignment
-- F3: Full multi-language content generation
-- F4: Language detection from customer input
+### Batch 6 — Multi-language & UI Localization (1-2 days)
+Languages: English, Hebrew, Arabic, Spanish, Portuguese, French, Russian, German, Turkish, Italian
+- F0: next-intl setup + translation files for all 10 languages
+- F0: RTL layout (Hebrew + Arabic) — html dir attribute + Tailwind rtl: utilities
+- F0: Language selector in settings/onboarding (stores in client_settings.ui_language)
+- F1: Content language — any language, user-configurable (replaces 4-lang heuristic)
+- F2: Multi-market — per-campaign language
+- F3: Chat responds in customer's language automatically
 
-### Batch 7 — Competitive Intelligence (4-5 days)
-- G1: Pre-launch creative scoring (SMB version via LLM vision)
+### Batch 7 — Expose hidden features (1 day)
+- Incrementality analysis → dashboard widget
+- Metric interpreter → context tooltips on metrics
+- Conversion readiness score → Strategy tab
+- Weather/news impact → feed in briefings
+
+### Batch 8 — Competitive Intelligence (4-5 days)
+- G1: Pre-launch creative scoring (LLM vision)
 - G2: Cross-creative theme learning
 - G3: Budget scenario modeling ("what if")
 
