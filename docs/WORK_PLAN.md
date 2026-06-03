@@ -195,57 +195,53 @@ Customers can't evaluate frequency — daily vs weekly briefing is the felt diff
 
 ---
 
-## CATEGORY F — Multi-Language & Multi-Market
+## CATEGORY F — Multi-Language, Multi-Market & UI Localization
 
-### F1. Multi-market onboarding — target languages per market
-**Priority:** High | **Size:** Medium  
-**What:** During onboarding questionnaire, add explicit step:
-- "Which countries/regions do you sell to?" → multi-select
-- Per selected country: auto-suggest the primary language(s)
-  - Israel → Hebrew + Arabic (optional)
-  - France → French
-  - UK / US → English
-  - Greece → Greek
-  - Germany → German
-  - etc.
-- Customer can override (e.g., Israeli company selling to English-speaking tourists → English)
-- Stored in `client_settings.target_markets: [{ country: 'FR', language: 'fr' }, { country: 'GB', language: 'en' }]`
+**Context:** Current state: only 4 languages (he/ar/ru/en) via heuristic Unicode detection from website content. UI is English-only. RTL not implemented. Users who don't speak English cannot use the system comfortably.
 
-**Already exists:** Auto language detection from website. 4-language briefings (en/he/ar/ru).  
-**Missing:** Multi-market config, per-campaign language assignment, onboarding market step.  
-**Files:** `apps/api/src/routes/onboarding.ts`, `client_settings` schema, onboarding UI.
+### F0. UI Language — Hebrew first, then Arabic
+**Priority:** Critical | **Size:** Large (1-2 weeks)  
+**What:** Full UI translation + RTL layout support.
 
-### F2. Per-campaign and per-post language selection
-**Priority:** High | **Size:** Medium  
+Two separate problems:
+1. **Translation:** Every UI string needs a translation file. Use `next-intl` library. User selects UI language in onboarding/settings. Store in `client_settings.ui_language`.
+2. **RTL layout:** Hebrew and Arabic go right-to-left. Requires:
+   - `<html dir="rtl" lang="he">` when Hebrew is active
+   - Tailwind RTL utilities (`rtl:text-right`, `rtl:flex-row-reverse`, etc.) on all components
+   - Logical CSS properties (start/end instead of left/right)
+   - Test every page: forms, menus, tables, modals, buttons
+
+**Phase 1:** Hebrew UI + RTL — all dashboard pages, all error messages, all notifications.  
+**Phase 2:** Arabic UI (RTL already done, just translation).  
+**Phase 3:** Russian UI (LTR, just translation).  
+**Phase 4:** French, German, Spanish (LTR, translation via i18n files).
+
+**Files:** All `apps/web/app/**/*.tsx`, new `messages/` directory for translation strings, `next.config.ts`, root layout.
+
+### F1. Content language — user-configurable, any language
+**Priority:** High | **Size:** Small  
 **What:**
-- Each campaign has a `target_language` field (defaults from target_markets)
-- Each post inherits language from its campaign, can be overridden
-- When generating content: AI receives explicit language instruction
-- Multi-market companies get separate content streams per language
-  - E.g., French posts for France campaign, Greek posts for Greece campaign
+- Add `content_language` field to `client_settings` (default: auto-detect from website)
+- Setting in onboarding and settings page: "What language should your content be in?"
+- AI receives explicit language instruction — can generate in ANY language (French, Greek, German, Turkish, etc.)
+- Replaces the limited 4-language Unicode heuristic
 
-**Files:** Campaign schema, social content generation service, post generation UI.
+**Files:** `apps/api/src/services/social-content.ts` (replace detectLanguage with explicit setting), onboarding UI, settings UI.
 
-### F3. Multi-language content generation
-**Priority:** High | **Size:** Small (foundation already exists)  
-**What:**
-- AI generates posts/scripts in any language (not just en/he/ar/ru)
-- Image captions/overlaid text in the correct language
-- Video scripts in the correct language
-- Customer can write to Vigmis in their own language (chat, briefs) — AI responds in same language
-- Platform-specific character limits respected per language (e.g., CJK characters count differently)
+### F2. Multi-market — multiple languages per account
+**Priority:** Medium | **Size:** Medium  
+**What:** For companies selling in multiple countries:
+- Onboarding step: "Which countries do you sell to?" → multi-select
+- Per country: auto-suggest language, customer can override
+- Each campaign has a `target_language` — content generated in that language automatically
+- E.g.: French campaign → French posts. Greek campaign → Greek posts. English campaign → English posts.
 
-**Already works:** Hebrew, Arabic, Russian, English. Need: French, Greek, German, Spanish, Italian, etc.  
-**Files:** `packages/ai-router`, system prompts in social content service.
+**Files:** `client_settings.target_markets`, campaign schema, social content generation.
 
-### F4. Language detection from customer input
-**Priority:** Low | **Size:** Tiny  
-**What:** When customer types a brief or chat message in French/Greek/etc., Vigmis:
-1. Detects the language
-2. Responds in the same language
-3. Generates content in that language (unless overridden by campaign setting)
-
-**Files:** Chat route, content generation pipeline.
+### F3. Chat & brief in any language
+**Priority:** Medium | **Size:** Tiny  
+**What:** Customer types in Hebrew/Arabic/French/any language → Vigmis responds in the same language → content generated in that language. No configuration needed.  
+**Files:** Chat route system prompt, content generation pipeline.
 
 ---
 
