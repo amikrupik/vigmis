@@ -451,7 +451,7 @@ export default function DemoPage() {
         <span className="opacity-80">You&apos;re viewing a live demo with sample data.</span>
         {' '}
         <Link href="/sign-up" className="font-bold underline underline-offset-2 hover:opacity-90">
-          Sign up free to connect your real campaigns →
+          Sign up to connect your real campaigns →
         </Link>
       </div>
 
@@ -495,9 +495,9 @@ export default function DemoPage() {
           <h3 className="text-xl font-black mb-2">Ready to connect your real campaigns?</h3>
           <p className="text-indigo-200 text-sm mb-5">Vigmis manages your Google, Meta & TikTok ads — autonomously. Strategy, creative, optimization, reports.</p>
           <Link href="/sign-up" className="inline-block bg-white text-indigo-700 font-bold px-8 py-3 rounded-xl hover:bg-indigo-50 transition-colors">
-            Get started free →
+            Get started →
           </Link>
-          <p className="text-xs text-indigo-300 mt-3">Free AI strategy & competitor research · 7% of managed spend · Cancel anytime</p>
+          <p className="text-xs text-indigo-300 mt-3">7% of managed spend · Cancel anytime</p>
         </div>
       </div>
 

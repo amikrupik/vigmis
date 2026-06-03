@@ -33,14 +33,29 @@ async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
     const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
     const clerkUserId = payload.sub;
 
-    // Resolve or create tenant row
+    // Resolve or create tenant row.
+    // Priority: own tenant → team membership → create new tenant.
     let { data: tenant } = await db
       .from('tenants')
       .select('id')
       .eq('clerk_user_id', clerkUserId)
-      .single();
+      .maybeSingle();
 
     if (!tenant) {
+      // Check if this user accepted a team invite and belongs to another tenant
+      const { data: membership } = await db
+        .from('team_members')
+        .select('tenant_id')
+        .eq('clerk_user_id', clerkUserId)
+        .maybeSingle();
+
+      if (membership) {
+        request.tenantId = membership.tenant_id;
+        request.clerkUserId = clerkUserId;
+        return;
+      }
+
+      // New user — create their own tenant
       const { data: newTenant, error } = await db
         .from('tenants')
         .insert({ clerk_user_id: clerkUserId })

@@ -108,7 +108,7 @@ export default function BillingClient() {
         )}
         {canceledMsg && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-            Upgrade canceled. You are still on the Free plan.
+            Upgrade canceled. You are still on the Grow plan.
           </div>
         )}
         {error && (
@@ -119,12 +119,12 @@ export default function BillingClient() {
         <div>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Plans</h2>
           <div className="grid md:grid-cols-2 gap-4">
-            {/* Free */}
+            {/* Grow */}
             <div className={`bg-white rounded-2xl p-6 space-y-5 border-2 shadow-sm ${status?.plan === 'free' ? 'border-indigo-500' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Free</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Get started, no commitment</p>
+                  <h3 className="text-lg font-bold text-slate-900">Grow</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">7% of ad spend · $29 minimum</p>
                 </div>
                 {status?.plan === 'free' && (
                   <span className="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-semibold">Current</span>
@@ -149,12 +149,12 @@ export default function BillingClient() {
               </ul>
             </div>
 
-            {/* Pro */}
+            {/* Scale */}
             <div className={`bg-white rounded-2xl p-6 space-y-5 border-2 shadow-sm ${status?.plan === 'pro' ? 'border-emerald-500' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Pro</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">For businesses scaling fast</p>
+                  <h3 className="text-lg font-bold text-slate-900">Scale</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">6% of ad spend + $29/mo</p>
                 </div>
                 {status?.plan === 'pro' && (
                   <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Current</span>
@@ -270,7 +270,7 @@ export default function BillingClient() {
 
             <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
               Allowances scale with your ad budget. Active campaigns allowed: {usage.activeCampaigns.limit ?? 'unlimited'}.
-              {usage.plan === 'free' && ' Upgrade to Pro for higher quotas.'}
+              {usage.plan === 'free' && ' Upgrade to Scale for higher quotas.'}
             </p>
           </div>
         )}

@@ -31,6 +31,7 @@ import { adminRoutes } from './routes/admin.js';
 import { explainabilityRoutes } from './routes/explainability.js';
 import { complianceCronRoutes } from './routes/compliance-cron.js';
 import { operationalRoutes } from './routes/operational.js';
+import { teamRoutes } from './routes/team.js';
 
 const app = Fastify({ logger: true });
 
@@ -97,6 +98,7 @@ await app.register(adminRoutes);
 await app.register(explainabilityRoutes);
 await app.register(complianceCronRoutes);
 await app.register(operationalRoutes);
+await app.register(teamRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';

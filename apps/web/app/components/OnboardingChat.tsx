@@ -182,7 +182,7 @@ export default function OnboardingChat({ onConfirm }: Props) {
               <span className="capitalize">{settings.goal}</span>
             </div>
             <div>
-              <span className="font-medium text-slate-500">Fee (Free tier):</span>{' '}
+              <span className="font-medium text-slate-500">Fee (Grow plan):</span>{' '}
               ~${fee}/mo
             </div>
             <div className="col-span-2">

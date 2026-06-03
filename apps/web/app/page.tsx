@@ -48,13 +48,13 @@ export default async function Home() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-10">
           <Link href="/sign-up" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-2xl text-base transition-colors shadow-lg shadow-indigo-200">
-            Get Started Free →
+            Get Started →
           </Link>
           <Link href="/demo" className="border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold px-8 py-4 rounded-2xl text-base transition-colors">
             Try Demo (no signup) →
           </Link>
         </div>
-        <p className="text-xs text-slate-400 mt-4">No credit card required · Free AI strategy included · 7% of managed spend · Cancel anytime</p>
+        <p className="text-xs text-slate-400 mt-4">7% of managed spend · Cancel anytime</p>
       </section>
 
       {/* How it works */}
@@ -108,61 +108,43 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="px-6 py-20" id="pricing">
+      {/* Pricing teaser */}
+      <section className="px-6 py-20 bg-slate-50" id="pricing">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl font-black text-slate-900 mb-4">Simple, performance-based pricing</h2>
-          <p className="text-slate-500 mb-10">You pay the ad platforms directly. We charge only for what we manage.</p>
+          <p className="text-slate-500 mb-10">You pay the ad platforms directly. We charge a small percentage of what we manage — nothing else.</p>
 
-          <div className="grid sm:grid-cols-2 gap-6 text-left">
-            {/* Basic */}
+          <div className="grid sm:grid-cols-2 gap-6 text-left mb-8">
             <div className="bg-white border-2 border-slate-200 rounded-2xl p-8">
-              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Basic</p>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Grow</p>
               <p className="text-5xl font-black text-slate-900 mb-1">7%</p>
-              <p className="text-slate-500 text-sm mb-6">of managed spend · no monthly fee</p>
-              <ul className="space-y-2.5 text-sm text-slate-600 mb-8">
-                {[
-                  'Free AI strategy & campaign plan',
-                  'Google + Meta + TikTok management',
-                  'Social posts: $1/post (FB/IG) · $3 (TikTok)',
-                  'Comment management: $0.05/reply sent',
-                  'Smart alerts & basic analytics',
-                  'Cancel anytime',
-                ].map(f => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-slate-400 font-bold">✓</span>{f}</li>
+              <p className="text-slate-500 text-sm mb-5">of managed spend · no subscription</p>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {['5 active campaigns','Google, Meta & TikTok','Weekly AI briefing','1 user'].map(f => (
+                  <li key={f} className="flex items-center gap-2"><span className="text-slate-400">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/sign-up" className="block w-full border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold py-3 rounded-xl transition-colors text-center text-sm">
-                Get Started →
-              </Link>
             </div>
-
-            {/* Pro */}
             <div className="bg-white border-2 border-indigo-500 rounded-2xl p-8 relative">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">Most popular</div>
-              <p className="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-4">Pro</p>
+              <p className="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-3">Scale</p>
               <div className="flex items-baseline gap-2 mb-1">
-                <p className="text-5xl font-black text-slate-900">5%</p>
-                <p className="text-slate-500 text-sm">+ $15/mo</p>
+                <p className="text-5xl font-black text-slate-900">6%</p>
+                <p className="text-slate-500 text-sm">+ $49/mo</p>
               </div>
-              <p className="text-slate-500 text-sm mb-6">of managed spend · billed monthly</p>
-              <ul className="space-y-2.5 text-sm text-slate-700 mb-8">
-                {[
-                  'Everything in Basic',
-                  'More daily AI analyses & optimizations',
-                  'Advanced analytics & ROAS tracking',
-                  'Priority support',
-                ].map(f => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-indigo-500 font-bold">✓</span>{f}</li>
+              <p className="text-slate-500 text-sm mb-5">of managed spend · billed monthly</p>
+              <ul className="space-y-2 text-sm text-slate-700">
+                {['30 active campaigns','6× daily optimization','Daily AI briefing','1 video + 5 creatives / month','Up to 3 users'].map(f => (
+                  <li key={f} className="flex items-center gap-2"><span className="text-indigo-500">✓</span>{f}</li>
                 ))}
               </ul>
-              <Link href="/sign-up" className="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors text-center text-sm">
-                Get Started →
-              </Link>
             </div>
           </div>
 
-          <p className="text-xs text-slate-400 mt-6">No credit card required · Free AI strategy & competitor research included · Cancel anytime</p>
+          <Link href="/pricing" className="inline-block border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-semibold px-6 py-2.5 rounded-xl transition-colors text-sm">
+            See full pricing & add-ons →
+          </Link>
+          <p className="text-xs text-slate-400 mt-4">Cancel anytime</p>
         </div>
       </section>
 

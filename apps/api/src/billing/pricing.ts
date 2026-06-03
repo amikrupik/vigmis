@@ -1,20 +1,30 @@
 // Pricing & quota model — single source of truth for fees, plan allowances,
 // add-on prices, and the per-customer AI-cost guardrail.
 //
-// Decided 2026-05-30. Customer-facing version lives in docs/VIGMIS_FEATURES_HE.
+// Decided 2026-05-30. Updated 2026-06-03: plan names Grow/Scale (DB values
+// remain 'free'/'pro' for backwards compat), subscription $0/$29, floors $29/$29,
+// Image Creative replaces banner, free reply bundles 100/300, no customer-facing
+// campaign limit (internal API rate-limit guardrail only), 3 Image Creatives/mo Scale.
+// Customer-facing version lives in docs/VIGMIS_FEATURES_HE.
 // Principle: allowances scale with ad spend (higher spend funds more AI
 // consumption), so gross margin stays flat (~80%+) across every tier.
 
-export type Plan = 'free' | 'pro'; // 'free' = Starter (customer-facing name)
+export type Plan = 'free' | 'pro'; // 'free' = Grow, 'pro' = Scale (customer-facing names)
 
 export const PLAN_PRICING: Record<Plan, {
   ratePct: number;          // % of managed ad spend
   subscriptionUsd: number;  // flat monthly subscription
   floorUsd: number;         // minimum monthly management charge
   breakerFreezePct: number; // freeze AI when AI cost crosses this % of fee
+  includedCampaigns: number;  // active campaigns included
+  includedReplies: number;       // comment replies included per month
+  includedVideos: number;        // videos included per month
+  includedImageCreatives: number; // standalone image creatives per month
+  includedSocialPosts: number;   // social posts (text+image+publish) per month
+  maxUsers: number;              // seats per account
 }> = {
-  free: { ratePct: 7, subscriptionUsd: 0,  floorUsd: 29, breakerFreezePct: 30 },
-  pro:  { ratePct: 6, subscriptionUsd: 49, floorUsd: 49, breakerFreezePct: 40 },
+  free: { ratePct: 7, subscriptionUsd: 0,  floorUsd: 29, breakerFreezePct: 30, includedCampaigns: 999, includedReplies: 100, includedVideos: 0, includedImageCreatives: 0, includedSocialPosts: 0, maxUsers: 1 },
+  pro:  { ratePct: 6, subscriptionUsd: 29, floorUsd: 29, breakerFreezePct: 40, includedCampaigns: 999, includedReplies: 300, includedVideos: 1, includedImageCreatives: 3, includedSocialPosts: 5, maxUsers: 3 },
 };
 
 // A chat "conversation" is one session, soft-capped at this many messages.
@@ -59,19 +69,27 @@ export function effectiveChannels(plan: Plan, monthlySpendUsd: number): number {
 }
 
 // Metered add-ons — price charged to the customer, in USD.
+//
+// Social posts:
+//   socialPost        — AI caption + new AI-generated image + publish ($1.00)
+//   socialPostReuse   — AI caption + user's own or reused creative + publish ($0.70)
+//   Both types count against Scale's 5 included posts/month.
+//
+// Videos (animation/cinematic/avatar): publishing to FB, IG, or TikTok is INCLUDED
+//   in the video price. Scale's 1 included video applies to any video type.
+//   TikTok is not a separate line-item — buy any video, publish anywhere.
+//
+// Image Creative: standalone ad image for paid campaigns (not tied to a post).
 export const ADDON_PRICES = {
-  socialPost: 1.00,
-  tiktokPost: 3.00,
-  commentReply: 0.05,
-  conversationPack25: 9.00, // +25 AI advisor conversations
-  videoCinematic: 12.00,
+  socialPost: 1.00,           // AI caption + new AI image + publish
+  socialPostReuse: 0.70,      // AI caption + user/reused creative + publish
+  commentReply: 0.05,         // per reply after free monthly bundle
+  conversationPack25: 9.00,   // +25 AI Strategy Sessions
+  videoCinematic: 12.00,      // publish to FB / IG / TikTok included
   videoAvatar: 15.00,
   videoAnimation: 8.00,
-  banner: 5.00,
+  imageCreative: 5.00,        // standalone ad image (not a post)
 } as const;
-
-// Pro includes these per month before per-use metering kicks in.
-export const PRO_INCLUDED = { videos: 1, banners: 2 } as const;
 
 // Circuit breaker — share of the month's fee we let AI cost reach before acting.
 //   >= degradeAtPct : route routine tasks (triage/sentiment) to the cheap model,
