@@ -95,6 +95,49 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [websiteCheck, setWebsiteCheck] = useState<WebsiteCheck | null>(null);
   const [websiteNotes, setWebsiteNotes] = useState('');
   const [pixelSnippet, setPixelSnippet] = useState<PixelSnippet | null>(null);
+
+  // Google Ads account selector (shown inline in connect step after Google OAuth)
+  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string }[] | null>(null);
+  const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
+  const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
+  const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
+
+  // Auto-load Google accounts when Google just connected
+  useEffect(() => {
+    if (initialConnected === 'google') {
+      loadGoogleAccountsForOnboarding();
+    }
+  }, [initialConnected]);
+
+  async function loadGoogleAccountsForOnboarding() {
+    setGoogleAccountLoading(true);
+    try {
+      const token = await getClerkToken();
+      const res = await fetch(`${API_URL}/connectors/google/accounts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleAccounts(data.accounts ?? []);
+        if (data.selected) setGoogleAccountSelected(data.selected);
+      }
+    } catch { /* silent */ }
+    setGoogleAccountLoading(false);
+  }
+
+  async function handleSelectGoogleAccountOnboarding(id: string) {
+    setGoogleAccountSaving(true);
+    try {
+      const token = await getClerkToken();
+      await fetch(`${API_URL}/connectors/google/select-account`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: id }),
+      });
+      setGoogleAccountSelected(id);
+    } catch { /* silent */ }
+    setGoogleAccountSaving(false);
+  }
   const [pixelCopied, setPixelCopied] = useState(false);
   const [pixelVerifying, setPixelVerifying] = useState(false);
   const [pixelVerified, setPixelVerified] = useState(false);
@@ -302,8 +345,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <div className="text-center">
               <h1 className="text-2xl font-bold text-slate-900">Connect your ad accounts</h1>
               <p className="text-slate-500 text-sm mt-2">
-                Vigmis needs access to manage your campaigns. Connect at least one platform to continue.
+                Connect the platforms you advertise on. You can always add more later — but connecting now means a better strategy from day one.
               </p>
+              {(connected.google || connected.meta || connected.tiktok) && (
+                <div className="mt-3 flex justify-center gap-2 flex-wrap">
+                  {connected.meta && <span className="text-xs bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full font-semibold">Meta ✓</span>}
+                  {connected.google && <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">Google ✓</span>}
+                  {connected.tiktok && <span className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-semibold">TikTok ✓</span>}
+                </div>
+              )}
             </div>
 
             {error && (
@@ -314,7 +364,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <div>
                 <button
                   onClick={() => handleConnect('google')}
-                  className="w-full flex items-center gap-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md rounded-xl px-5 py-4 transition-all shadow-sm text-left"
+                  className={`w-full flex items-center gap-4 bg-white border hover:shadow-md rounded-xl px-5 py-4 transition-all shadow-sm text-left ${connected.google ? 'border-emerald-300' : 'border-slate-200 hover:border-indigo-300'}`}
                 >
                   <GoogleIcon />
                   <div className="flex-1 min-w-0">
@@ -326,11 +376,38 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     : <span className="text-xs text-slate-400 flex-shrink-0">Connect →</span>
                   }
                 </button>
+
+                {/* Google Ads account selector — shown immediately after connecting */}
+                {connected.google && (
+                  <div className="mt-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-blue-800 mb-2">
+                      {googleAccountSelected ? '✓ Ad account selected' : 'Choose which Google Ads account Vigmis should manage:'}
+                    </p>
+                    {googleAccountLoading && <p className="text-xs text-slate-500">Loading accounts…</p>}
+                    {!googleAccountLoading && googleAccounts && googleAccounts.length === 0 && (
+                      <p className="text-xs text-amber-700">No Google Ads accounts found. Make sure you have an active account at ads.google.com.</p>
+                    )}
+                    {!googleAccountLoading && googleAccounts?.map(a => (
+                      <button
+                        key={a.id}
+                        onClick={() => handleSelectGoogleAccountOnboarding(a.id)}
+                        disabled={googleAccountSaving}
+                        className={`w-full text-left border rounded-lg px-3 py-2 text-xs mb-1 transition-all ${
+                          googleAccountSelected === a.id
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold'
+                            : 'border-slate-200 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        {googleAccountSelected === a.id ? '✓ ' : ''}{a.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {!connected.google && (
                   <p className="text-xs text-slate-400 mt-1.5 px-1">
                     No account yet?{' '}
                     <a href="https://ads.google.com/start" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Create a Google Ads account →</a>
-                    {' '}— then come back and connect. Need help? Use the chat button below.
                   </p>
                 )}
               </div>
@@ -447,7 +524,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 disabled={!termsAccepted || (!connected.google && !connected.meta && !connected.tiktok)}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                Continue →
+                {(() => {
+                  const count = [connected.google, connected.meta, connected.tiktok].filter(Boolean).length;
+                  if (count === 0) return 'Connect at least one platform to continue';
+                  if (count === 1) return 'Continue with 1 platform →';
+                  return `Continue with ${count} platforms →`;
+                })()}
               </button>
               <button
                 onClick={async () => {

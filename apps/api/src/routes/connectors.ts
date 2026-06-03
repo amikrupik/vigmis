@@ -81,8 +81,9 @@ export async function connectorRoutes(app: FastifyInstance) {
 
       fetchAndStoreHistoricalData(stateData.tenantId, 'google').catch(() => {});
 
-      // Redirect to onboarding with flag to show account selector
-      return reply.redirect(`${WEB_URL}/onboarding?connected=google&select_account=1`);
+      // Redirect — new users go to onboarding, existing users to dashboard
+      // The ?connected=google param triggers the account selector in both places
+      return reply.redirect(`${WEB_URL}/onboarding?connected=google`);
     } catch (err) {
       app.log.error({ err }, 'Google OAuth callback failed');
       return reply.redirect(`${WEB_URL}/onboarding?error=google_failed`);

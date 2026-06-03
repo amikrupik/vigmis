@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
   getDashboardData, launchCampaigns, pauseCampaign, resumeCampaign, updateCampaignBudget,
@@ -92,6 +92,7 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
 
 export default function DashboardClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('overview');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2267,6 +2268,13 @@ function StrategyTab({ settings: _settings }: any) {
 
   useEffect(() => { load(); }, []);
 
+  // Auto-navigate to Connect tab when redirected after Google OAuth
+  useEffect(() => {
+    if (searchParams?.get('connected') === 'google') {
+      setTab('social');
+    }
+  }, []);
+
   async function handleReanalyze() {
     setReanalyzing(true);
     setReanalyzeMsg(null);
@@ -3565,6 +3573,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
 }
 
 function SocialTab({ metaConnected }: { metaConnected: boolean }) {
+  const searchParams = useSearchParams();
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -3777,6 +3786,17 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
   }
 
   useEffect(() => { load(); }, [filterStatus]);
+
+  // Auto-open Connect section + Google account selector after Google OAuth redirect
+  useEffect(() => {
+    if (searchParams?.get('connected') === 'google') {
+      setActiveSection('connect');
+      setTimeout(() => {
+        setEditing('google_account');
+        loadGoogleAccounts();
+      }, 400);
+    }
+  }, []);
 
   // Reconnect modal — shown when publish fails because Meta token is stale/insufficient
   const [reconnectModal, setReconnectModal] = useState<{ open: boolean; rawError: string }>({ open: false, rawError: '' });
