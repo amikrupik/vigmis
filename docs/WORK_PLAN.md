@@ -249,6 +249,47 @@ Customers can't evaluate frequency — daily vs weekly briefing is the felt diff
 
 ---
 
+---
+
+## CATEGORY G — Competitive Intelligence Features (from market research)
+*Source: Deep research 2026-06-03 — verified against 22 sources, 4/25 claims confirmed*
+
+### G1. Pre-launch Creative Scoring
+**Priority:** Medium | **Size:** Medium  
+**What:** Before any image/video/banner goes live, score it with AI:
+- Attention prediction: where will the eye land? (heatmap overlay)
+- Engagement score: 0-100 estimate based on visual analysis
+- Emotion reading: does the creative feel right for the campaign goal?
+- Recommendation: "This creative scores 62/100. Images with faces typically score 15 points higher — regenerate?"
+
+**SMB version (no complex CV needed):** Use Claude/GPT vision API to analyze the image against a scoring rubric. Simple, fast, cheap.  
+**Business value:** Customer sees their creative quality BEFORE spending money. Reduces wasted spend.  
+**Vigmis advantage:** Competitors (Smartly.io) only offer this at enterprise pricing ($2,500+/mo). Vigmis can offer it to SMBs.  
+**Files:** New `creative-scorer.ts` service, brief dialog (B1), publish flow.
+
+### G2. Cross-Creative Theme Learning
+**Priority:** Medium | **Size:** Medium  
+**What:** After campaigns run, analyze all creatives together and surface patterns:
+- "Posts with a question headline performed 2× better this month — continue this style"
+- "Images with people outperformed product-only by 34%"
+- "Short captions (<50 words) had 28% higher engagement"
+
+This feeds back into content generation — Vigmis gets smarter with every campaign.  
+**Data already exists:** `social_posts` table has performance metrics. Need: analysis layer that clusters and synthesizes patterns.  
+**Files:** New `creative-insights.ts` service, dashboard Intelligence tab.
+
+### G3. Budget Scenario Modeling ("What If")
+**Priority:** Medium | **Size:** Medium  
+**What:** When customer asks "how much should I spend?" or Vigmis recommends a budget change:
+- Show a simulation: "With $500/month → estimated 15 leads, ROAS ~2.1"
+- "With $1,000/month → estimated 32 leads, ROAS ~2.4 (diminishing returns kick in above $800)"
+- Based on: industry benchmarks + customer's actual historical data (if available)
+
+**Foundation available:** incrementality.ts, significance.ts, GA4 data. Need: forecasting layer.  
+**Files:** New `forecast.ts` service, strategy viewer, onboarding strategy step.
+
+---
+
 ## Suggested Batch Order
 
 ### Batch 1 — Quick wins (1-2 days)
@@ -281,6 +322,11 @@ Customers can't evaluate frequency — daily vs weekly briefing is the felt diff
 - F2: Per-campaign language assignment
 - F3: Full multi-language content generation
 - F4: Language detection from customer input
+
+### Batch 7 — Competitive Intelligence (4-5 days)
+- G1: Pre-launch creative scoring (SMB version via LLM vision)
+- G2: Cross-creative theme learning
+- G3: Budget scenario modeling ("what if")
 
 ---
 
