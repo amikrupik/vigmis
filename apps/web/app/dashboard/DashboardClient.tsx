@@ -119,6 +119,10 @@ export default function DashboardClient() {
     load();
     getAlerts().then(r => setUnreadCount(r?.unread_count ?? 0));
     getProtocols('pending').then(r => setPendingProtocolCount(r?.protocols?.length ?? 0));
+    // Auto-navigate to Social/Connect tab after Google OAuth
+    if (searchParams?.get('connected') === 'google') {
+      setTab('social');
+    }
   }, []);
 
   async function handleLaunch() {
@@ -250,7 +254,7 @@ export default function DashboardClient() {
         {tab === 'geo' && <GeoTab settings={settings} />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'protocols' && <ProtocolsTab />}
-        {tab === 'social' && <SocialTab metaConnected={connected.meta} />}
+        {tab === 'social' && <SocialTab metaConnected={connected.meta} googleConnected={connected.google} />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
       </div>
 
@@ -2268,13 +2272,6 @@ function StrategyTab({ settings: _settings }: any) {
 
   useEffect(() => { load(); }, []);
 
-  // Auto-navigate to Connect tab when redirected after Google OAuth
-  useEffect(() => {
-    if (searchParams?.get('connected') === 'google') {
-      setTab('social');
-    }
-  }, []);
-
   async function handleReanalyze() {
     setReanalyzing(true);
     setReanalyzeMsg(null);
@@ -3572,7 +3569,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
   );
 }
 
-function SocialTab({ metaConnected }: { metaConnected: boolean }) {
+function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean; googleConnected: boolean }) {
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
@@ -4418,7 +4415,7 @@ function SocialTab({ metaConnected }: { metaConnected: boolean }) {
           )}
 
           {/* ── Google Ads ── */}
-          {!connected.google ? (
+          {!googleConnected ? (
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
               <h3 className="text-base font-bold text-slate-900">Google Ads</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
