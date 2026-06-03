@@ -18,7 +18,8 @@ import type { AdConnector, OAuthTokens } from '../connector.interface.js';
 const TIKTOK_AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/';
 const TIKTOK_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
 
-const SCOPES = ['user.info.basic', 'video.upload', 'video.publish'].join(',');
+// video.publish requires explicit TikTok approval — start with basic scopes
+const SCOPES = ['user.info.basic', 'video.upload'].join(',');
 
 function getConfig() {
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
