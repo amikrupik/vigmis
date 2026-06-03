@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/backend": "^1.22.0",
     "@fastify/cors": "^10.0.2",
+    "@fastify/multipart": "^9.0.0",
     "@fastify/rate-limit": "^10.2.2",
     "@vigmis/ai-router": "*",
     "@vigmis/config": "*",

@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { errorHandler } from './middleware/error-handler.js';
 import { onboardingRoutes } from './routes/onboarding.js';
 import { connectorRoutes } from './routes/connectors.js';
@@ -43,6 +44,7 @@ await app.register(cors, {
 });
 
 await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 } });
 
 app.setErrorHandler(errorHandler);
 
