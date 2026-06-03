@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "Цены", "about": "О нас", "faq": "Вопросы", "contact": "Контакты", "signin": "Войти", "getStarted": "Начать" },
+  "dashboard": { "overview": "Обзор", "campaigns": "Кампании", "creative": "Креативы", "intelligence": "Аналитика", "strategy": "Стратегия", "social": "Соцсети", "settings": "Настройки", "history": "История", "protocols": "Протоколы" },
+  "common": { "connect": "Подключить", "disconnect": "Отключить", "save": "Сохранить", "cancel": "Отмена", "back": "Назад", "loading": "Загрузка...", "connected": "Подключено", "error": "Ошибка", "retry": "Повторить", "continue": "Продолжить" },
+  "connect": { "title": "Подключите рекламные аккаунты", "subtitle": "Подключите платформы, на которых вы рекламируетесь.", "google": "Google Ads", "meta": "Facebook и Instagram", "tiktok": "TikTok Ads", "noAccount": "Нет аккаунта?" }
+}

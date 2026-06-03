@@ -1,8 +1,52 @@
 // Social post publisher — dispatches to Meta Pages API or TikTok Content Posting API
 
+// Platform image size requirements:
+// Facebook post: 1200x630, Instagram: 1080x1080, TikTok: 1080x1920
+// TODO: install sharp and add resize logic before upload
+
 import { db, decryptToken } from '@vigmis/db';
 import { applyDisclosure, type AIComponent } from './ai-disclosure.js';
 import { getGeoContext } from './geo-context.js';
+
+export function getPlatformImageSpec(platform: string): { width: number; height: number; maxBytes: number } {
+  const specs: Record<string, { width: number; height: number; maxBytes: number }> = {
+    facebook: { width: 1200, height: 630, maxBytes: 4 * 1024 * 1024 },
+    instagram: { width: 1080, height: 1080, maxBytes: 8 * 1024 * 1024 },
+    tiktok: { width: 1080, height: 1920, maxBytes: 287 * 1024 * 1024 },
+  };
+  return specs[platform] ?? { width: 1080, height: 1080, maxBytes: 8 * 1024 * 1024 };
+}
+
+function parsePublishError(error: string, platform: string): string {
+  if (/pages_manage_posts|publish_to_groups|permission|#100|#200|scope|not allowed/i.test(error))
+    return `Vigmis lost permission to publish to your ${platform === 'facebook' ? 'Facebook Page' : 'Instagram account'}. Go to Connect tab to reconnect.`;
+  if (/token|expired|session/i.test(error))
+    return `Your ${platform} connection expired. Go to Connect tab to reconnect.`;
+  if (/rate.?limit|too many/i.test(error))
+    return `${platform} rate limit reached. Vigmis will retry in 2 hours.`;
+  if (/size|large|file/i.test(error))
+    return `Image is too large for ${platform}. Vigmis will auto-compress on retry.`;
+  return error;
+}
+
+async function validateImageSize(imageUrl: string, platform: string): Promise<void> {
+  try {
+    const spec = getPlatformImageSpec(platform);
+    const headRes = await fetch(imageUrl, { method: 'HEAD' });
+    const contentLength = headRes.headers.get('content-length');
+    if (contentLength) {
+      const bytes = parseInt(contentLength, 10);
+      if (!isNaN(bytes) && bytes > spec.maxBytes) {
+        console.warn(
+          `[social-publisher] Image for ${platform} is ${bytes} bytes (max ${spec.maxBytes}). ` +
+          `Will proceed but upload may fail — add sharp compression before upload.`
+        );
+      }
+    }
+  } catch {
+    // HEAD request failed — skip validation, let the upload attempt proceed
+  }
+}
 
 // Default AI-component map per platform.
 // If the customer fully rewrote the text via client_edit, text is no longer AI-generated.
@@ -118,6 +162,8 @@ async function publishToFacebook(post: any): Promise<PublishResult> {
   };
 
   if (post.image_url) {
+    // Validate file size before upload
+    await validateImageSize(post.image_url, 'facebook');
     // Photo post
     const res = await fetch(`${META_BASE}/${pageId}/photos`, {
       method: 'POST',
@@ -125,7 +171,7 @@ async function publishToFacebook(post: any): Promise<PublishResult> {
       body: JSON.stringify({ ...body, url: post.image_url, published: true }),
     });
     const data = await res.json() as any;
-    if (data.error) return { success: false, error: data.error.message };
+    if (data.error) return { success: false, error: parsePublishError(data.error.message, 'facebook') };
     return { success: true, externalId: data.post_id ?? data.id };
   }
 
@@ -136,7 +182,7 @@ async function publishToFacebook(post: any): Promise<PublishResult> {
     body: JSON.stringify(body),
   });
   const data = await res.json() as any;
-  if (data.error) return { success: false, error: data.error.message };
+  if (data.error) return { success: false, error: parsePublishError(data.error.message, 'facebook') };
   return { success: true, externalId: data.id };
 }
 
@@ -162,6 +208,9 @@ async function publishToInstagram(post: any): Promise<PublishResult> {
     return { success: false, error: 'Instagram post requires an image' };
   }
 
+  // Validate file size before upload
+  await validateImageSize(post.image_url, 'instagram');
+
   // Step 1: Create media container
   const containerRes = await fetch(`${META_BASE}/${igUserId}/media`, {
     method: 'POST',
@@ -173,7 +222,7 @@ async function publishToInstagram(post: any): Promise<PublishResult> {
     }),
   });
   const container = await containerRes.json() as any;
-  if (container.error) return { success: false, error: container.error.message };
+  if (container.error) return { success: false, error: parsePublishError(container.error.message, 'instagram') };
 
   // Step 2: Publish
   const publishRes = await fetch(`${META_BASE}/${igUserId}/media_publish`, {
@@ -182,7 +231,7 @@ async function publishToInstagram(post: any): Promise<PublishResult> {
     body: JSON.stringify({ creation_id: container.id, access_token: userToken }),
   });
   const published = await publishRes.json() as any;
-  if (published.error) return { success: false, error: published.error.message };
+  if (published.error) return { success: false, error: parsePublishError(published.error.message, 'instagram') };
   return { success: true, externalId: published.id };
 }
 
@@ -258,7 +307,7 @@ async function publishToTikTok(post: any): Promise<PublishResult> {
 
   const initData = await initRes.json() as any;
   if (initData.error?.code && initData.error.code !== 'ok') {
-    return { success: false, error: initData.error.message };
+    return { success: false, error: parsePublishError(initData.error.message, 'tiktok') };
   }
 
   const uploadUrl = initData.data?.upload_url as string | undefined;
@@ -295,6 +344,8 @@ export async function publishSocialPost(post: any): Promise<PublishResult> {
       default:          return { success: false, error: `Unknown platform: ${post.platform}` };
     }
   } catch (err: any) {
-    return { success: false, error: err?.message ?? 'Unknown error' };
+    const raw = err?.message ?? 'Unknown error';
+    const platform = post.platform ?? 'unknown';
+    return { success: false, error: parsePublishError(raw, platform) };
   }
 }

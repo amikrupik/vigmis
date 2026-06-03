@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "Prezzi", "about": "Chi siamo", "faq": "FAQ", "contact": "Contatti", "signin": "Accedi", "getStarted": "Inizia" },
+  "dashboard": { "overview": "Panoramica", "campaigns": "Campagne", "creative": "Creatività", "intelligence": "Intelligenza", "strategy": "Strategia", "social": "Social", "settings": "Impostazioni", "history": "Cronologia", "protocols": "Protocolli" },
+  "common": { "connect": "Connetti", "disconnect": "Disconnetti", "save": "Salva", "cancel": "Annulla", "back": "Indietro", "loading": "Caricamento...", "connected": "Connesso", "error": "Errore", "retry": "Riprova", "continue": "Continua" },
+  "connect": { "title": "Collega i tuoi account pubblicitari", "subtitle": "Collega le piattaforme su cui fai pubblicità.", "google": "Google Ads", "meta": "Facebook e Instagram", "tiktok": "TikTok Ads", "noAccount": "Non hai ancora un account?" }
+}

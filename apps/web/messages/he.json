@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "תמחור", "about": "אודות", "faq": "שאלות נפוצות", "contact": "צור קשר", "signin": "כניסה", "getStarted": "התחל" },
+  "dashboard": { "overview": "סקירה", "campaigns": "קמפיינים", "creative": "קריאייטיב", "intelligence": "אינטליגנציה", "strategy": "אסטרטגיה", "social": "סושיאל", "settings": "הגדרות", "history": "היסטוריה", "protocols": "פרוטוקולים" },
+  "common": { "connect": "חבר", "disconnect": "נתק", "save": "שמור", "cancel": "ביטול", "back": "חזרה", "loading": "טוען...", "connected": "מחובר", "error": "שגיאה", "retry": "נסה שוב", "continue": "המשך" },
+  "connect": { "title": "חבר את חשבונות הפרסום שלך", "subtitle": "חבר את הפלטפורמות שבהן אתה מפרסם.", "google": "Google Ads", "meta": "פייסבוק ואינסטגרם", "tiktok": "TikTok Ads", "noAccount": "אין לך חשבון עדיין?" }
+}

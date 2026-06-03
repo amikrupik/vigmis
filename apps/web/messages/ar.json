@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "التسعير", "about": "حول", "faq": "الأسئلة الشائعة", "contact": "تواصل", "signin": "تسجيل الدخول", "getStarted": "ابدأ" },
+  "dashboard": { "overview": "نظرة عامة", "campaigns": "الحملات", "creative": "الإبداع", "intelligence": "الذكاء", "strategy": "الاستراتيجية", "social": "التواصل الاجتماعي", "settings": "الإعدادات", "history": "التاريخ", "protocols": "البروتوكولات" },
+  "common": { "connect": "ربط", "disconnect": "قطع الاتصال", "save": "حفظ", "cancel": "إلغاء", "back": "رجوع", "loading": "جارٍ التحميل...", "connected": "متصل", "error": "خطأ", "retry": "حاول مجدداً", "continue": "متابعة" },
+  "connect": { "title": "ربط حسابات الإعلانات", "subtitle": "اربط المنصات التي تُعلن عليها.", "google": "جوجل أدز", "meta": "فيسبوك وإنستغرام", "tiktok": "تيك توك أدز", "noAccount": "ليس لديك حساب بعد؟" }
+}

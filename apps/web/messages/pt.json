@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "Preços", "about": "Sobre", "faq": "Dúvidas", "contact": "Contato", "signin": "Entrar", "getStarted": "Começar" },
+  "dashboard": { "overview": "Visão geral", "campaigns": "Campanhas", "creative": "Criativo", "intelligence": "Inteligência", "strategy": "Estratégia", "social": "Social", "settings": "Configurações", "history": "Histórico", "protocols": "Protocolos" },
+  "common": { "connect": "Conectar", "disconnect": "Desconectar", "save": "Salvar", "cancel": "Cancelar", "back": "Voltar", "loading": "Carregando...", "connected": "Conectado", "error": "Erro", "retry": "Tentar novamente", "continue": "Continuar" },
+  "connect": { "title": "Conecte suas contas de anúncios", "subtitle": "Conecte as plataformas onde você anuncia.", "google": "Google Ads", "meta": "Facebook e Instagram", "tiktok": "TikTok Ads", "noAccount": "Não tem conta ainda?" }
+}

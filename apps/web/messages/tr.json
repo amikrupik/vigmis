@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "Fiyatlar", "about": "Hakkında", "faq": "SSS", "contact": "İletişim", "signin": "Giriş Yap", "getStarted": "Başla" },
+  "dashboard": { "overview": "Genel Bakış", "campaigns": "Kampanyalar", "creative": "Kreatif", "intelligence": "İstihbarat", "strategy": "Strateji", "social": "Sosyal", "settings": "Ayarlar", "history": "Geçmiş", "protocols": "Protokoller" },
+  "common": { "connect": "Bağlan", "disconnect": "Bağlantıyı Kes", "save": "Kaydet", "cancel": "İptal", "back": "Geri", "loading": "Yükleniyor...", "connected": "Bağlı", "error": "Hata", "retry": "Tekrar Dene", "continue": "Devam" },
+  "connect": { "title": "Reklam hesaplarını bağla", "subtitle": "Reklam verdiğin platformları bağla.", "google": "Google Ads", "meta": "Facebook ve Instagram", "tiktok": "TikTok Ads", "noAccount": "Henüz hesabın yok mu?" }
+}

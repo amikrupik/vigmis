@@ -1,0 +1,6 @@
+{
+  "nav": { "pricing": "Preise", "about": "Über uns", "faq": "FAQ", "contact": "Kontakt", "signin": "Anmelden", "getStarted": "Loslegen" },
+  "dashboard": { "overview": "Übersicht", "campaigns": "Kampagnen", "creative": "Kreativ", "intelligence": "Intelligenz", "strategy": "Strategie", "social": "Social Media", "settings": "Einstellungen", "history": "Verlauf", "protocols": "Protokolle" },
+  "common": { "connect": "Verbinden", "disconnect": "Trennen", "save": "Speichern", "cancel": "Abbrechen", "back": "Zurück", "loading": "Laden...", "connected": "Verbunden", "error": "Fehler", "retry": "Erneut versuchen", "continue": "Weiter" },
+  "connect": { "title": "Verbinde deine Werbekonten", "subtitle": "Verbinde die Plattformen, auf denen du wirbst.", "google": "Google Ads", "meta": "Facebook und Instagram", "tiktok": "TikTok Ads", "noAccount": "Noch kein Konto?" }
+}

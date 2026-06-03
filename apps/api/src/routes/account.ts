@@ -254,6 +254,26 @@ export async function accountRoutes(app: FastifyInstance) {
     return reply.send({ url });
   });
 
+  // ── Save content language ─────────────────────────────────────────────────
+  // Stores the user's preferred content-generation language (not UI language —
+  // that's handled client-side via the vigmis_lang cookie).
+  app.put('/settings/language', { preHandler: authenticate }, async (request, reply) => {
+    const { language } = request.body as { language?: string };
+    if (typeof language !== 'string' || !language.trim()) {
+      return reply.code(400).send({ error: 'language (string) is required' });
+    }
+    const supported = ['en', 'he', 'ar', 'es', 'pt', 'fr', 'ru', 'de', 'tr', 'it'];
+    if (!supported.includes(language)) {
+      return reply.code(400).send({ error: `Unsupported language. Must be one of: ${supported.join(', ')}` });
+    }
+    const { error } = await db
+      .from('client_settings')
+      .update({ content_language: language })
+      .eq('tenant_id', request.tenantId);
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ success: true, language });
+  });
+
   // ── Unsubscribe (no auth — token = tenantId) ───────────────────────────────
   app.post('/account/unsubscribe', async (request, reply) => {
     const { token } = request.body as { token?: string };

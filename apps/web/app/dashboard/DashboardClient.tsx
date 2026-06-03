@@ -1158,7 +1158,121 @@ type CreativeJob = {
   output_url: string | null;
   brief: Record<string, any>;
   created_at: string;
+  approved?: boolean;
+  revision_requested?: boolean;
 };
+
+// ── Creative Brief Dialog ─────────────────────────────────────────────────────
+
+type CreativeBriefData = {
+  product?: string;
+  message?: string;
+  style?: string;
+  cta?: string;
+  restrictions?: string;
+};
+
+function CreativeBriefDialog({
+  open,
+  onClose,
+  onProceed,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onProceed: (data: CreativeBriefData | null) => void;
+}) {
+  const [product, setProduct] = useState('');
+  const [message, setMessage] = useState('');
+  const [style, setStyle] = useState('');
+  const [cta, setCta] = useState('');
+
+  if (!open) return null;
+
+  function submit(useInputs: boolean) {
+    const data: CreativeBriefData | null = useInputs
+      ? { product: product.trim() || undefined, message: message.trim() || undefined, style: style.trim() || undefined, cta: cta.trim() || undefined }
+      : null;
+    // Reset fields for next open
+    setProduct(''); setMessage(''); setStyle(''); setCta('');
+    onProceed(data);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Tell Vigmis what you need</h2>
+          <p className="text-sm text-slate-500 mt-0.5">All fields are optional — Vigmis will fill in any gaps automatically.</p>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">What product or service is this for?</label>
+            <input
+              type="text"
+              value={product}
+              onChange={e => setProduct(e.target.value)}
+              placeholder="e.g. Summer sale, new product launch"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Key message or offer?</label>
+            <input
+              type="text"
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="e.g. 30% off this week only"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Any style preferences?</label>
+            <input
+              type="text"
+              value={style}
+              onChange={e => setStyle(e.target.value)}
+              placeholder="e.g. professional, fun, minimalist"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Contact info / CTA to include?</label>
+            <input
+              type="text"
+              value={cta}
+              onChange={e => setCta(e.target.value)}
+              placeholder="e.g. vigmis.com, +972-50-xxx"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+          <button
+            onClick={() => submit(true)}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+          >
+            Generate with my inputs →
+          </button>
+          <button
+            onClick={() => submit(false)}
+            className="flex-1 border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+          >
+            Generate automatically (Vigmis decides)
+          </button>
+        </div>
+        <button
+          onClick={() => { setProduct(''); setMessage(''); setStyle(''); setCta(''); onClose(); }}
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+          aria-label="Close"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function CreativeTab({ settings }: any) {
   const [platform, setPlatform] = useState('google');
@@ -1167,6 +1281,12 @@ function CreativeTab({ settings }: any) {
   const [scoreForm, setScoreForm] = useState({ type: 'avatar', description: '', audience: '' });
   const [scoreResult, setScoreResult] = useState<any>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
+
+  // Creative brief dialog
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [briefData, setBriefData] = useState<CreativeBriefData | null>(null);
+  // pendingAction tracks which action opened the brief dialog
+  const [pendingAction, setPendingAction] = useState<'video' | 'copy' | null>(null);
 
   // Video generation
   const [selectedVideoType, setSelectedVideoType] = useState<VideoType>('avatar');
@@ -1194,12 +1314,72 @@ function CreativeTab({ settings }: any) {
     return () => clearInterval(interval);
   }, [jobs]);
 
-  async function handleGenerateCopy() {
+  // Open the brief dialog before any content generation
+  function openBriefFor(action: 'video' | 'copy') {
+    setPendingAction(action);
+    setBriefOpen(true);
+  }
+
+  // Called by CreativeBriefDialog when user clicks either proceed button
+  async function proceedWithBrief(data: CreativeBriefData | null) {
+    setBriefOpen(false);
+    setBriefData(data);
+    if (pendingAction === 'copy') {
+      await runGenerateCopy(data);
+    } else if (pendingAction === 'video') {
+      await runGenerateVideo(data);
+    }
+    setPendingAction(null);
+  }
+
+  async function runGenerateCopy(brief: CreativeBriefData | null) {
     setCopyLoading(true); setCopyResult(null);
-    const res = await generateAdCopy(platform, settings?.goal ?? 'leads', settings?.website_url ?? '', (settings?.geo_include ?? []).join(', '));
+    // Pass brief context via the goal/website fields so the existing API receives it.
+    // The AI will use these hints naturally in the generated copy.
+    const goal = [settings?.goal ?? 'leads', brief?.message].filter(Boolean).join(' — ');
+    const website = [settings?.website_url ?? '', brief?.cta].filter(Boolean).join(' ');
+    const audience = [
+      (settings?.geo_include ?? []).join(', '),
+      brief?.product ? `Product: ${brief.product}` : '',
+      brief?.style ? `Style: ${brief.style}` : '',
+    ].filter(Boolean).join('. ');
+    const res = await generateAdCopy(platform, goal, website, audience);
     setCopyResult(res);
     setCopyLoading(false);
   }
+
+  async function runGenerateVideo(brief: CreativeBriefData | null) {
+    if (!videoScript.trim()) return;
+    setVideoLoading(true); setVideoJob(null);
+    // Prepend brief context to the script/prompt when provided
+    const scriptWithBrief = brief
+      ? [
+          brief.product ? `Product: ${brief.product}` : '',
+          brief.message ? `Key message: ${brief.message}` : '',
+          brief.style ? `Style: ${brief.style}` : '',
+          brief.cta ? `CTA: ${brief.cta}` : '',
+          videoScript,
+        ].filter(Boolean).join('\n')
+      : videoScript;
+
+    const videoBrief = selectedVideoType === 'avatar'
+      ? { script: scriptWithBrief, avatar_id: 'Anna_public_3_20240108', voice_id: 'en-US-AriaNeural' }
+      : selectedVideoType === 'cinematic'
+      ? { prompt: scriptWithBrief, duration: 5, aspect_ratio: '16:9' }
+      : { prompt: scriptWithBrief, style: 'cinematic', duration: 3 };
+
+    const res = await generateCreative(selectedVideoType, videoBrief, platform);
+    setVideoJob(res);
+    setBriefApproved(false);
+    if (res?.job_id) {
+      setJobs(prev => [{ id: res.job_id, type: selectedVideoType, platform, status: res.status, output_url: null, brief: videoBrief, created_at: new Date().toISOString() }, ...prev]);
+    }
+    setVideoLoading(false);
+  }
+
+  // Keep old names as shims that open the brief dialog instead
+  function handleGenerateCopy() { openBriefFor('copy'); }
+  function handleGenerateVideo() { if (!videoScript.trim()) return; openBriefFor('video'); }
 
   async function handleScore() {
     if (!scoreForm.description) return;
@@ -1207,24 +1387,6 @@ function CreativeTab({ settings }: any) {
     const res = await scoreCreative(scoreForm.type, scoreForm.description, scoreForm.audience, platform, settings?.goal ?? 'leads');
     setScoreResult(res);
     setScoreLoading(false);
-  }
-
-  async function handleGenerateVideo() {
-    if (!videoScript.trim()) return;
-    setVideoLoading(true); setVideoJob(null);
-    const brief = selectedVideoType === 'avatar'
-      ? { script: videoScript, avatar_id: 'Anna_public_3_20240108', voice_id: 'en-US-AriaNeural' }
-      : selectedVideoType === 'cinematic'
-      ? { prompt: videoScript, duration: 5, aspect_ratio: '16:9' }
-      : { prompt: videoScript, style: 'cinematic', duration: 3 };
-
-    const res = await generateCreative(selectedVideoType, brief, platform);
-    setVideoJob(res);
-    setBriefApproved(false);
-    if (res?.job_id) {
-      setJobs(prev => [{ id: res.job_id, type: selectedVideoType, platform, status: res.status, output_url: null, brief, created_at: new Date().toISOString() }, ...prev]);
-    }
-    setVideoLoading(false);
   }
 
   const statusColor = (s: string) =>
@@ -1235,6 +1397,13 @@ function CreativeTab({ settings }: any) {
 
   return (
     <div className="space-y-6">
+      {/* Creative Brief Dialog */}
+      <CreativeBriefDialog
+        open={briefOpen}
+        onClose={() => { setBriefOpen(false); setPendingAction(null); }}
+        onProceed={proceedWithBrief}
+      />
+
       {/* Platform selector */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-600">Platform:</span>
@@ -1362,27 +1531,81 @@ function CreativeTab({ settings }: any) {
           {jobs.length === 0 ? (
             <p className="text-sm text-slate-400 py-3 text-center">No videos generated yet — write a script above and click "Preview Brief →"</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {jobs.slice(0, 5).map(job => {
                 const ageMin = Math.round((Date.now() - new Date(job.created_at).getTime()) / 60000);
                 const stuck = (job.status === 'queued' || job.status === 'processing') && ageMin > 15;
+                const isVideo = job.output_url && (job.output_url.endsWith('.mp4') || job.output_url.includes('video'));
+                const needsApproval = job.status === 'completed' && job.output_url && !job.approved;
+                const price = VIDEO_OPTIONS.find(o => o.type === job.type)?.price ?? 0;
                 return (
-                  <div key={job.id} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-semibold text-slate-800 capitalize">{job.type}</span>
-                      {job.platform && <span className="text-xs text-slate-400 capitalize">{job.platform}</span>}
-                      {stuck && <span className="text-xs text-amber-600 font-medium">Taking longer than expected</span>}
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>{job.status.replace('_', ' ')}</span>
-                      {job.status === 'completed' && job.output_url && (
-                        <>
-                          <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">View</a>
+                  <div key={job.id} className="border border-slate-100 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-slate-50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-sm font-semibold text-slate-800 capitalize">{job.type}</span>
+                        {job.platform && <span className="text-xs text-slate-400 capitalize">{job.platform}</span>}
+                        {stuck && <span className="text-xs text-amber-600 font-medium">Taking longer than expected</span>}
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>
+                          {job.approved ? 'approved' : job.status.replace('_', ' ')}
+                        </span>
+                        {job.status === 'completed' && job.output_url && job.approved && (
                           <a href={job.output_url} download className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-lg transition-colors">Download ↓</a>
-                        </>
-                      )}
-                      {stuck && <a href="mailto:support@vigmis.com" className="text-xs text-amber-600 hover:underline">Contact support</a>}
+                        )}
+                        {stuck && <a href="mailto:support@vigmis.com" className="text-xs text-amber-600 hover:underline">Contact support</a>}
+                      </div>
                     </div>
+
+                    {/* B5: Preview before charge — shown when completed and not yet approved */}
+                    {needsApproval && (
+                      <div className="p-4 space-y-3">
+                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Preview — approve before you are charged</p>
+                        {isVideo ? (
+                          <video
+                            src={job.output_url!}
+                            controls
+                            className="w-full max-h-64 rounded-lg bg-black"
+                          />
+                        ) : (
+                          <img
+                            src={job.output_url!}
+                            alt="Generated creative preview"
+                            className="w-full max-h-64 object-contain rounded-lg bg-slate-100"
+                          />
+                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          <button
+                            onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, approved: true } : j))}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                          >
+                            Approve &amp; Pay ${price}
+                          </button>
+                          <button
+                            onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j))}
+                            disabled={job.revision_requested}
+                            className="flex-1 border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                          >
+                            {job.revision_requested ? 'Revision requested' : 'Request revision (1 free)'}
+                          </button>
+                          <button
+                            onClick={() => setJobs(prev => prev.filter(j => j.id !== job.id))}
+                            className="border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                          >
+                            Cancel (no charge)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* View link after approval */}
+                    {job.status === 'completed' && job.output_url && job.approved && (
+                      <div className="px-3 pb-2">
+                        <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
+                          View creative
+                        </a>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -3615,6 +3838,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   const [rejectReason, setRejectReason] = useState('');
   const [editPost, setEditPost] = useState<{ id: string; content: string } | null>(null);
   const [generating, setGenerating] = useState(false);
+  // Creative brief dialog state for social post generation
+  const [socialBriefOpen, setSocialBriefOpen] = useState(false);
+  const [socialBriefData, setSocialBriefData] = useState<CreativeBriefData | null>(null);
   const [editReply, setEditReply] = useState<{ id: string; text: string } | null>(null);
   const [sendingReply, setSendingReply] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<'posts' | 'comments' | 'connect'>('posts');
@@ -3866,8 +4092,16 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
     await load();
   }
 
-  async function handleGenerate() {
+  // Open the brief dialog before generating social posts
+  function handleGenerate() {
+    setSocialBriefOpen(true);
+  }
+
+  async function runGenerateSocialContent(brief: CreativeBriefData | null) {
+    setSocialBriefData(brief);
     setGenerating(true);
+    // Brief data is stored in state for context; the existing generateSocialContent API
+    // call proceeds as before. The brief context can be plumbed into the API in a future step.
     const result = await generateSocialContent();
     await load();
     setGenerating(false);
@@ -3964,6 +4198,13 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
 
   return (
     <div className="space-y-6">
+      {/* Creative Brief Dialog for social post generation */}
+      <CreativeBriefDialog
+        open={socialBriefOpen}
+        onClose={() => setSocialBriefOpen(false)}
+        onProceed={async (data) => { setSocialBriefOpen(false); await runGenerateSocialContent(data); }}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
