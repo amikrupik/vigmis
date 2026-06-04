@@ -845,13 +845,13 @@ Each gate is enforced at multiple entry points:
 - Monorepo (npm workspaces, Turbo).
 - Apps: `apps/web` (Next.js 16 App Router + Turbopack), `apps/api` (Fastify).
 - Packages: `@vigmis/db`, `@vigmis/ad-connectors`, `@vigmis/ai-router`, `@vigmis/config`.
-- **43 migrations** (001 → 043).
-- **40+ routes** ב-API.
+- **44 migrations** (001 → 044).
+- **41+ routes** ב-API (כולל `/assets`).
 - **32+ services** ב-API.
 - **24+ crons** רשומים ב-Vercel scheduler.
 - Translation files: 10 שפות (`apps/web/messages/`).
 - TypeScript compile: ✅ 0 errors (API + Web)
-- DB: ✅ 043 migrations applied to Supabase, schema in sync.
+- DB: ✅ 044 migrations applied to Supabase, schema in sync.
 
 ---
 
@@ -1249,27 +1249,38 @@ Each gate is enforced at multiple entry points:
 ---
 
 #### 4.2 Anthropic (Claude)
-**תפקיד:** Provider משני — בשימוש ל-tasks שדורשים הבנה עמוקה יותר
+**תפקיד:** Provider ראשי לרוב tasks החשובים
+
+**שימושים עיקריים (מ-ai-router config):**
+- `analysis` → `claude-sonnet-4-6` — ניתוח אסטרטגיה, onboarding
+- `optimization_decision` → `claude-sonnet-4-6` — החלטות אופטימיזציה
+- `chat` → `claude-sonnet-4-6` — צ'אט ניהול
+- `report_generation` → `claude-sonnet-4-6` — דוחות
+- `seo_content` → `claude-sonnet-4-6` — תוכן SEO
 
 **חיבור בקוד:**
-- `packages/ai-router/src/providers/anthropic.ts` — adapter מוכן
-- מנוהל דרך `ai-router` — ניתוב אוטומטי לפי task type
+- `packages/ai-router/src/providers/anthropic.ts`
+- `packages/ai-router/src/config.ts` — ניתוב לפי task type
 - env vars: `ANTHROPIC_API_KEY`
 
 **חשוב לדעת:**
-- מוגדר אך לא בשימוש ראשי כרגע — ai-router מנתב ל-OpenAI כברירת מחדל
+- Claude הוא המודל הראשי לניתוח ורזון — לא GPT-4o
+- GPT-4o משמש לcopywriting בלבד; Gemini ל-market_research
 
 ---
 
 #### 4.3 Google Gemini
-**תפקיד:** Provider שלישי — גיבוי / tasks מסוימים
+**תפקיד:** Provider למחקר שוק (market_research tasks)
+
+**שימושים:**
+- `market_research` → `gemini-2.5-flash` — מחקר שוק מהיר וזול במיוחד
 
 **חיבור בקוד:**
 - `packages/ai-router/src/providers/gemini.ts`
 - env vars: `GEMINI_API_KEY`
 
 **חשוב לדעת:**
-- מוגדר, לא פעיל בתהליכי ייצור עיקריים
+- Gemini 2.5 Flash: עלות נמוכה מאוד ($0.0001/1K input) — מתאים למחקר שוק נרחב
 
 ---
 
@@ -1414,24 +1425,44 @@ Each gate is enforced at multiple entry points:
 
 ---
 
-#### 9.1 Weather API
+#### 9.1 OpenWeatherMap
 **תפקיד:** נתוני מזג אוויר לקמפיינים geo-based
 
+**מה עושה:**
+- שליפת תחזית 3 ימים לערים שהלקוח מכוון אליהן
+- "hot_boost / rain_dampens / cold_boosts" — הגדלה/הקטנה של תקציב לפי מזג אוויר
+- כל לקוח יכול להגדיר `weather_sensitive: true` + sensitivity profile
+
 **חיבור בקוד:**
-- `apps/api/src/services/weather.ts`
-- `apps/web/app/api/cron/weather/route.ts` — מסנכרן יומי
-- `weather_data` table ב-DB
-- env vars: מוגדר בservice (API key ספציפי לספק שנבחר)
+- `apps/api/src/services/weather.ts` — OpenWeatherMap "One Call" API
+- `apps/web/app/api/cron/weather/route.ts` — cron 2×/day
+- migration 038 — `weather_snapshot` table + `client_settings.weather_sensitive`
+- env vars: `OPENWEATHER_API_KEY`
+
+**חשוב לדעת:**
+- ה-service מתפרק gracefully אם `OPENWEATHER_API_KEY` חסר — לא קורס
+- Free tier של OpenWeatherMap מספיק לdev
 
 ---
 
-#### 9.2 News Monitoring
+#### 9.2 NewsAPI
 **תפקיד:** ניטור חדשות לזיהוי אירועים שמשפיעים על מותג הלקוח
 
+**מה עושה:**
+- שליפת חדשות רלוונטיות לעסק הלקוח ב-6 שעות
+- LLM מסנן לפי relevance_score (0-1)
+- relevance ≥ 0.7 → notification אוטומטי ללקוח
+- קטגוריות: competitor / industry / regulation / macroeconomy
+
 **חיבור בקוד:**
-- `apps/api/src/services/news-monitor.ts`
-- `apps/web/app/api/cron/news-scan/route.ts` — סריקה יומית
-- `news_alerts` table ב-DB
+- `apps/api/src/services/news-monitor.ts` — NewsAPI.org (`/v2/everything`)
+- `apps/web/app/api/cron/news-scan/route.ts` — סריקה כל 6 שעות
+- migration 037 — `news_alerts` table
+- env vars: `NEWSAPI_KEY`
+
+**חשוב לדעת:**
+- ה-service מתפרק gracefully אם `NEWSAPI_KEY` חסר
+- NewsAPI.org free tier: 100 requests/day (מספיק ל-dev)
 
 ---
 
@@ -1514,9 +1545,72 @@ vigmis-main/
 | `NEXT_PUBLIC_API_URL` | Vercel | כתובת ה-API |
 | `WEB_URL` | Railway | כתובת ה-Web (CORS) |
 | `PORT` | Railway | פורט שרת API |
+| `OPENWEATHER_API_KEY` | Railway | OpenWeatherMap — מזג אוויר |
+| `NEWSAPI_KEY` | Railway | NewsAPI.org — ניטור חדשות |
 
 ---
 
-*עדכון אחרון: 2026-06-03 — Session: Multi-user, Settings, i18n, Creative Brief, Competitive Intelligence, Platform Connections.*
+---
+
+## 37. Brand Asset Library ✅ נבנה (2026-06-04)
+
+ספריית נכסים מרכזית — תמונות וסרטוני מותג שניתן לשמש בפוסטים וקמפיינים.
+
+### 37.1 API
+| Method | Route | תיאור |
+|---|---|---|
+| POST | `/assets/upload` | העלאת תמונה/וידאו (multipart, עד 10MB) |
+| GET | `/assets` | רשימת כל נכסי הלקוח (filter: ?kind=image/video) |
+| DELETE | `/assets/:id` | מחיקת נכס + ממאגר Supabase Storage |
+
+### 37.2 Storage
+- Supabase Storage bucket: `brand_assets` (public)
+- פורמטים נתמכים: JPG, PNG, GIF, WebP, MP4, MOV (עד 10 MB)
+- כל קובץ שמור תחת `{tenantId}/{timestamp}_{filename}`
+
+### 37.3 DB
+- migration 044 — `brand_assets` table (UUID tenant_id FK → tenants.id)
+
+### 37.4 UI
+- **Brand Asset Library** ב-Settings tab — גריד 6 עמודות, filter by image/video, upload + delete
+- **Media picker בפוסטים** — כפתור "Image" בכל post בתור הפוסטים → picker עם upload from computer + בחירה מהספרייה
+- **Change/Remove** בתמונות קיימות בפוסטים — hover overlay
+
+---
+
+## 38. שיפורי Onboarding ו-UX — QA Round אנה (2026-06-04)
+
+### 38.1 תיקון Connection State
+- `OnboardingPageClient` עכשיו קורא `GET /auth/status` בmount כדי לקבל את מצב כל הפלטפורמות
+- **לפני:** `?connected=meta` ב-URL גרם לGoogle להיראות מנותק
+- **אחרי:** כל הפלטפורמות המחוברות מוצגות נכון, ללא תלות ב-URL param
+
+### 38.2 Google Account Selector
+- עכשיו טוען חשבונות Google בכל פעם ש-Google מחובר (לא רק ביציאה מ-OAuth)
+- **לפני:** הselector הוצג רק אם המשתמש הגיע מ-`?connected=google`
+
+### 38.3 Strategy Plan — עומק אסטרטגי
+תוכנית הקמפיין כוללת עכשיו:
+- **Strategy Narrative** — 3 פסקאות: למה גישה זו, מי קהל היעד (פסיכוגרפי), איך מבצעים
+- **Funnel Strategy** — Awareness / Consideration / Conversion — מה רצים בכל שלב
+- **Creative Brief** לכל פלטפורמה — formats, כמות תמונות/סרטונים, 3 message hooks, CTA
+- **Missing Platforms** — אם פלטפורמה לא מחוברת אך קריטית לסוג העסק (דוגמה: TikTok לאופנה צעירה)
+- סוג חדש ב-`StrategyPlan`: `strategy_narrative`, `funnel_strategy`, `creative_brief`, `missing_platforms`
+
+### 38.4 Approval Feedback Loop
+- לפני checkbox האישור: prompt אינלין "Before you approve — any questions?"
+- שדה טקסט ישיר לשאלות/שינויים + כפתור "Ask →"
+- **לפני:** רק כפתור "Request Changes" קטן שנחבא
+
+### 38.5 Language Switcher
+- EN/עב switcher ב-header של Onboarding
+- שמירה ב-cookie `vigmis_lang` + reload
+
+### 38.6 Floating Chat Button
+- גודל גדול יותר, label "Ask Vigmis", pulse indicator ירוק
+
+---
+
+*עדכון אחרון: 2026-06-04 — Brand Assets, Anna QA Round, Strategy depth, connection state fix, language switcher.*
 
 
