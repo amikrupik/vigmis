@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS brand_assets (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id       TEXT NOT NULL REFERENCES client_settings(tenant_id) ON DELETE CASCADE,
+  tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   storage_path    TEXT NOT NULL,
   public_url      TEXT NOT NULL,
   filename        TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE INDEX IF NOT EXISTS brand_assets_kind ON brand_assets(tenant_id, kind);
 
 ALTER TABLE brand_assets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "tenant_isolation" ON brand_assets
-  USING (tenant_id = current_setting('app.tenant_id', true));
+  USING (tenant_id::text = current_setting('app.tenant_id', true));
 
 -- Supabase Storage bucket for brand assets (public read, authenticated write)
 -- Run in Supabase dashboard or via `supabase storage create brand_assets --public`
