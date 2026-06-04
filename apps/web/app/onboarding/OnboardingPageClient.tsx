@@ -103,12 +103,28 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
 
-  // Auto-load Google accounts when Google just connected
+  // Fetch real connection status on mount — URL param only reflects the LAST connected platform,
+  // so Google would appear disconnected after connecting Meta (?connected=meta).
   useEffect(() => {
-    if (initialConnected === 'google') {
-      loadGoogleAccountsForOnboarding();
+    async function fetchConnectionStatus() {
+      try {
+        const token = await getClerkToken();
+        const res = await fetch(`${API_URL}/auth/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const status = await res.json();
+          setConnected({
+            google: status.google === true,
+            meta: status.meta === true,
+            tiktok: status.tiktok === true,
+          });
+          if (status.google) loadGoogleAccountsForOnboarding();
+        }
+      } catch { /* silent — URL param is fallback */ }
     }
-  }, [initialConnected]);
+    fetchConnectionStatus();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadGoogleAccountsForOnboarding() {
     setGoogleAccountLoading(true);
@@ -268,11 +284,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     }
   }
 
+  // ── Language switcher ─────────────────────────────────────────────────────────
+  function switchLanguage(lang: string) {
+    document.cookie = `vigmis_lang=${lang};path=/;max-age=31536000`;
+    window.location.reload();
+  }
+
+  const currentLang = typeof document !== 'undefined'
+    ? (document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en')
+    : 'en';
+
   // ── Header ────────────────────────────────────────────────────────────────────
   const header = (
     <header className="border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0">
-      <div className="max-w-2xl mx-auto flex items-center gap-6">
-        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority className="flex-shrink-0" />
+      <div className="max-w-2xl mx-auto flex items-center gap-4">
+        <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} priority className="flex-shrink-0" />
         <div className="flex-1 flex items-center min-w-0">
           {STEPS.map((s, i) => (
             <Fragment key={s.key}>
@@ -296,6 +322,22 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 <div className={`flex-1 h-px mx-2 min-w-[8px] ${STEP_INDEX[step] > i ? 'bg-emerald-300' : 'bg-slate-200'}`} />
               )}
             </Fragment>
+          ))}
+        </div>
+        {/* Language switcher */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {(['en', 'he'] as const).map(lang => (
+            <button
+              key={lang}
+              onClick={() => switchLanguage(lang)}
+              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                currentLang === lang
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {lang === 'en' ? 'EN' : 'עב'}
+            </button>
           ))}
         </div>
       </div>
@@ -753,6 +795,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>
             )}
 
+            {/* Strategic narrative */}
+            {strategy.strategy_narrative && (
+              <div className="bg-slate-900 rounded-xl p-5 space-y-3">
+                <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Strategic Plan</p>
+                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{strategy.strategy_narrative}</p>
+              </div>
+            )}
+
             {/* Market insights */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 space-y-3">
               <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Market Insights</p>
@@ -768,6 +818,27 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 </div>
               </div>
             </div>
+
+            {/* Funnel strategy */}
+            {strategy.funnel_strategy && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-700">Marketing Funnel</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {[
+                    { label: 'Awareness', value: strategy.funnel_strategy.awareness, color: 'bg-violet-500', badge: 'bg-violet-100 text-violet-700' },
+                    { label: 'Consideration', value: strategy.funnel_strategy.consideration, color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700' },
+                    { label: 'Conversion', value: strategy.funnel_strategy.conversion, color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700' },
+                  ].map(({ label, value, badge }) => (
+                    <div key={label} className="px-5 py-4 flex gap-3">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full h-fit flex-shrink-0 ${badge}`}>{label}</span>
+                      <p className="text-sm text-slate-700 leading-relaxed">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Budget allocation */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -890,6 +961,64 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
                 <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">Learnings from Your Previous Campaigns</p>
                 <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.past_performance_notes}</p>
+              </div>
+            )}
+
+            {/* Creative brief per platform */}
+            {strategy.creative_brief && strategy.creative_brief.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-700">Creative Brief</p>
+                  <p className="text-xs text-slate-400 mt-0.5">What creatives Vigmis will produce for each platform</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {strategy.creative_brief.map((brief: any) => (
+                    <div key={brief.platform} className="px-5 py-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-slate-900 capitalize">{brief.platform}</span>
+                        <div className="flex gap-1.5">
+                          {brief.formats.map((f: string) => (
+                            <span key={f} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{f.replace(/_/g, ' ')}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-50 rounded-lg p-2.5">
+                          <p className="text-slate-400 mb-1">Creatives to produce</p>
+                          <p className="font-semibold text-slate-700">{brief.quantity_images} image{brief.quantity_images !== 1 ? 's' : ''}{brief.quantity_videos > 0 ? ` · ${brief.quantity_videos} video${brief.quantity_videos !== 1 ? 's' : ''}` : ''}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-2.5">
+                          <p className="text-slate-400 mb-1">CTA</p>
+                          <p className="font-semibold text-slate-700">{brief.cta}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-slate-500">Message angles:</p>
+                        {brief.hooks.map((hook: string, i: number) => (
+                          <p key={i} className="text-xs text-slate-600 leading-relaxed pl-2 border-l-2 border-indigo-200">{hook}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Missing platform suggestions */}
+            {strategy.missing_platforms && strategy.missing_platforms.length > 0 && (
+              <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-5 space-y-3">
+                <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Platform Opportunities</p>
+                <p className="text-xs text-amber-700">Vigmis recommends adding these platforms based on your business profile:</p>
+                {strategy.missing_platforms.map((mp: any) => (
+                  <div key={mp.platform} className="bg-white rounded-lg p-3.5 border border-amber-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-slate-900 capitalize">{mp.platform}</span>
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Not connected</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">{mp.reason}</p>
+                    <p className="text-xs text-emerald-700 font-medium mt-1.5">Potential: {mp.potential_uplift}</p>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -1112,6 +1241,39 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   </div>
                 </div>
 
+                {/* Proactive check-in before approval — every decision point gets this */}
+                <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-900 text-sm">Before you approve — any questions?</p>
+                      <p className="text-xs text-slate-500 mt-0.5">This is the right moment. Want to change the budget, adjust platforms, tweak the targeting, or push back on any part of the plan? Don't approve if anything feels off.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={strategyFeedback}
+                      onChange={e => setStrategyFeedback(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && strategyFeedback.trim()) { setShowFeedback(true); setDiscussionResponse(null); } }}
+                      placeholder="e.g. Lower the budget, remove Google, focus only on Israel..."
+                      className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      dir="auto"
+                    />
+                    <button
+                      onClick={() => { if (strategyFeedback.trim()) { setShowFeedback(true); setDiscussionResponse(null); } }}
+                      disabled={!strategyFeedback.trim()}
+                      className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
+                    >
+                      Ask →
+                    </button>
+                  </div>
+                </div>
+
                 {/* Formal approval */}
                 <div className="border-2 border-indigo-200 bg-indigo-50 rounded-2xl p-5 space-y-4">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -1129,12 +1291,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   </label>
 
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => { setShowFeedback(true); setDiscussionResponse(null); }}
-                      className="border border-indigo-200 text-indigo-600 text-sm font-semibold py-3 px-5 rounded-xl hover:bg-white transition-colors"
-                    >
-                      Request Changes
-                    </button>
                     <button
                       onClick={() => setStep('creative')}
                       disabled={!planApproved}

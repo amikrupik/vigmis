@@ -33,6 +33,7 @@ import {
   exportSocialCSV, exportSocialHTML,
   exportMarketingPlanHTML, exportInvoiceHTML,
   scoreCreativeAsset, getCreativeThemes, getBudgetForecast,
+  getBrandAssets, deleteBrandAsset, uploadBrandAsset,
 } from './actions';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
@@ -3039,6 +3040,99 @@ function StrategyTab({ settings: _settings }: any) {
   );
 }
 
+// ── Brand Asset Library ───────────────────────────────────────────────────────
+// Shows all images/videos uploaded by the user + AI-generated creatives.
+// Used in Settings tab and as a picker in Social posts.
+
+function BrandAssetLibrary() {
+  const [assets, setAssets] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<'all' | 'image' | 'video'>('all');
+
+  async function load() {
+    setLoading(true);
+    const res = await getBrandAssets(kindFilter === 'all' ? undefined : kindFilter);
+    setAssets(res?.assets ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [kindFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    const res = await uploadBrandAsset(file);
+    setUploading(false);
+    if (res) await load();
+    else alert('Upload failed. Check file type and size (max 10 MB).');
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this asset? This cannot be undone.')) return;
+    setDeleting(id);
+    await deleteBrandAsset(id);
+    setAssets(prev => prev?.filter(a => a.id !== id) ?? null);
+    setDeleting(null);
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="font-bold text-slate-900 text-lg">Brand Asset Library</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Upload logos, product images, and videos for use in posts and campaigns.</p>
+        </div>
+        <label className={`flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl cursor-pointer transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          {uploading ? 'Uploading...' : 'Upload'}
+          <input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" disabled={uploading}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
+        </label>
+      </div>
+
+      <div className="flex gap-1.5">
+        {(['all', 'image', 'video'] as const).map(k => (
+          <button key={k} onClick={() => setKindFilter(k)}
+            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors capitalize ${kindFilter === k ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+            {k}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>
+      ) : assets && assets.length === 0 ? (
+        <div className="text-center py-10 text-sm text-slate-400">
+          No assets yet. Upload images or videos to build your library.
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+          {assets?.map(asset => (
+            <div key={asset.id} className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+              {asset.kind === 'image' ? (
+                <img src={asset.public_url} alt={asset.filename} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
+                <a href={asset.public_url} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white text-slate-900 font-semibold px-2 py-1 rounded-lg w-full text-center">View</a>
+                <button onClick={() => handleDelete(asset.id)} disabled={deleting === asset.id}
+                  className="text-[10px] bg-red-500 hover:bg-red-600 text-white font-semibold px-2 py-1 rounded-lg w-full transition-colors disabled:opacity-50">
+                  {deleting === asset.id ? '...' : 'Delete'}
+                </button>
+              </div>
+              <p className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1.5 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">{asset.filename}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ settings, connected }: any) {
@@ -3430,6 +3524,9 @@ function SettingsTab({ settings, connected }: any) {
           </div>
         )}
       </div>
+
+      {/* Brand Asset Library */}
+      <BrandAssetLibrary />
 
       {/* Danger Zone */}
       <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm">
@@ -4231,6 +4328,39 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   const [editing, setEditing] = useState<null | 'page' | 'account' | 'ga4' | 'google_account'>(null);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  // ── Media picker for posts ─────────────────────────────────────────────────
+  const [mediaPickerPost, setMediaPickerPost] = useState<string | null>(null);
+  const [brandAssets, setBrandAssets] = useState<any[] | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [postImageOverrides, setPostImageOverrides] = useState<Record<string, string | null>>({});
+
+  async function loadBrandAssets() {
+    const res = await getBrandAssets('image');
+    setBrandAssets(res?.assets ?? []);
+  }
+
+  function openMediaPicker(postId: string) {
+    setMediaPickerPost(postId);
+    if (!brandAssets) loadBrandAssets();
+  }
+
+  async function handleSetPostImage(postId: string, url: string | null) {
+    await updateSocialPost(postId, { image_url: url });
+    setPostImageOverrides(prev => ({ ...prev, [postId]: url }));
+    setMediaPickerPost(null);
+    await load();
+  }
+
+  async function handleUploadForPost(postId: string, file: File) {
+    setUploadingMedia(true);
+    const res = await uploadBrandAsset(file);
+    setUploadingMedia(false);
+    if (res?.public_url) {
+      await handleSetPostImage(postId, res.public_url);
+      setBrandAssets(prev => prev ? [{ id: res.id, public_url: res.public_url, filename: file.name, kind: 'image' }, ...prev] : null);
+    }
+  }
+
   // Google Ads account selector state
   const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string }[] | null>(null);
   const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
@@ -4667,8 +4797,50 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   <span className="text-xs text-amber-600 font-semibold flex-shrink-0">${post.cost_usd}</span>
                 </div>
 
-                {post.image_url && (
-                  <img src={post.image_url} alt="Post visual" className="w-full max-h-48 object-cover rounded-lg border border-amber-100" />
+                {/* Post image — shows current or override, with change/remove buttons */}
+                {(() => {
+                  const imgUrl = postImageOverrides[post.id] !== undefined ? postImageOverrides[post.id] : post.image_url;
+                  return imgUrl ? (
+                    <div className="relative group">
+                      <img src={imgUrl} alt="Post visual" className="w-full max-h-48 object-cover rounded-lg border border-amber-100" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                        <button onClick={() => openMediaPicker(post.id)} className="bg-white text-slate-900 text-xs font-semibold px-3 py-1.5 rounded-lg">Change</button>
+                        <button onClick={() => handleSetPostImage(post.id, null)} className="bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Remove</button>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Media picker panel */}
+                {mediaPickerPost === post.id && (
+                  <div className="border-2 border-indigo-200 bg-indigo-50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-indigo-700">Attach image to post</p>
+                      <button onClick={() => setMediaPickerPost(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
+                    </div>
+                    <div className="flex gap-2">
+                      <label className="flex items-center gap-1.5 border border-indigo-300 bg-white text-indigo-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors flex-shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        {uploadingMedia ? 'Uploading...' : 'Upload from computer'}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploadingMedia} onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadForPost(post.id, f); }} />
+                      </label>
+                    </div>
+                    {brandAssets && brandAssets.length > 0 && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-2">Or pick from your brand library:</p>
+                        <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
+                          {brandAssets.map((a: any) => (
+                            <button key={a.id} onClick={() => handleSetPostImage(post.id, a.public_url)} className="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-indigo-400 transition-colors">
+                              <img src={a.public_url} alt={a.filename} className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {brandAssets && brandAssets.length === 0 && (
+                      <p className="text-xs text-slate-400">No images in library yet. Upload from computer to add.</p>
+                    )}
+                  </div>
                 )}
 
                 {editPost?.id === post.id ? (
@@ -4700,12 +4872,19 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setEditPost(editPost?.id === post.id ? null : { id: post.id, content: post.content })}
                       className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                     >
-                      {editPost?.id === post.id ? 'Cancel edit' : 'Edit'}
+                      {editPost?.id === post.id ? 'Cancel edit' : 'Edit text'}
+                    </button>
+                    <button
+                      onClick={() => mediaPickerPost === post.id ? setMediaPickerPost(null) : openMediaPicker(post.id)}
+                      className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      {mediaPickerPost === post.id ? 'Close' : 'Image'}
                     </button>
                     <button onClick={() => setRejectingPost(post.id)} className="border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">Reject</button>
                     <button

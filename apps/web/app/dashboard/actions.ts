@@ -460,6 +460,30 @@ export async function cancelCoolingOff(postId: string) {
   return apiCall(`/social/posts/${postId}/cancel-cooling-off`, 'POST');
 }
 
+// ── Brand Asset Library ────────────────────────────────────────────────────────
+
+export async function getBrandAssets(kind?: 'image' | 'video') {
+  return apiCall(`/assets${kind ? `?kind=${kind}` : ''}`);
+}
+
+export async function deleteBrandAsset(id: string) {
+  return apiCall(`/assets/${id}`, 'DELETE');
+}
+
+export async function uploadBrandAsset(file: File): Promise<{ public_url: string; id: string; kind: string } | null> {
+  const { getToken } = await auth();
+  const token = await getToken();
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_URL}/assets/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 // ── Export (returns raw text/csv or text/html) ────────────────────────────────
 
 async function apiRaw(path: string): Promise<{ content: string; contentType: string } | null> {

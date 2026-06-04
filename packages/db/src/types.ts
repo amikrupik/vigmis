@@ -61,6 +61,27 @@ export interface SocialPlan {
   estimated_monthly_cost_usd: number;
 }
 
+export interface FunnelStrategy {
+  awareness: string;
+  consideration: string;
+  conversion: string;
+}
+
+export interface PlatformCreativeBrief {
+  platform: string;
+  formats: string[];
+  quantity_images: number;
+  quantity_videos: number;
+  hooks: string[];
+  cta: string;
+}
+
+export interface MissingPlatformSuggestion {
+  platform: string;
+  reason: string;
+  potential_uplift: string;
+}
+
 export interface StrategyPlan {
   platforms: StrategyPlatform[];
   market_insights: string;
@@ -72,6 +93,11 @@ export interface StrategyPlan {
   budget_analysis?: BudgetAnalysis;
   custom_benchmarks?: CustomBenchmarks;
   social_plan?: SocialPlan;
+  // Strategic depth — added per product feedback
+  strategy_narrative?: string;
+  funnel_strategy?: FunnelStrategy;
+  creative_brief?: PlatformCreativeBrief[];
+  missing_platforms?: MissingPlatformSuggestion[];
 }
 
 export type BusinessType = 'ecommerce' | 'hero_product' | 'lead_gen' | 'saas' | 'general_store';

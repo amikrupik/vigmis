@@ -443,7 +443,7 @@ Provide: 1) Estimated CPC range 2) What competitors are doing and how to differe
     // Phase 3: Strategy generation
     const strategyRes = await route({
       task: 'analysis',
-      prompt: `You are a senior media planner and honest business advisor. Based on the data below, produce a complete campaign strategy with a detailed budget advisory section.
+      prompt: `You are a senior media planner and honest business advisor at a world-class agency. A new client has come to you. Based on the data below, produce a COMPLETE strategic plan — not just budget numbers, but the full strategic thinking a professional agency would deliver: why, who, how, with what creative, and what's missing.
 
 BUSINESS:
 ${websiteAnalysis.slice(0, 600)}
@@ -480,19 +480,16 @@ BUDGET ADVISORY — think like a CFO + CMO combined. Consider:
 CUSTOM BENCHMARKS — this is critical. The optimization engine will use these instead of generic defaults.
 Generate realistic performance thresholds for THIS specific business, in THIS market, with THIS goal.
 Consider: vertical (B2B vs B2C), country (Israel CPC ≠ US), product price point, competition level, brand recognition, audience size.
-Examples:
-- B2B legal in Israel → Meta CTR 0.3-0.6% is normal (small professional audience)
-- Fashion e-commerce targeting 18-30 → Meta CTR below 1% is a problem
-- Google Search for high-intent local service → CTR 4-8% expected
-- Luxury product ($1000+) → higher CPC tolerated, lower CTR acceptable
 For each platform the client will use, set minCtr (underperforming threshold), goodCtr (scale-up threshold), and optionally maxCpc/maxCpa.
 
 SOCIAL MEDIA ORGANIC POSTING — Vigmis can also post organic content (Facebook Page, Instagram, TikTok) on behalf of the client. $1/post (FB/IG) or $3/post (TikTok, includes AI video). Once weekly per platform.
-Assess whether this client would benefit:
-- Does this business have a natural social media audience?
-- Would organic posts complement the paid ads meaningfully?
-- Which platforms make sense for organic (not every business needs TikTok organic)?
-Recommend 1-3 platforms and content pillars suited to this specific business.
+Assess whether this client would benefit, which platforms, and which content pillars.
+
+STRATEGIC NARRATIVE — write the full agency-level strategy:
+- strategy_narrative: 3 paragraphs explaining the STRATEGIC LOGIC: (1) what problem we're solving / why this approach, (2) exactly who we're targeting and their psychographic profile, (3) how we'll execute and why this sequence makes sense for THIS business right now. Be specific, not generic.
+- funnel_strategy: describe what we do at each funnel stage for THIS business (awareness / consideration / conversion). Include specific ad formats and messages for each stage.
+- creative_brief: for EACH platform we're using — what creatives to produce: formats (video_15s, image_carousel, single_image, story), how many images/videos, 3 specific message hooks (angles the ads will use), and the CTA. Be specific to this business, not generic.
+- missing_platforms: if there are platforms NOT connected that would significantly help this specific business (e.g. TikTok for youth fashion, YouTube for high-ticket products, Google for high search-intent products), list them with the specific reason and estimated uplift. Do NOT list platforms that aren't relevant.
 
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 
@@ -507,6 +504,25 @@ Return ONLY valid JSON (no extra text):
   "recommendations": "Top 3 actionable recommendations based on history and market",
   "past_performance_notes": "Key learnings from client historical campaigns, or null",
   "organic_recommendations": "2-3 specific organic growth actions to complement and reduce ad dependency",
+  "strategy_narrative": "Paragraph 1: the strategic logic and why this approach. Paragraph 2: who exactly we are targeting and their psychographic profile. Paragraph 3: how we execute and the sequencing rationale.",
+  "funnel_strategy": {
+    "awareness": "What we run at top of funnel, to whom, with what message and format",
+    "consideration": "What we run at mid funnel, retargeting whom, with what offer",
+    "conversion": "Bottom funnel — hot audiences, specific offer, urgency mechanic"
+  },
+  "creative_brief": [
+    {
+      "platform": "meta",
+      "formats": ["video_15s", "single_image"],
+      "quantity_images": 3,
+      "quantity_videos": 1,
+      "hooks": ["Pain point angle: ...", "Social proof angle: ...", "Benefit angle: ..."],
+      "cta": "Shop Now"
+    }
+  ],
+  "missing_platforms": [
+    { "platform": "tiktok", "reason": "Your target demographic 18-28 spends 3+ hours/day on TikTok. Competitors are not yet active there — first-mover advantage.", "potential_uplift": "~35% more reach at lower CPM than Meta" }
+  ],
   "budget_analysis": {
     "verdict": "sufficient",
     "verdict_explanation": "One honest sentence about whether the budget makes sense for this market",
@@ -518,8 +534,7 @@ Return ONLY valid JSON (no extra text):
     "projected_leads_monthly": 15,
     "break_even_conversions": 4,
     "warnings": [
-      "Landing page conversion rate is the key variable — a weak page will waste budget",
-      "Competition in this niche is high — expect the lower end of the CPC range"
+      "Landing page conversion rate is the key variable — a weak page will waste budget"
     ],
     "platform_exclusions": [
       { "platform": "tiktok", "reason": "Target audience is 45+ — TikTok reach in this demographic is minimal" }
@@ -533,20 +548,12 @@ Return ONLY valid JSON (no extra text):
       "maxCpa": 65.00,
       "learningDays": 10,
       "minDataClicks": 30,
-      "rationale": "B2B professional services in Israel. Small addressable audience means lower raw CTR is acceptable. $65 CPA is viable given estimated deal value."
-    },
-    "google_search": {
-      "minCtr": 0.035,
-      "goodCtr": 0.060,
-      "maxCpc": 8.00,
-      "learningDays": 7,
-      "minDataClicks": 30,
-      "rationale": "High-intent search for professional services. 3.5-6% CTR realistic for branded category terms in this geography."
+      "rationale": "B2B professional services in Israel. Small addressable audience means lower raw CTR is acceptable."
     }
   },
   "social_plan": {
     "recommended": true,
-    "rationale": "This business has a visual product well-suited to Instagram. Regular posting builds trust and brand recognition that lowers the cost of paid conversions over time.",
+    "rationale": "This business has a visual product well-suited to Instagram.",
     "platforms": [
       { "platform": "facebook", "rationale": "Local reach and community trust", "cost_usd": 1 },
       { "platform": "instagram", "rationale": "Visual product showcase, 25-40 demographic", "cost_usd": 1 }
@@ -557,7 +564,7 @@ Return ONLY valid JSON (no extra text):
   }
 }`,
       systemPrompt: 'You are a senior media planner and honest business advisor. Return only valid JSON, no extra text.',
-      options: { maxTokens: 1400, temperature: 0.3 },
+      options: { maxTokens: 2200, temperature: 0.3 },
     });
 
     let strategy: object;
