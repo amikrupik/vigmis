@@ -1794,6 +1794,9 @@ function CreativeTab({ settings }: any) {
           </div>
         )}
       </div>
+
+      {/* ── Brand & Creative Library ─────────────────────────────────────── */}
+      <BrandAssetLibrary />
     </div>
   );
 }

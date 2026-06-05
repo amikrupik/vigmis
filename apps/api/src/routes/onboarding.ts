@@ -32,6 +32,7 @@ You MUST cover these 10 topics before concluding:
 8. geography — which cities/regions/countries to target AND which to exclude.
 9. exclusions — what the system must NEVER do: audiences to avoid, topics, tone, legal constraints.
 10. open_notes — any other important rules (business hours, seasonal pauses, dayparting, etc.).
+11. preferred_platforms — ONLY ask this if the client has multiple platforms connected. Ask: "Do you want to advertise on all connected platforms, or focus on just one for now?" Capture their answer. If they say only one platform (e.g. "just Meta", "only Google"), record it. If they're fine with all, leave it null.
 
 Rules:
 - Ask ONE question at a time. Keep it short and conversational.
@@ -56,6 +57,7 @@ Rules:
   "geo_exclude": ["tourists", "under 25"],
   "exclusions": "Never mention prices. Avoid secular tone.",
   "open_notes": "Closed Friday 16:00 to Saturday night.",
+  "preferred_platforms": ["meta"],
   "risk_level": "balanced",
   "dayparting_rules": [
     { "day": 5, "start_hour": 16, "end_hour": 23 }
@@ -415,8 +417,13 @@ ${scrapedSite.text.slice(0, 8000)}`,
 
     // Build connected platforms list for budget allocation guidance
     const connectedPlatformNames: string[] = (connectedPlatformsRow.data ?? []).map((r: { platform: string }) => r.platform);
-    const connectedPlatformsNote = connectedPlatformNames.length > 0
-      ? `CONNECTED PLATFORMS: ${connectedPlatformNames.join(', ')}\nIMPORTANT: Only recommend budget allocation for platforms that are connected. If a platform is NOT in the list above, do NOT include it in the budget breakdown. Instead, briefly mention it as an opportunity: "Connecting X could add Y% more reach."`
+    // If the client expressed a preference (e.g. "only Meta"), filter to that subset
+    const preferredPlatforms: string[] | null = settings.preferred_platforms?.length
+      ? connectedPlatformNames.filter(p => settings.preferred_platforms!.some((pref: string) => p.toLowerCase().includes(pref.toLowerCase()) || pref.toLowerCase().includes(p.toLowerCase())))
+      : null;
+    const activePlatforms = preferredPlatforms?.length ? preferredPlatforms : connectedPlatformNames;
+    const connectedPlatformsNote = activePlatforms.length > 0
+      ? `CONNECTED PLATFORMS (use ONLY these for budget allocation): ${activePlatforms.join(', ')}${preferredPlatforms ? `\nCLIENT PREFERENCE: The client explicitly asked to focus on ${activePlatforms.join(', ')} only. Do NOT include other platforms even if connected.` : '\nIMPORTANT: Only recommend budget allocation for platforms that are connected. If a platform is NOT in the list above, briefly mention it as an opportunity.'}`
       : `CONNECTED PLATFORMS: none yet\nIMPORTANT: The client has not connected any ad platforms yet. Do not include any platform in the budget breakdown. Focus on which platform to connect first and why.`;
 
     // Phase 2: Market research

@@ -33,6 +33,7 @@ export interface OnboardingSettings {
   risk_level: 'conservative' | 'balanced' | 'aggressive';
   dayparting_rules: Array<{ day: number; start_hour: number; end_hour: number }>;
   has_parallel_campaigns?: boolean;
+  preferred_platforms?: string[] | null;
 }
 
 export interface ChatResponse {
