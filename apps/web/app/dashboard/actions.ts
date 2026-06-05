@@ -460,6 +460,10 @@ export async function cancelCoolingOff(postId: string) {
   return apiCall(`/social/posts/${postId}/cancel-cooling-off`, 'POST');
 }
 
+export async function generatePostImage(postId: string, prompt?: string) {
+  return apiCall(`/social/posts/${postId}/generate-image`, 'POST', prompt ? { prompt } : {});
+}
+
 // ── Brand Asset Library ────────────────────────────────────────────────────────
 
 export async function getBrandAssets(kind?: 'image' | 'video') {

@@ -434,6 +434,62 @@ export async function socialRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── Generate AI image for a specific post ────────────────────────────────
+  app.post('/social/posts/:id/generate-image', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { prompt } = (request.body ?? {}) as { prompt?: string };
+
+    const { data: post } = await db.from('social_posts')
+      .select('content, platform, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    if (!post) return reply.code(404).send({ error: 'Post not found' });
+
+    const { data: settings } = await db.from('client_settings')
+      .select('website_url, logo_url, strategy_plan')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return reply.code(503).send({ error: 'Image generation not configured' });
+
+    const { OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+
+    const imgPrompt = prompt ?? `Professional social media image for a ${post.platform} post.
+Business context: ${settings?.website_url ?? 'local business'}.
+Post text: ${post.content?.slice(0, 200)}.
+Style: vibrant, modern, engaging. No text overlay. Square format.`;
+
+    try {
+      const res = await client.images.generate({
+        model: 'dall-e-3',
+        prompt: imgPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'standard',
+      });
+      const imageUrl = res.data?.[0]?.url;
+      if (!imageUrl) return reply.code(500).send({ error: 'Image generation returned no URL' });
+
+      await db.from('social_posts')
+        .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
+        .eq('id', id).eq('tenant_id', request.tenantId);
+
+      await db.from('audit_log').insert({
+        tenant_id: request.tenantId, action: 'social.post_image_generated',
+        platform: post.platform, actor: 'ai', payload: { postId: id },
+      });
+
+      return reply.send({ image_url: imageUrl });
+    } catch (err) {
+      request.log.error({ err }, 'DALL-E image generation failed');
+      return reply.code(500).send({ error: err instanceof Error ? err.message : 'Generation failed' });
+    }
+  });
+
   // ── Manual generate ───────────────────────────────────────────────────────
   app.post('/social/generate', { preHandler: authenticate }, async (request, reply) => {
     const frozen = await isFrozenFor(request.tenantId, 'generation');

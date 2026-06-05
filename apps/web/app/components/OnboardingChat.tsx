@@ -39,11 +39,14 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const [isListening, setIsListening] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [history]);
+    // Re-focus the input after every AI response so the user can type immediately
+    if (!isPending) inputRef.current?.focus();
+  }, [history, isPending]);
 
   function startVoice() {
     const SpeechRecognitionAPI =
@@ -230,12 +233,14 @@ export default function OnboardingChat({ onConfirm }: Props) {
             </svg>
           </button>
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="Type your answer..."
             disabled={isPending}
+            autoFocus
             className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 bg-white"
             dir="auto"
           />

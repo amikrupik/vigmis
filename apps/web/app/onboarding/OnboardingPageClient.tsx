@@ -137,8 +137,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         const data = await res.json();
         setGoogleAccounts(data.accounts ?? []);
         if (data.selected) setGoogleAccountSelected(data.selected);
+      } else {
+        // Show empty list so the "no accounts found" message displays instead of loading forever
+        setGoogleAccounts([]);
       }
-    } catch { /* silent */ }
+    } catch {
+      setGoogleAccounts([]);
+    }
     setGoogleAccountLoading(false);
   }
 
