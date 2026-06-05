@@ -34,6 +34,7 @@ import { complianceCronRoutes } from './routes/compliance-cron.js';
 import { operationalRoutes } from './routes/operational.js';
 import { teamRoutes } from './routes/team.js';
 import { assetRoutes } from './routes/assets.js';
+import { webhookRoutes } from './routes/webhooks.js';
 
 const app = Fastify({ logger: true });
 
@@ -103,6 +104,7 @@ await app.register(complianceCronRoutes);
 await app.register(operationalRoutes);
 await app.register(teamRoutes);
 await app.register(assetRoutes);
+await app.register(webhookRoutes);
 
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST ?? '0.0.0.0';
