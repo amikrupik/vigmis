@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
+import { assertCronSecret, cronSecretHeader } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
 import { monthlyFee } from '../billing/pricing.js';
 
@@ -542,10 +543,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // POST /notifications/digest — send weekly digest to all tenants (cron-protected)
   app.post('/notifications/digest', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -609,10 +607,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // ── POST /notifications/daily — send daily morning report (cron) ─────────────
   app.post('/notifications/daily', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -726,10 +721,7 @@ export async function notificationRoutes(app: FastifyInstance) {
 
   // ── POST /notifications/monthly — send monthly executive report (cron) ────────
   app.post('/notifications/monthly', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -845,7 +837,7 @@ export async function notificationRoutes(app: FastifyInstance) {
     // Also trigger monthly snapshots for all tenants
     fetch(`http://localhost:${process.env.PORT ?? 4000}/history/snapshot`, {
       method: 'POST',
-      headers: { 'x-cron-secret': process.env.CRON_SECRET ?? 'vigmis-cron', 'Content-Type': 'application/json' },
+      headers: { 'x-cron-secret': cronSecretHeader(), 'Content-Type': 'application/json' },
     }).catch(() => { /* non-blocking */ });
 
     return reply.send({ sent, skipped, month: monthStr });

@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 import { errorHandler } from './middleware/error-handler.js';
+import { sanitizeUrl } from './middleware/secrets.js';
 import { onboardingRoutes } from './routes/onboarding.js';
 import { connectorRoutes } from './routes/connectors.js';
 import { campaignRoutes } from './routes/campaigns.js';
@@ -36,9 +37,66 @@ import { teamRoutes } from './routes/team.js';
 import { assetRoutes } from './routes/assets.js';
 import { webhookRoutes } from './routes/webhooks.js';
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: {
+    // Redact secrets that ride in headers, and never log raw query strings
+    // (OAuth ?code=, ?token=, ?access_token= would otherwise hit the logs).
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["x-admin-secret"]',
+        'req.headers["x-cron-secret"]',
+        'req.headers["x-shopify-hmac-sha256"]',
+        'req.headers["paddle-signature"]',
+      ],
+      censor: '[redacted]',
+    },
+    serializers: {
+      req(req) {
+        return {
+          method: req.method,
+          url: sanitizeUrl(req.url),
+          host: req.headers?.host,
+          remoteAddress: req.ip,
+        };
+      },
+    },
+  },
+});
 
+// Capture the raw request body so webhook HMAC verification (Shopify, Paddle)
+// validates the exact bytes the provider signed — re-serializing via
+// JSON.stringify() does not reproduce the original byte stream.
+app.addContentTypeParser(
+  'application/json',
+  { parseAs: 'string' },
+  (req, body, done) => {
+    (req as unknown as { rawBody?: string }).rawBody = body as string;
+    if (!body || (body as string).trim() === '') {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (err) {
+      (err as { statusCode?: number }).statusCode = 400;
+      done(err as Error, undefined);
+    }
+  },
+);
 
+// Baseline security response headers on every reply.
+app.addHook('onSend', async (_req, reply, payload) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'no-referrer');
+  reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  reply.header('Cross-Origin-Opener-Policy', 'same-origin');
+  reply.header('Cross-Origin-Resource-Policy', 'same-origin');
+  reply.removeHeader('X-Powered-By');
+  return payload;
+});
 
 await app.register(cors, {
   origin: process.env.WEB_URL ?? 'http://localhost:3000',

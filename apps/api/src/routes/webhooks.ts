@@ -7,16 +7,18 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { sendEmail } from '../services/notify.js';
+import { safeEqual } from '../middleware/secrets.js';
 
 const OPS_EMAIL = process.env.OPS_ALERT_EMAIL ?? 'ami@tmgt.co.il';
 const WEB_URL   = process.env.WEB_URL ?? 'https://vigmis.com';
 
 export async function webhookRoutes(app: FastifyInstance) {
   app.post('/webhooks/instatus', async (request, reply) => {
-    // Simple shared-secret auth in query param (Instatus doesn't sign payloads)
-    const secret = (request.query as Record<string, string>).secret;
+    // Simple shared-secret auth in query param (Instatus doesn't sign payloads).
+    // Fail closed: if the secret isn't configured, the endpoint is locked.
+    const secret = (request.query as Record<string, string>).secret ?? '';
     const expected = process.env.INSTATUS_WEBHOOK_SECRET;
-    if (expected && secret !== expected) {
+    if (!expected || !safeEqual(secret, expected)) {
       return reply.code(401).send({ error: 'Invalid secret' });
     }
 

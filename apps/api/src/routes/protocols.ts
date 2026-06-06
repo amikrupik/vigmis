@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
 import { sendTenantNotification } from '../services/notify.js';
 import { applyBenchmarkRecalibration } from '../optimization/recalibration.js';
@@ -219,10 +220,7 @@ Respond honestly and directly. If the client disagrees, engage with their specif
 
 export async function expireProtocolsRoute(app: FastifyInstance) {
   app.post('/protocols/expire-all', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const now = new Date().toISOString();
 

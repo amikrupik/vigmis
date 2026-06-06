@@ -10,8 +10,9 @@
 // POST /track/shopify/webhook   — receive Shopify order (public, HMAC verified)
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import { db, encryptToken, decryptToken } from '@vigmis/db';
+import { assertCronSecret, safeEqual } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
 import { fullSyncForTenant, registerProductWebhooks, applyProductWebhook } from '../services/shopify-sync.js';
 
@@ -348,7 +349,7 @@ export async function trackingRoutes(app: FastifyInstance) {
       .map(([k, v]) => `${k}=${v}`)
       .join('&');
     const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(params).digest('hex');
-    if (!hmac || !timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(hmac))) {
+    if (!hmac || !safeEqual(expectedHmac, hmac)) {
       return reply.code(401).send('Invalid HMAC');
     }
 
@@ -449,9 +450,9 @@ export async function trackingRoutes(app: FastifyInstance) {
 
     if (!shopDomain || !hmacHeader || !topic) return reply.code(401).send('Missing headers');
 
-    const rawBody = JSON.stringify(request.body);
-    const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(rawBody).digest('base64');
-    if (!timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(hmacHeader))) {
+    const rawBody = (request as unknown as { rawBody?: string }).rawBody ?? JSON.stringify(request.body);
+    const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(rawBody, 'utf8').digest('base64');
+    if (!safeEqual(expectedHmac, hmacHeader)) {
       return reply.code(401).send('Invalid HMAC');
     }
 
@@ -468,10 +469,7 @@ export async function trackingRoutes(app: FastifyInstance) {
 
   // ── POST /track/shopify/cron-sync — nightly full sync ────────────────────
   app.post('/track/shopify/cron-sync', async (request, reply) => {
-    const secret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (secret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
     const { dispatchShopifySyncCron } = await import('../services/shopify-sync.js');
     const result = await dispatchShopifySyncCron();
     return reply.send(result);
@@ -484,10 +482,10 @@ export async function trackingRoutes(app: FastifyInstance) {
 
     if (!shopDomain || !hmacHeader) return reply.code(401).send('Missing headers');
 
-    // Verify HMAC
-    const rawBody = JSON.stringify(request.body);
-    const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(rawBody).digest('base64');
-    if (!hmacHeader || !timingSafeEqual(Buffer.from(expectedHmac), Buffer.from(hmacHeader))) {
+    // Verify HMAC over the exact bytes Shopify signed (not a re-serialization).
+    const rawBody = (request as unknown as { rawBody?: string }).rawBody ?? JSON.stringify(request.body);
+    const expectedHmac = createHmac('sha256', SHOPIFY_API_SECRET).update(rawBody, 'utf8').digest('base64');
+    if (!safeEqual(expectedHmac, hmacHeader)) {
       return reply.code(401).send('Invalid HMAC');
     }
 

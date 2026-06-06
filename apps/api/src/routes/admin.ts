@@ -10,6 +10,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { db } from '@vigmis/db';
+import { safeEqual } from '../middleware/secrets.js';
 
 const FreezeBody = z.object({
   reason: z.string().min(1).max(500),
@@ -19,7 +20,7 @@ const FreezeBody = z.object({
 function adminAuth(req: FastifyRequest, reply: FastifyReply): boolean {
   const provided = (req.headers['x-admin-secret'] as string) ?? '';
   const expected = process.env.ADMIN_SECRET;
-  if (!expected || provided !== expected) {
+  if (!expected || !safeEqual(provided, expected)) {
     reply.code(401).send({ error: 'Unauthorized' });
     return false;
   }

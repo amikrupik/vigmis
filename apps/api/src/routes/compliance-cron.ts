@@ -9,10 +9,10 @@ import { db } from '@vigmis/db';
 import { dispatchReAttestationCron } from '../services/re-attestation.js';
 import { dispatchStopLossCron } from '../services/stop-loss.js';
 import { recomputeTrustTier } from '../services/trust-tier.js';
+import { hasValidCronSecret } from '../middleware/secrets.js';
 
 function cronAuth(req: FastifyRequest): boolean {
-  const secret = (req.headers['x-cron-secret'] as string) ?? '';
-  return secret === (process.env.CRON_SECRET ?? 'vigmis-cron');
+  return hasValidCronSecret(req);
 }
 
 export async function complianceCronRoutes(app: FastifyInstance) {

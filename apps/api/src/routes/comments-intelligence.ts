@@ -22,10 +22,10 @@ import { sendLeadDigestForTenant, dispatchLeadDigestCron } from '../services/lea
 import { evaluateAndAlertTenant, dispatchCrisisCron } from '../services/sentiment-velocity.js';
 import { mineInsightsForTenant, dispatchInsightsCron } from '../services/comment-insights.js';
 import { learnFromOverridesForTenant } from '../services/reply-override-learning.js';
+import { hasValidCronSecret } from '../middleware/secrets.js';
 
 function cronAuth(req: any): boolean {
-  const secret = (req.headers['x-cron-secret'] as string) ?? '';
-  return secret === (process.env.CRON_SECRET ?? 'vigmis-cron');
+  return hasValidCronSecret(req);
 }
 
 export async function commentsIntelligenceRoutes(app: FastifyInstance) {

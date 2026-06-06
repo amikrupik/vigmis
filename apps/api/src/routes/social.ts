@@ -19,6 +19,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db, decryptToken } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { generateSocialContent } from '../services/social-content.js';
 import { publishSocialPost } from '../services/social-publisher.js';
 import { sendTenantNotification } from '../services/notify.js';
@@ -551,10 +552,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
   // ── Cron: weekly generation ───────────────────────────────────────────────
   app.post('/social/cron/weekly', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const { data: activeTenants } = await db
       .from('social_settings')
@@ -581,10 +579,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
   // ── Cron: publish scheduled posts ─────────────────────────────────────────
   app.post('/social/cron/publish', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const now = new Date().toISOString();
 
@@ -686,10 +681,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
   // ── Cron: fetch engagement analytics for published posts ──────────────────
   app.post('/social/cron/analytics', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const { data: activeTenants } = await db
       .from('social_settings')
@@ -770,10 +762,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
   // ── Cron: fetch new comments for all tenants ──────────────────────────────
   app.post('/social/cron/comments', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const { data: activeTenants } = await db
       .from('social_settings')

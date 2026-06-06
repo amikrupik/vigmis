@@ -129,12 +129,24 @@
 - [ ] Webhook notifications to client's systems
 
 ### Infrastructure & Security
-- [ ] Automated daily database backups (30-day retention)
-- [ ] Audit log: every action recorded (who, what, when)
-- [ ] GDPR compliance (data export, deletion requests)
+- [x] **OAuth token encryption at rest** — AES-256-GCM (random IV + auth tag) for all Meta/Google/TikTok tokens
+- [x] **Row Level Security lockdown** — RLS enabled on every public table (migration 045); blocks direct anon-key access
+- [x] **Tenant isolation** — verified app-layer `tenant_id` scoping on every route (no cross-tenant leak)
+- [x] **Cron/admin/webhook auth** — fail-closed, constant-time secret comparison (no hardcoded defaults)
+- [x] **Webhook signature verification** — Shopify + Paddle HMAC over the raw signed body
+- [x] **Security response headers** — HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy (API + web)
+- [x] **Log redaction** — secrets stripped from headers + URLs before logging
+- [x] **Prompt-injection containment** — `[ACTION:…]` tags neutralized in untrusted text; actions are tenant-scoped
+- [x] Audit log: every action recorded (who, what, when)
+- [x] Uptime monitoring + status page (Instatus + ops email alerts)
+- [ ] Automated daily database backups + PITR (30-day retention)
+- [ ] GDPR compliance (full data export, cookie consent flow)
 - [ ] SOC 2 preparation checklist
-- [ ] Rate limiting and DDoS protection
-- [ ] Uptime monitoring + status page
+- [ ] API-wide + per-route rate limiting / DDoS protection (global 100/min in place)
+- [ ] Tuned Content-Security-Policy (Clerk-compatible)
+- [ ] MFA / passkeys
+
+> Security details: `docs/SECURITY_PLAN.md` (v1.4) and `docs/SECURITY_AUDIT_PHASE1.md`.
 
 ---
 

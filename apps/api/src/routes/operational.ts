@@ -16,10 +16,10 @@ import { getOperationalContext } from '../services/operational-awareness.js';
 import { scanNewsForTenant, dispatchNewsScanCron } from '../services/news-monitor.js';
 import { refreshWeatherForTenant, dispatchWeatherCron } from '../services/weather.js';
 import { dispatchShopifySyncCron } from '../services/shopify-sync.js';
+import { hasValidCronSecret } from '../middleware/secrets.js';
 
 function cronAuth(req: FastifyRequest): boolean {
-  const secret = (req.headers['x-cron-secret'] as string) ?? '';
-  return secret === (process.env.CRON_SECRET ?? 'vigmis-cron');
+  return hasValidCronSecret(req);
 }
 
 const SensitivityBody = z.object({

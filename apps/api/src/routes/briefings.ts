@@ -10,6 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import {
   buildBriefing,
   sendBriefingForTenant,
@@ -78,10 +79,7 @@ export async function briefingRoutes(app: FastifyInstance) {
   // Cron — runs hourly. Each tenant has a preferred delivery hour; the cron
   // only fires for tenants whose hour matches.
   app.post('/briefings/cron', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
     const result = await dispatchBriefingsCron();
     return reply.send(result);
   });

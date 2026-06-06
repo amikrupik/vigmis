@@ -6,6 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
 
 function extractHtmlData(html: string) {
@@ -229,10 +230,7 @@ export async function geoRoutes(app: FastifyInstance) {
 
   // ── Monthly refresh — cron protected ─────────────────────────────────────────
   app.post('/geo/refresh-all', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const { data: tenants } = await db
       .from('client_settings')

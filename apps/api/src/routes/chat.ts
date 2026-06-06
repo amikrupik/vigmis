@@ -35,6 +35,14 @@ function splitActionArgs(raw: string): { type: string; args: string[] } {
   return { type: parts[0].trim(), args: parts.slice(1).map(a => a.trim()) };
 }
 
+// Neutralize action-tag syntax in UNTRUSTED text (the user's own message, replayed
+// chat history, scraped page context). Only the model's freshly-generated output is
+// allowed to carry real [ACTION:...] tags — this stops a user (or injected web/comment
+// content) from smuggling an executable tag into the model's context to be echoed back.
+function neutralizeActionTags(text: string | null | undefined): string {
+  return (text ?? '').replace(/\[\s*ACTION\s*:/gi, '[​action:');
+}
+
 function parseActions(text: string): Array<{ type: string; args: string[] }> {
   const regex = /\[ACTION:([^\]]+)\]/g;
   const results: Array<{ type: string; args: string[] }> = [];
@@ -438,14 +446,18 @@ export async function chatRoutes(app: FastifyInstance) {
         `## Social Posts (most recent ${posts.length})`,
         `Format: [POST_ID] platform | pillar | status | scheduled_for | "content preview"`,
         postLines,
-        pageContext ? `\n## Page Context\n${pageContext.slice(0, 400)}` : '',
+        pageContext ? `\n## Page Context\n${neutralizeActionTags(pageContext).slice(0, 400)}` : '',
       ].join('\n');
 
       const systemWithContext = SYSTEM_PROMPT + '\n\n' + clientContext;
 
       const messages = [
-        ...pastMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        { role: 'user' as const, content: message },
+        ...pastMessages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          // Re-tag any historical content; only this turn's model output may carry real tags.
+          content: m.role === 'assistant' ? m.content : neutralizeActionTags(m.content),
+        })),
+        { role: 'user' as const, content: neutralizeActionTags(message) },
       ];
 
       const response = await route({ task: 'chat', messages, systemPrompt: systemWithContext });

@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { listGa4Properties, fetchGa4DailyAcquisition } from '@vigmis/ad-connectors';
 
 export async function ga4Routes(app: FastifyInstance) {
@@ -68,10 +69,7 @@ export async function ga4Routes(app: FastifyInstance) {
 
   // Cron-only: sync all tenants that have GA4 configured.
   app.post('/ga4/cron/sync', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
     const { data: tenants } = await db
       .from('ga4_settings')
       .select('tenant_id')

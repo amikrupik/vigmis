@@ -9,6 +9,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
 import {
   getOrCreatePaddleCustomer,
@@ -191,10 +192,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
   // ── Generate monthly invoice (cron) ────────────────────────────────────────
   app.post('/billing/invoice', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const { data: tenants } = await db.from('tenants').select('id');
     if (!tenants?.length) return reply.send({ processed: 0 });

@@ -2,6 +2,7 @@
 // All errors flow through here and return a consistent JSON shape
 
 import type { FastifyError, FastifyRequest, FastifyReply } from 'fastify';
+import { sanitizeUrl } from './secrets.js';
 
 export interface ApiError {
   error: string;
@@ -14,7 +15,7 @@ export function errorHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  request.log.error({ err: error, url: request.url }, 'Request error');
+  request.log.error({ err: error, url: sanitizeUrl(request.url) }, 'Request error');
 
   // Zod / validation errors
   if (error.validation) {

@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { runOptimizationForTenant, runOptimizationAll } from '../optimization/engine.js';
 
 export async function optimizationRoutes(app: FastifyInstance) {
@@ -170,10 +171,7 @@ export async function optimizationRoutes(app: FastifyInstance) {
   // Cron endpoint — called by scheduler, not by users
   // ?plan=pro → only run for Pro subscribers (the 3 extra daily runs)
   app.post('/optimization/run-all', async (request, reply) => {
-    const cronSecret = (request.headers['x-cron-secret'] as string) ?? '';
-    if (cronSecret !== (process.env.CRON_SECRET ?? 'vigmis-cron')) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
+    if (!assertCronSecret(request, reply)) return;
 
     const planFilter = (request.query as any)?.plan as string | undefined;
     const results = await runOptimizationAll(planFilter === 'pro' ? 'pro' : undefined);

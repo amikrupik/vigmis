@@ -1,8 +1,9 @@
 # Vigmis Security Plan — Comprehensive
 
-**Version:** 1.3 (third review — GPT 9.4/10 + 6 gap additions)  
+**Version:** 1.4 (Phase 1 code audit executed + hardening implemented)  
 **Date:** 2026-06-06  
 **Stack:** Next.js (Turborepo monorepo) · Supabase · Clerk · Vercel  
+**Audit report:** see `docs/SECURITY_AUDIT_PHASE1.md` for the full code-level findings.  
 **Scope:** Production SaaS platform — AI marketing tools for SMBs
 
 ---
@@ -811,17 +812,49 @@ Account delete → cascade in order:
 
 ---
 
-## CURRENT STATUS vs PLAN
+## PHASE 1 CODE AUDIT — EXECUTED 2026-06-06 (v1.4)
 
-| Area | Current State | Gap |
-|------|--------------|-----|
-| Authentication | Clerk (basic) | MFA not mandatory, no passkeys |
-| OAuth token storage | Unknown — likely plain text | Must encrypt in Vault |
-| RLS | Unknown | Must audit all tables |
-| Security headers | None | Full implementation needed |
-| Rate limiting | Partial (AI quota) | Need API-wide limiting |
-| Backups | Supabase default (7 days) | Need PITR + cold storage |
-| Privacy Policy | Missing | Must create before scaling |
-| Cookie consent | Missing | Required for GDPR |
-| Monitoring | Basic Vercel logs | Need Sentry + alerts |
-| Penetration testing | Never done | Plan for Q3 2026 |
+Real code audit (not doc review). Full report: `docs/SECURITY_AUDIT_PHASE1.md`.
+
+### Architectural truth discovered
+Tenant isolation is enforced **only in application code** (`.eq('tenant_id', request.tenantId)`),
+not in the DB: the API runs with the Supabase **service-role key** (bypasses RLS), and every
+RLS policy keyed off `current_setting('app.tenant_id')` was a **no-op** because that GUC is never
+set. **Critical corollary:** the public anon key (PostgREST) could read any table that lacked RLS.
+
+### Implemented in this pass (committed)
+| Fix | File(s) |
+|-----|---------|
+| **RLS lockdown** — enable RLS on every `public` table + consistent tenant policy. Closes direct anon-key access; safe because the API uses service-role (bypassrls). | `supabase/migrations/045_rls_lockdown.sql` |
+| **CRON_SECRET fail-closed** — removed the hardcoded `'vigmis-cron'` default from ~16 cron endpoints; central constant-time guard. | `apps/api/src/middleware/secrets.ts` + all cron routes |
+| **Log redaction** — pino `redact` for secret headers + `sanitizeUrl()` strips `token/code/access_token/secret/state/hmac/…` from logged URLs. | `apps/api/src/server.ts`, `middleware/error-handler.ts` |
+| **Security headers** — API `onSend` hook + Next.js `headers()` (HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, COOP/CORP). | `apps/api/src/server.ts`, `apps/web/next.config.ts` |
+| **Webhook HMAC over raw body** — content-type parser captures `req.rawBody`; Shopify + Paddle now verify the exact signed bytes (was re-serialized JSON). | `apps/api/src/server.ts`, `routes/tracking.ts`, `billing/paddle.ts` |
+| **Constant-time secret compare** — `safeEqual()` for admin / Instatus / Shopify / cron. Instatus webhook now fails closed. | `middleware/secrets.ts`, `routes/{admin,webhooks,tracking}.ts` |
+| **DB client hardening** — server uses service-role explicitly; browser guard forbids service-role; `persistSession:false`. | `packages/db/src/client.ts` |
+| **Prompt-injection containment** — neutralize `[ACTION:…]` tags in untrusted text (user msg, history, scraped page context); only the model's fresh output may carry executable tags. Also already tenant-scoped. | `apps/api/src/routes/chat.ts` |
+
+### Verified already-correct
+- OAuth tokens encrypted (AES-256-GCM, random IV + tag) before every DB write. ✅
+- No cross-tenant leak in any audited route (verify-then-act on `tenant_id`). ✅
+
+### Status vs plan (updated)
+| Area | State after v1.4 | Remaining gap |
+|------|------------------|---------------|
+| Authentication | Clerk | MFA not mandatory, no passkeys |
+| OAuth token storage | ✅ AES-256-GCM encrypted | Add key-version prefix for rotation |
+| RLS | ✅ Lockdown migration written (run it) | Wire `SET LOCAL app.tenant_id` if moving off service-role |
+| Security headers | ✅ API + web | Add tuned CSP (Clerk-compatible) |
+| Secret handling | ✅ fail-closed, constant-time, redacted logs | — |
+| Webhooks | ✅ raw-body HMAC, fail-closed | — |
+| Rate limiting | Global 100/min | Per-route limits on auth/webhooks |
+| Backups | Supabase default (7 days) | PITR + cold storage |
+| Privacy / cookie consent | Basic /privacy page | Full GDPR consent flow |
+| Monitoring | Vercel + Instatus | Sentry + alerts |
+| Penetration testing | Never done | Plan Q3 2026 |
+
+### REQUIRED env actions (or things break / stay exposed)
+1. **Run** `supabase/migrations/045_rls_lockdown.sql` (needs `sbp_` token).
+2. Set a strong **`CRON_SECRET`** in Railway and update the scheduler to send it — else all crons 401.
+3. Set **`INSTATUS_WEBHOOK_SECRET`**, **`PADDLE_WEBHOOK_SECRET`**, **`TOKEN_ENCRYPTION_KEY`** (64 hex), **`ADMIN_SECRET`**.
+4. Confirm **`SUPABASE_SERVICE_ROLE_KEY`** is set for the API and **never** exposed as `NEXT_PUBLIC_*`.
