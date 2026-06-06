@@ -30,8 +30,11 @@ the secrets vault (below). All of the following fire together at the "opening re
 ### Secrets & accounts (VIGMIS-side protection)
 - [ ] **Rotate the Supabase `sbp_` access token** used during the 2026-06-06 session (it was pasted in chat).
 - [ ] **Rotate the Cloudflare R2 tokens** shared during the 2026-06-06 session (backup token + admin token).
-- [ ] Set `PADDLE_WEBHOOK_SECRET` in Railway **or** confirm billing moved to Stripe and align the code.
-- [ ] Remove the stray/malformed Railway variable `SKAWIrnqB0tXmAT7Hug0ohDtJjOicf56`.
+- [ ] **Billing = Stripe** (Paddle dropped, 2026-06-06). When the Stripe account is registered: implement
+      the Stripe webhook handler (replace the Paddle one in `routes/billing.ts`) + set `STRIPE_WEBHOOK_SECRET`.
+      *(Current Paddle webhook fails closed — safe, just unused.)*
+- [ ] Verify `TIKTOK_CLIENT_SECRET` in Railway has no stray newline (its value currently spans 2 lines) —
+      check when activating TikTok. *(Earlier-suspected "stray variable" was a false alarm — it's this value's 2nd line.)*
 - [ ] **MFA on every console**: GitHub, Vercel, Supabase, Railway, Cloudflare, Clerk, domain registrar.
 - [ ] Move all secrets into the password manager with **2-person recovery access** (SECURITY_PLAN §6.3).
 
