@@ -11,22 +11,29 @@ Last updated: 2026-06-06
 ## 🔴 Must-do before go-live
 
 ### Backups & Disaster Recovery
-- [ ] **Supabase PITR** — enable (~$100/mo add-on). *Deferred by decision 2026-06-06: not worth it
-      with zero users; enable the moment real users start onboarding.* Reduces data loss (RPO) from
-      ~24h to seconds. Code/runbook already ready (`scripts/dr-runbook.md`).
-- [ ] Recreate R2 bucket `vigmis-backups` **with Object Lock enabled at creation** + 90-day retention.
-- [ ] Generate `age` keypair; private key → password manager; public key → GitHub secret `BACKUP_AGE_RECIPIENT`.
-- [ ] Add GitHub Actions secrets (R2 + DB URL + optional Storage + heartbeat) and run `nightly-backup` once.
+**Decision 2026-06-06:** the R2 backup pipeline is BUILT and immutability is PROVEN, but *activating*
+it is deferred to launch — there is no real customer data to protect yet, and safe activation needs
+the secrets vault (below). All of the following fire together at the "opening registration" trigger:
+- [ ] **Supabase PITR** — enable (~$100/mo add-on). Reduces data loss (RPO) from ~24h to seconds.
+- [ ] Pick a password manager: **Bitwarden (free)** or 1Password (~$8/user/mo — *deferred 2026-06-06, paid*).
+- [ ] Generate `age` keypair → private key into the password manager; public key → GitHub secret `BACKUP_AGE_RECIPIENT`.
+      *(A temporary key was generated and securely deleted on 2026-06-06; regenerate cleanly into the vault.)*
+- [ ] Add GitHub Actions secrets (R2 keys + endpoint + bucket + DB URL + optional Storage + heartbeat) and run `nightly-backup` once.
 - [ ] **Back up `TOKEN_ENCRYPTION_KEY` to the password manager** — without it a restored DB's OAuth tokens are unrecoverable.
 - [ ] Do the first **restore drill** (decrypt + restore to a throwaway project) and record the result.
 - [ ] Set up backup monitoring (healthchecks.io) → alert on missed/failed backup.
 
+> ✅ Already done & permanent: R2 bucket `vigmis-backups` created; **Bucket Lock (90-day, whole bucket)
+> set and immutability verified** (DELETE returns `409 ObjectLockedByBucketPolicy`); full pipeline coded
+> (`scripts/backup.sh`, `.github/workflows/backup.yml`, `scripts/dr-runbook.md`).
+
 ### Secrets & accounts (VIGMIS-side protection)
 - [ ] **Rotate the Supabase `sbp_` access token** used during the 2026-06-06 session (it was pasted in chat).
+- [ ] **Rotate the Cloudflare R2 tokens** shared during the 2026-06-06 session (backup token + admin token).
 - [ ] Set `PADDLE_WEBHOOK_SECRET` in Railway **or** confirm billing moved to Stripe and align the code.
 - [ ] Remove the stray/malformed Railway variable `SKAWIrnqB0tXmAT7Hug0ohDtJjOicf56`.
 - [ ] **MFA on every console**: GitHub, Vercel, Supabase, Railway, Cloudflare, Clerk, domain registrar.
-- [ ] Move all secrets into a password manager with **2-person recovery access** (SECURITY_PLAN §6.3).
+- [ ] Move all secrets into the password manager with **2-person recovery access** (SECURITY_PLAN §6.3).
 
 ### Compliance / legal
 - [ ] Real Privacy Policy + Terms (current ones are placeholders in `server.ts`).
