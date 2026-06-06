@@ -315,23 +315,34 @@ This scenario: Vercel account deleted, Supabase project deleted, no access to an
 | Copy | Location | Type | Retention |
 |------|---------|------|-----------|
 | Copy 1 | Supabase (primary) | Live DB + PITR | 7 days rolling |
-| Copy 2 | Supabase Storage (same account) | Encrypted pg_dump | 30 days |
-| Copy 3 | AWS S3 / Cloudflare R2 (different vendor) | Encrypted pg_dump | 90 days, **immutable** |
+| Copy 2 | **Cloudflare R2 (different vendor), Object Lock** | **age-encrypted** DB + Storage snapshot | 90 days, **immutable** |
+| Copy 3 (roadmap) | Google Cloud Storage (3rd provider/region) | age-encrypted snapshot | weekly, cold |
 
-**Why 3 copies matter:** If Supabase has a catastrophic failure or account compromise, copies 1 and 2 are lost simultaneously. Copy 3 (different vendor) is the real disaster recovery backup.
+**Why 3 copies matter:** If Supabase has a catastrophic failure or account compromise, copy 1 is lost. Copy 2 (different vendor, immutable) is the real disaster recovery backup.
 
-**Immutable backup:** S3 Object Lock or R2 with retention policy — cannot be deleted even by us. Protects against ransomware that would otherwise delete our backups.
+**Immutable backup:** R2 Object Lock (compliance mode) — cannot be deleted by anyone, including a stolen key or ransomware. The backup job (`scripts/backup.sh`) has **no delete command at all** by design.
 
-### 7.2 Database Backups (Supabase)
-- [ ] **Daily automated backups** (Supabase Pro: 7 days retention → upgrade to 30 days)
-- [ ] **Point-in-time recovery (PITR):** enabled — can restore to any second in last 7 days
-- [ ] **Weekly export to cold storage:** `pg_dump` → encrypted → Supabase Storage (different region) or S3
-- [ ] **Monthly DR drill:** actually restore a backup to staging, verify data integrity
+**Backup encryption is asymmetric:** snapshots are encrypted with `age` using a *public* key; the backup runner cannot decrypt its own output. The private key lives in 1Password (§6.3). A leaked dump file is unreadable.
+
+> **CRITICAL — `TOKEN_ENCRYPTION_KEY`:** OAuth tokens are encrypted in-row with this key, which is
+> **not** in the DB or the backup. A restored database without the key yields unusable tokens
+> (every client must reconnect every platform). The key MUST be in 1Password. See §6.3 + `scripts/dr-runbook.md`.
+
+### 7.2 Database + Storage Backups — **IMPLEMENTED**
+- [x] **Off-site nightly snapshot** — `.github/workflows/backup.yml` + `scripts/backup.sh`: `pg_dump`
+      **and** Supabase Storage → `age`-encrypted → R2 (immutable). Runs on GitHub infra (compute
+      independent of Supabase/Railway).
+- [x] **Size sanity gate** — refuses to "succeed" on a near-empty dump.
+- [x] **Backup monitoring** — heartbeat ping on success / `/fail` on error (healthchecks.io) →
+      alert if a backup is missed, fails, or shrinks.
+- [ ] **Supabase PITR** — enable in dashboard (paid add-on). _(env/console action)_
+- [x] **Restore runbook + quarterly drill** — `scripts/dr-runbook.md`.
 
 ### 7.3 Application Backup
-- [ ] Code: Git (already) + mirror to second remote (GitLab / Bitbucket)
-- [ ] Vercel deployments: all builds are immutable and stored — can rollback to any previous deploy instantly
-- [ ] Environment variables: encrypted backup of all env vars (not in git)
+- [x] Code: Git on GitHub (distributed) — [ ] add GitLab mirror (low priority)
+- [ ] Vercel deployments: immutable, instant rollback to any previous deploy
+- [x] Secrets + env vars: backed up in 1Password, **not** in git (§6.3)
+- [ ] Infrastructure-as-code snapshot (Vercel/DNS/Clerk config) → R2 _(roadmap)_
 
 ### 7.4 Disaster Recovery Runbook
 - [ ] **Runbook document** (separate): step-by-step for "complete rebuild from scratch"

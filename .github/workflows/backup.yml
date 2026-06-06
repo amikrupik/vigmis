@@ -1,0 +1,68 @@
+name: nightly-backup
+
+# Hardened off-site backup of the Vigmis database + Supabase Storage to an
+# immutable, encrypted Cloudflare R2 bucket. Runs on GitHub's infra so the
+# backup compute is independent of Supabase/Railway.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL          Supabase Postgres connection string (session pooler URI)
+#   BACKUP_AGE_RECIPIENT         age PUBLIC key (age1...) — private key kept in 1Password
+#   R2_ENDPOINT                  https://<account>.r2.cloudflarestorage.com
+#   R2_BUCKET                    name of the Object-Lock-enabled R2 bucket
+#   R2_ACCESS_KEY_ID             R2 token (grant Put/Object-write only, NOT delete)
+#   R2_SECRET_ACCESS_KEY
+# Optional:
+#   SUPABASE_S3_ENDPOINT, SUPABASE_S3_ACCESS_KEY_ID, SUPABASE_S3_SECRET_ACCESS_KEY  (Storage backup)
+#   BACKUP_HEARTBEAT_URL         healthchecks.io ping URL (alerts if a backup is missed/fails)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC daily
+  workflow_dispatch: {}    # allow manual runs + the first restore drill
+
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Skip cleanly (no false-alarm failure) until the secrets are configured.
+      - name: Check configuration
+        id: cfg
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          if [ -z "$R2_BUCKET" ]; then
+            echo "R2 not configured yet — skipping. Add repo secrets to enable (see workflow header)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install tools (pg_dump 17, age, awscli)
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17 age awscli
+
+      - name: Run backup
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          SUPABASE_S3_ENDPOINT: ${{ secrets.SUPABASE_S3_ENDPOINT }}
+          SUPABASE_S3_ACCESS_KEY_ID: ${{ secrets.SUPABASE_S3_ACCESS_KEY_ID }}
+          SUPABASE_S3_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_S3_SECRET_ACCESS_KEY }}
+          BACKUP_HEARTBEAT_URL: ${{ secrets.BACKUP_HEARTBEAT_URL }}
+        run: bash scripts/backup.sh
