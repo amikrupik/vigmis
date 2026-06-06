@@ -110,7 +110,7 @@ export async function connectorRoutes(app: FastifyInstance) {
       const accessToken = decryptToken(tokenRow.access_token);
 
       const res = await fetch(
-        `https://googleads.googleapis.com/v18/customers:listAccessibleCustomers`,
+        `https://googleads.googleapis.com/v20/customers:listAccessibleCustomers`,
         { headers: { Authorization: `Bearer ${accessToken}`, 'developer-token': devToken } }
       );
 
