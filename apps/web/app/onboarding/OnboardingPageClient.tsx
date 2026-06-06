@@ -105,8 +105,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   // Fetch real connection status on mount — URL param only reflects the LAST connected platform,
   // so Google would appear disconnected after connecting Meta (?connected=meta).
+  // Retries up to 3× if Clerk isn't ready yet (common right after an OAuth redirect).
   useEffect(() => {
-    async function fetchConnectionStatus() {
+    async function fetchConnectionStatus(attempt = 0) {
       try {
         const token = await getClerkToken();
         const res = await fetch(`${API_URL}/auth/status`, {
@@ -119,9 +120,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             meta: status.meta === true,
             tiktok: status.tiktok === true,
           });
+          setTiktokAvailable(status.tiktok_available === true);
           if (status.google) loadGoogleAccountsForOnboarding();
         }
-      } catch { /* silent — URL param is fallback */ }
+      } catch (err) {
+        // Clerk may not be initialised yet right after an OAuth page reload — retry
+        if (attempt < 3) {
+          setTimeout(() => fetchConnectionStatus(attempt + 1), 700 * (attempt + 1));
+        }
+      }
     }
     fetchConnectionStatus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -165,6 +172,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [pixelVerified, setPixelVerified] = useState(false);
   const [shopifyDomain, setShopifyDomain] = useState('');
   const [shopifyConnecting, setShopifyConnecting] = useState(false);
+  const [tiktokAvailable, setTiktokAvailable] = useState(false);
 
   async function handleConnect(platform: 'google' | 'meta') {
     try {
@@ -257,7 +265,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   }
 
   async function handleTrackingDone(skipTracking = false) {
-    if (!pendingSettings || !analysisResult) return;
+    if (!pendingSettings || !analysisResult) {
+      setError('Session error — please go back and complete the previous steps again.');
+      return;
+    }
     setStep('saving');
     setError(null);
     try {
@@ -525,6 +536,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <div>
                 <button
                   onClick={async () => {
+                    if (!tiktokAvailable) {
+                      setError('TikTok Ads integration is coming soon — connect Google or Meta for now.');
+                      return;
+                    }
                     try {
                       const token = await getClerkToken();
                       window.location.href = `${API_URL}/auth/tiktok?token=${encodeURIComponent(token)}`;
