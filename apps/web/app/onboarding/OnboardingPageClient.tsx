@@ -65,11 +65,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const router = useRouter();
   const [step, setStep] = useState<Step>('connect');
   const [showRethinkWarning, setShowRethinkWarning] = useState(rethinkMode === true);
-  const [connected, setConnected] = useState({
-    google: initialConnected === 'google',
-    meta: initialConnected === 'meta',
-    tiktok: initialConnected === 'tiktok',
-  });
+  // Never initialise from the URL param — it only reflects the LAST connected platform
+  // and would show Google as disconnected after connecting Meta. The useEffect below
+  // always fetches the real state from the API.
+  const [connected, setConnected] = useState({ google: false, meta: false, tiktok: false });
+  const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState<string | null>(
     initialError ? (OAUTH_ERROR_MESSAGES[initialError] ?? 'Connection error') : null,
   );
@@ -103,9 +103,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
 
-  // Fetch real connection status on mount — URL param only reflects the LAST connected platform,
-  // so Google would appear disconnected after connecting Meta (?connected=meta).
-  // Retries up to 3× if Clerk isn't ready yet (common right after an OAuth redirect).
+  // Fetch the real connection status from the API on every mount.
+  // The URL param (?connected=meta) only tells us the LAST platform — so connecting Meta
+  // would make Google appear disconnected if we used the URL. We ignore the URL entirely
+  // and rely only on /auth/status. Retries up to 5× because Clerk may not be ready
+  // immediately after an OAuth redirect reloads the page.
   useEffect(() => {
     async function fetchConnectionStatus(attempt = 0) {
       try {
@@ -123,10 +125,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           setTiktokAvailable(status.tiktok_available === true);
           if (status.google) loadGoogleAccountsForOnboarding();
         }
-      } catch (err) {
-        // Clerk may not be initialised yet right after an OAuth page reload — retry
-        if (attempt < 3) {
-          setTimeout(() => fetchConnectionStatus(attempt + 1), 700 * (attempt + 1));
+        setStatusLoading(false);
+      } catch {
+        if (attempt < 5) {
+          setTimeout(() => fetchConnectionStatus(attempt + 1), 500 * (attempt + 1));
+        } else {
+          setStatusLoading(false);
         }
       }
     }
@@ -406,7 +410,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <p className="text-slate-500 text-sm mt-2">
                 Connect the platforms you advertise on. You can always add more later — but connecting now means a better strategy from day one.
               </p>
-              {(connected.google || connected.meta || connected.tiktok) && (
+              {statusLoading && (
+                <div className="mt-3 flex justify-center">
+                  <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+                </div>
+              )}
+              {!statusLoading && (connected.google || connected.meta || connected.tiktok) && (
                 <div className="mt-3 flex justify-center gap-2 flex-wrap">
                   {connected.meta && <span className="text-xs bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full font-semibold">Meta ✓</span>}
                   {connected.google && <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">Google ✓</span>}
