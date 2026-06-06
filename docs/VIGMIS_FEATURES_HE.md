@@ -1611,6 +1611,29 @@ vigmis-main/
 
 ---
 
-*עדכון אחרון: 2026-06-04 — Brand Assets, Anna QA Round, Strategy depth, connection state fix, language switcher.*
+---
+
+## 39. סטטוס נוכחי (2026-06-06)
+
+### מה פעיל לגמרי
+✅ Onboarding מלא (connect→chat→analysis→strategy→creative→tracking)
+✅ Multi-user (team invites, seat enforcement, /settings/team, /join)
+✅ Brand Asset Library (Settings + Creative tab)
+✅ Social posts: preview כמו פוסט אמיתי, AI image gen (DALL-E), media picker
+✅ Platform preference (preferred_platforms מהשאלון → אסטרטגיה מכבדת)
+✅ Strategy depth: narrative, funnel, creative_brief per platform, missing_platforms
+✅ Instatus monitoring (status.vigmis.com) + webhook → email alert
+✅ Language switcher EN/עב
+
+### מה פתוח
+⏳ TikTok OAuth — בעיית token exchange
+⏳ Meta App Review — scopes חסרים
+⏳ Stripe — ממתין ל-LLC
+⏳ Security Phase 1 — בביצוע
+
+### הבא
+Security Phase 1 — ראו docs/SECURITY_PLAN.md v1.3
+
+*עדכון אחרון: 2026-06-06 — Multi-user complete, Security Plan v1.3, Instatus webhook, full QA round.*
 
 

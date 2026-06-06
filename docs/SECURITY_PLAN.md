@@ -1,7 +1,7 @@
 # Vigmis Security Plan — Comprehensive
 
-**Version:** 1.2 (second GPT review — 5 additions)  
-**Date:** 2026-06-03  
+**Version:** 1.3 (third review — GPT 9.4/10 + 6 gap additions)  
+**Date:** 2026-06-06  
 **Stack:** Next.js (Turborepo monorepo) · Supabase · Clerk · Vercel  
 **Scope:** Production SaaS platform — AI marketing tools for SMBs
 
@@ -530,6 +530,15 @@ What happens when a critical vendor goes down? Vigmis must continue to function 
 | Secret scanning in CI (gitleaks) + GitHub branch protection | 3.5 | 2 hours |
 | Add security headers to next.config.ts | 3.1 | 2 hours |
 | Enable Vercel WAF + preview protection | 6.1 | 2 hours |
+| **[NEW] Log redaction — Fastify redact config** | 15.1 | 2 hours |
+| **[NEW] Immutable audit log (no DELETE policy)** | 8.1b | 2 hours |
+
+### Phase 1b — AI-Specific (Parallel with Phase 1)
+| Item | Part | Effort |
+|------|------|--------|
+| **[NEW] Prompt injection patterns blocked** | 16.1 | 4 hours |
+| **[NEW] AI cost explosion protection (token limits all endpoints)** | 16.3 | 2 hours |
+| **[NEW] Jailbreak detection → trust tier** | 16.2 | 4 hours |
 
 ### Phase 2 — Before First Paying Customer
 | Item | Part | Effort |
@@ -548,6 +557,14 @@ What happens when a critical vendor goes down? Vigmis must continue to function 
 | Fill in Incident Response Playbook contacts | 7.5 | 2 hours |
 | Circuit breakers + job queues for platform APIs | 10.2 | 2 days |
 | Status page (status.vigmis.com) | 10.2 | 1 day |
+
+### Phase 2b — SDL + Data Lifecycle
+| Item | Part | Effort |
+|------|------|--------|
+| **[NEW] PR security checklist template** | 14.2 | 1 hour |
+| **[NEW] Data Lifecycle map — verify cascade delete** | 18.3 | 1 day |
+| **[NEW] Session re-auth for critical actions** | 13.2 | 1 day |
+| **[NEW] Vendor lockout runbooks documented** | 17 | 4 hours |
 
 ### Phase 3 — Scale (1-3 months)
 | Item | Part | Effort |
@@ -599,6 +616,198 @@ What happens when a critical vendor goes down? Vigmis must continue to function 
 4. PCI-DSS scope: since all payment processing is Stripe (no card data stored), are we in "SAQ A" (simplest) scope or is there additional obligation?
 5. For the Meta/Google/TikTok OAuth tokens: are we legally the "data controller" or "data processor" for ad account data? This affects GDPR obligations significantly.
 6. Content watermarking of AI outputs: is there an Israeli copyright law implication if customers claim ownership of AI-generated ads?
+
+---
+
+---
+
+## PART 13 — SESSION HIJACKING PROTECTION
+*(Added v1.3 — Gap identified in GPT review)*
+
+Even if JWT is stolen, critical actions must require re-authentication.
+
+### 13.1 Session Binding
+- [ ] Device fingerprint stored on login (user-agent + IP hash) — flag anomalies
+- [ ] Bind session to original IP range (soft check — alert, don't hard-block due to mobile networks)
+
+### 13.2 Re-authentication for Critical Actions
+The following actions must require fresh password/MFA confirmation even with a valid session:
+- [ ] Delete workspace / account
+- [ ] Change billing method
+- [ ] Connect / disconnect Meta / Google OAuth
+- [ ] Transfer workspace ownership
+- [ ] Export all data
+
+Implementation: Clerk's `requiresReAuth` challenge flow or custom challenge-then-proceed modal.
+
+### 13.3 Session Revocation
+- [ ] "Sign out all devices" button in settings
+- [ ] Automatic revocation on password change
+- [ ] Log all active sessions visible to user
+
+---
+
+## PART 14 — SECURE DEVELOPMENT LIFECYCLE (SDL)
+*(Added v1.3 — Enterprise customers will ask for this)*
+
+### 14.1 Security Review Before Release
+Every feature with user-facing data must pass:
+- [ ] Threat model: what new attack surfaces does this introduce?
+- [ ] Data flow check: does new data touch unprotected endpoints?
+- [ ] Input validation: all inputs validated with Zod
+
+### 14.2 Security Checklist for Every PR
+Add to PR template:
+```
+## Security Checklist
+- [ ] New endpoints require authentication?
+- [ ] New DB tables have RLS enabled?
+- [ ] User inputs validated with Zod?
+- [ ] No secrets in code / logs?
+- [ ] No new npm packages with known CVEs?
+```
+
+### 14.3 Threat Modeling for New Features
+For features with: payments, OAuth, file upload, AI generation, webhooks — mandatory 15-min threat model before implementation.
+
+---
+
+## PART 15 — LOG REDACTION & SECRET MASKING
+*(Added v1.3 — Common gap, easy to exploit)*
+
+**Rule:** No token, API key, or Authorization header may appear in any log — not even in debug mode.
+
+### 15.1 What Must Never Be Logged
+- OAuth tokens (access_token, refresh_token)
+- API keys (OPENAI_API_KEY, META_APP_SECRET, etc.)
+- Authorization headers
+- Cookie values
+- PII (email, phone) in error logs
+- Supabase URLs with embedded credentials
+
+### 15.2 Implementation
+- [ ] Add Fastify `redact` config:
+  ```javascript
+  const app = Fastify({
+    logger: {
+      redact: ['req.headers.authorization', 'req.body.token', 'req.body.access_token']
+    }
+  });
+  ```
+- [ ] Railway logs: verify no secrets visible in build or runtime logs
+- [ ] Sentry (when added): enable PII scrubbing
+- [ ] Never log `request.body` directly — always destructure only needed fields
+
+---
+
+## PART 16 — AI-SPECIFIC SECURITY
+*(Added v1.3 — Critical for Vigmis as an AI product)*
+
+### 16.1 Prompt Injection (existing)
+Already partially built: `policy-classifier.ts` + intent router.
+
+Missing:
+- [ ] Explicit prompt injection patterns blocked before sending to AI: `ignore previous instructions`, `DAN`, `system:`, `<|im_start|>`
+- [ ] User-supplied content wrapped in delimiters, never concatenated raw into system prompt
+
+### 16.2 Model Abuse / Jailbreak
+- [ ] Log all prompts that trigger policy-classifier (already done) + alert on burst
+- [ ] Detect jailbreak attempts: score prompt, flag user, increment trust-tier violation count
+- [ ] Hard limit: if user triggers ≥3 policy blocks in 24h → flag for manual review
+
+### 16.3 Cost Explosion Attack
+An attacker can craft prompts that intentionally generate maximum-length responses to inflate AI costs.
+
+- [ ] Max input token limit per request (e.g., user message ≤ 2,000 tokens)
+- [ ] Max output token per task type — already set but verify all endpoints have `maxTokens`
+- [ ] Circuit breaker (already built) — verify it triggers before catastrophic cost
+
+### 16.4 Prompt Extraction
+User should not be able to extract Vigmis's system prompts.
+
+- [ ] System prompts never returned in API responses
+- [ ] AI responses scanned: if response contains "my instructions are..." or "system prompt:" → block + log
+
+### 16.5 AI Budget Limits (per tenant)
+- [ ] Soft limit: warn user when 80% of monthly AI quota reached
+- [ ] Hard limit: block non-essential AI calls at 100% (circuit breaker — already built)
+- [ ] Per-request cost logged to `ai_usage_monthly` (already built)
+
+---
+
+## PART 17 — VENDOR LOCKOUT RUNBOOKS
+*(Added v1.3 — Vendor Outage covered, Vendor Ban was missing)*
+
+### 17.1 OpenAI Account Suspended/Banned
+**Trigger:** OpenAI sends suspension email or API returns 403 across all keys.
+**Response:**
+1. Immediately switch `ai-router/config.ts` fallback to Anthropic (change `FALLBACK_MODEL`)
+2. Notify all tenants: "AI features temporarily degraded — working to restore"
+3. Contact OpenAI support, provide account details
+4. If >48h: provision backup account under different entity
+**RPO:** <2h for partial restore (Anthropic fallback), <48h for full restore
+
+### 17.2 Meta App Suspended
+**Trigger:** Meta disables Vigmis app — all OAuth tokens become invalid.
+**Response:**
+1. Detect via `401 OAuthException` on Meta API calls → set `platform_tokens.meta.revoked=true`
+2. Stop all Meta-related crons immediately
+3. Notify affected tenants: "Meta connection requires reconnection"
+4. Contact Meta Business Support with App ID `2071308000486044`
+5. If >72h: evaluate interim manual management for top customers
+**Note:** This kills organic posting AND paid ads for all Meta-connected tenants.
+
+### 17.3 Google OAuth Project Disabled
+**Trigger:** Google disables OAuth project `145233766699-...`
+**Response:**
+1. All Google OAuth tokens become invalid → detect via `invalid_grant` responses
+2. Stop Google Ads and GA4 crons
+3. Create new OAuth project in Google Cloud Console
+4. Update env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+5. Mass-email tenants to reconnect Google
+
+### 17.4 Supabase Instance Issues
+- Covered in Part 7 (Backup & Disaster Recovery)
+
+---
+
+## PART 18 — DATA LIFECYCLE
+*(Added v1.3 — Required for GDPR compliance)*
+
+### 18.1 Data Map
+
+| Data Type | Collection | Processing | Storage | Sharing | Archival | Deletion |
+|-----------|-----------|-----------|---------|---------|---------|---------|
+| User email/name | Signup (Clerk) | Auth only | Clerk + Supabase | None | Never archived | On account delete |
+| OAuth tokens | Connect platform | Encrypt + store | Supabase Vault | Never | Never | On disconnect or account delete |
+| Website content | Onboarding scrape | AI analysis → stored | client_settings | Never | Never | On account delete |
+| Campaign data | Created by Vigmis | Optimization engine | campaigns table | Never | 2 years | On account delete |
+| Social posts | Generated by AI | Approve → publish | social_posts | Meta/Google/TikTok API | 1 year | On account delete |
+| Audit log | Every action | Immutable record | audit_log | Legal/compliance only | Permanent | Never (7-year legal hold) |
+| AI conversations | Onboarding + chat | AI generation | client_settings.conversation | Never | 1 year | On account delete |
+| Billing data | Paddle/Stripe webhook | Fee calculation | billing_events | Paddle/Stripe | 7 years (legal) | Never (legal obligation) |
+
+### 18.2 Retention Periods
+- **Active customer data:** retained while account active + 30 days after cancellation
+- **Audit logs:** minimum 7 years (legal/forensic requirement)
+- **AI usage logs:** 1 year (pricing disputes)
+- **Billing records:** 7 years (tax/legal)
+- **OAuth tokens:** deleted immediately on disconnect
+
+### 18.3 Deletion Cascade
+Account delete → cascade in order:
+1. Revoke all OAuth tokens on platforms (best-effort)
+2. Delete platform_tokens
+3. Delete campaigns (pause first if active)
+4. Delete social_posts, social_settings
+5. Delete client_settings
+6. Delete team_members, team_invites
+7. Delete tenants row
+8. Trigger Clerk user deletion
+9. Audit log entry: `account.deleted` (retained for 7 years)
+10. Email confirmation to user
+
+**Note:** Already partially built (`DELETE /account` endpoint) — verify full cascade.
 
 ---
 
