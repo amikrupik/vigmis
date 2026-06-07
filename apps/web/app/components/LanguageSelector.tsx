@@ -67,7 +67,7 @@ export default function LanguageSelector() {
         aria-expanded={open}
       >
         <span aria-hidden="true">{currentLang.flag}</span>
-        <span>{currentLang.label}</span>
+        <span>{currentLang.code.toUpperCase()}</span>
         <svg
           className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
           viewBox="0 0 16 16"
