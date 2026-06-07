@@ -9,10 +9,13 @@ const LANGUAGES = [
   { code: 'es', label: 'Español', flag: '🇪🇸' },
   { code: 'pt', label: 'Português', flag: '🇧🇷' },
   { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'tr', label: 'Türkçe', flag: '🇹🇷' },
+  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'tr', label: 'Türkçe', flag: '🇹🇷' },
+  { code: 'ja', label: '日本語', flag: '🇯🇵' },
+  { code: 'ko', label: '한국어', flag: '🇰🇷' },
+  { code: 'el', label: 'Ελληνικά', flag: '🇬🇷' },
 ] as const;
 
 function getCookieLang(): string {

@@ -11,7 +11,45 @@
 body {
   background-color: #f8fafc;
   color: #0f172a;
-  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Hebrew',
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic',
+    'Malgun Gothic', 'Apple SD Gothic Neo',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── RTL layout ───────────────────────────────────────────── */
+
+/* Text inputs auto-detect direction from content */
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] input[type="search"],
+[dir="rtl"] textarea {
+  direction: auto;
+  unicode-bidi: plaintext;
+}
+
+/* Inline bidi isolation — wrap platform names, numbers, and
+   LTR-only terms in <bdi> or add class="bdi" to keep them
+   isolated from the surrounding RTL flow. */
+bdi,
+.bdi {
+  unicode-bidi: isolate;
+}
+
+/* Force LTR for specific LTR-only content inside RTL pages
+   (e.g. code blocks, email addresses, URLs) */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Preserve numeric/metric display (ROAS, CTR, budget values) */
+[dir="rtl"] .metric-value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
 }

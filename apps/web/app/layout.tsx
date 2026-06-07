@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
 import "./globals.css";
 import { ClerkProviderWrapper } from "./clerk-provider";
 import CookieBanner from "./components/CookieBanner";
@@ -28,15 +30,18 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const locale = normalizeLocale(cookieStore.get('vigmis_lang')?.value);
   const dir = RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
+  const messages = await getMessages();
 
   return (
     <html lang={locale} dir={dir} className={`${inter.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased">
-        <ClerkProviderWrapper>
-          {children}
-          {userId ? <ChatDrawer /> : null}
-        </ClerkProviderWrapper>
-        <CookieBanner />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ClerkProviderWrapper>
+            {children}
+            {userId ? <ChatDrawer /> : null}
+          </ClerkProviderWrapper>
+          <CookieBanner />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

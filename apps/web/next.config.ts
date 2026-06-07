@@ -1,4 +1,6 @@
-import type { NextConfig } from "next";
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 // Baseline security headers applied to every response.
 // NOTE: a Content-Security-Policy is intentionally omitted here — it needs to be
@@ -13,10 +15,11 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "off" },
 ];
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
 };
 
-export default nextConfig;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default withNextIntl(nextConfig as any);
