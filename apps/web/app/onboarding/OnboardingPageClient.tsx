@@ -579,11 +579,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
                 <span className="text-xs text-slate-600 leading-relaxed">
-                  {t.rich('connect.termsLabel', {
-                    tos: (chunks) => <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsToS')}</a>,
-                    privacy: (chunks) => <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsPrivacy')}</a>,
-                    aup: (chunks) => <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsAUP')}</a>,
-                  })}
+                  {t('connect.termsLabel')}{' '}
+                  <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsToS')}</a>
+                  {' · '}
+                  <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsPrivacy')}</a>
+                  {' · '}
+                  <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsAUP')}</a>
                 </span>
               </label>
 
