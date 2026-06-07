@@ -320,13 +320,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   // ── Header ────────────────────────────────────────────────────────────────────
   const header = (
-    <header className="border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0 relative">
-      <div className="max-w-2xl mx-auto flex items-center gap-4 pe-28">
-        <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} priority className="flex-shrink-0" />
-        <div className="flex-1 flex items-center min-w-0">
+    <header className="border-b border-slate-200 bg-white px-4 py-4 flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <Image src="/logo_nav.png" alt="Vigmis" width={140} height={32} priority className="flex-shrink-0" />
+        <div className="flex-1 flex items-center min-w-0 mx-2">
           {STEPS.map((s, i) => (
             <Fragment key={s.key}>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-colors ${
                   STEP_INDEX[step] > i
                     ? 'bg-emerald-500 text-white'
@@ -336,22 +336,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 }`}>
                   {STEP_INDEX[step] > i ? '✓' : i + 1}
                 </div>
-                <span className={`text-xs font-medium hidden md:block ${
+                <span className={`text-xs font-medium hidden lg:block ${
                   STEP_INDEX[step] > i ? 'text-emerald-600' :
                   STEP_INDEX[step] === i ? 'text-indigo-600' :
                   'text-slate-400'
                 }`}>{t(s.tKey as Parameters<typeof t>[0])}</span>
               </div>
               {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-px mx-2 min-w-[8px] ${STEP_INDEX[step] > i ? 'bg-emerald-300' : 'bg-slate-200'}`} />
+                <div className={`flex-1 h-px mx-1 min-w-[4px] ${STEP_INDEX[step] > i ? 'bg-emerald-300' : 'bg-slate-200'}`} />
               )}
             </Fragment>
           ))}
         </div>
-      </div>
-      {/* Language selector — absolute to avoid displacing the step progress */}
-      <div className="absolute top-1/2 -translate-y-1/2 end-4">
-        <LanguageSelector />
+        <div className="flex-shrink-0">
+          <LanguageSelector />
+        </div>
       </div>
     </header>
   );
