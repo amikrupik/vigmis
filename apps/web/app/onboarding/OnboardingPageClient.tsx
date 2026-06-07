@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
+import LanguageSelector from '../components/LanguageSelector';
 import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
 import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
 import { recordAttestation } from '../components/attestation-actions';
@@ -352,6 +353,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               )}
             </Fragment>
           ))}
+        </div>
+        <div className="flex-shrink-0">
+          <LanguageSelector />
         </div>
       </div>
     </header>
