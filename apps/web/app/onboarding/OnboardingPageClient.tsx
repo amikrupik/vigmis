@@ -277,25 +277,34 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     setError(null);
     try {
       const token = await getClerkToken();
-      const res = await fetch(`${API_URL}/onboarding/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          ...pendingSettings,
-          has_parallel_campaigns: hasParallelCampaigns,
-          conversation: pendingConversation,
-          strategy_plan: analysisResult.strategy,
-          website_analysis: analysisResult.websiteAnalysis,
-          creative_choice: creativeChoice,
-          tracking_verified: pixelVerified && !skipTracking,
-          social_opt_in: socialEnabled ? {
-            enabled: true,
-            platforms: socialPlatforms,
-            approval_mode: socialApprovalMode,
-            content_pillars: analysisResult.strategy.social_plan?.content_pillars,
-          } : undefined,
-        }),
+      const body = JSON.stringify({
+        ...pendingSettings,
+        has_parallel_campaigns: hasParallelCampaigns,
+        conversation: pendingConversation,
+        strategy_plan: analysisResult.strategy,
+        website_analysis: analysisResult.websiteAnalysis,
+        creative_choice: creativeChoice,
+        tracking_verified: pixelVerified && !skipTracking,
+        social_opt_in: socialEnabled ? {
+          enabled: true,
+          platforms: socialPlatforms,
+          approval_mode: socialApprovalMode,
+          content_pillars: analysisResult.strategy.social_plan?.content_pillars,
+        } : undefined,
       });
+      const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+      let res = await fetch(`${API_URL}/onboarding/settings`, { method: 'POST', headers, body });
+
+      // Attestations may have failed silently in step 1 — record them now and retry once.
+      if (res.status === 412) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData?.error === 'attestation_required') {
+          await recordOnboardingAttestations();
+          res = await fetch(`${API_URL}/onboarding/settings`, { method: 'POST', headers, body });
+        }
+      }
+
       if (!res.ok) throw new Error('Failed to save settings');
       router.push('/dashboard');
     } catch (err) {
