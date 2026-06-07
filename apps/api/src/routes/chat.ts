@@ -337,7 +337,7 @@ export async function chatRoutes(app: FastifyInstance) {
           { tenant_id: tenantId, role: 'user', content: message.trim() },
           { tenant_id: tenantId, role: 'assistant', content: quota.reason },
         ]);
-        return reply.send({ response: quota.reason, actions: [], quota: { exhausted: true } });
+        return reply.send({ message: quota.reason, executedActions: [] });
       }
 
       // Intent router — every chat message goes through here BEFORE the heavy
@@ -353,15 +353,7 @@ export async function chatRoutes(app: FastifyInstance) {
           { tenant_id: tenantId, role: 'user', content: message.trim() },
           { tenant_id: tenantId, role: 'assistant', content: intent.user_facing_response },
         ]);
-        return reply.send({
-          response: intent.user_facing_response,
-          actions: [],
-          intent: {
-            bucket: intent.bucket,
-            reason: intent.reason,
-            alternative: intent.alternative,
-          },
-        });
+        return reply.send({ message: intent.user_facing_response, executedActions: [] });
       }
 
       const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes] = await Promise.all([

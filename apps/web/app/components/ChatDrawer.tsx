@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useTransition } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { sendChatMessage, getChatHistory, type ExecutedAction } from './chat-actions';
 
@@ -73,8 +73,8 @@ export default function ChatDrawer() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open && !historyLoaded) {
@@ -89,27 +89,30 @@ export default function ChatDrawer() {
   }, [open]);
 
   useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, open]);
+    if (open && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, open, isLoading]);
 
   function handleSend() {
     const text = input.trim();
-    if (!text || isPending) return;
+    if (!text || isLoading) return;
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text }]);
+    setIsLoading(true);
 
-    startTransition(async () => {
-      try {
-        const res = await sendChatMessage(text, pageContextFor(pathname));
+    sendChatMessage(text, pageContextFor(pathname))
+      .then(res => {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: res.message,
+          content: res.message ?? (res as any).response ?? '',
           executedActions: res.executedActions?.length ? res.executedActions : undefined,
         }]);
-      } catch {
+      })
+      .catch(() => {
         setMessages(prev => [...prev, { role: 'assistant', content: '__error__' }]);
-      }
-    });
+      })
+      .finally(() => setIsLoading(false));
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -150,7 +153,7 @@ export default function ChatDrawer() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {!historyLoaded && open && (
             <div className="flex justify-center py-8">
               <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -159,7 +162,7 @@ export default function ChatDrawer() {
               </div>
             </div>
           )}
-          {historyLoaded && messages.length === 0 && !isPending && (
+          {historyLoaded && messages.length === 0 && !isLoading && (
             <div className="py-8 space-y-4">
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
@@ -211,7 +214,7 @@ export default function ChatDrawer() {
             </div>
           ))}
 
-          {isPending && (
+          {isLoading && (
             <div className="flex justify-start">
               <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-3">
                 <span className="inline-flex gap-1">
@@ -223,7 +226,6 @@ export default function ChatDrawer() {
             </div>
           )}
 
-          <div ref={bottomRef} />
         </div>
 
         <div className="px-4 py-3 border-t border-slate-100 flex gap-2 flex-shrink-0">
@@ -237,7 +239,7 @@ export default function ChatDrawer() {
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isPending}
+            disabled={!input.trim() || isLoading}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-semibold transition-colors flex-shrink-0"
           >
             Send
