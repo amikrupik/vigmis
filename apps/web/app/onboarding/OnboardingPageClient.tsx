@@ -353,22 +353,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </Fragment>
           ))}
         </div>
-        {/* Language switcher */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {(['en', 'he'] as const).map(lang => (
-            <button
-              key={lang}
-              onClick={() => switchLanguage(lang)}
-              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                currentLang === lang
-                  ? 'bg-indigo-100 text-indigo-700'
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              {lang === 'en' ? 'EN' : 'עב'}
-            </button>
-          ))}
-        </div>
       </div>
     </header>
   );
