@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
@@ -19,36 +20,22 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 type Step = 'connect' | 'meta_assets' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'tracking' | 'saving';
 type CreativeChoice = 'avatar' | 'cinematic' | 'animation' | 'upload' | 'skip' | null;
 
-const STEPS: { key: Step; label: string }[] = [
-  { key: 'connect', label: 'Connect' },
-  { key: 'meta_assets', label: 'Choose Page' },
-  { key: 'chat', label: 'Interview' },
-  { key: 'analysis', label: 'Analysis' },
-  { key: 'strategy', label: 'Strategy' },
-  { key: 'creative', label: 'Creative' },
-  { key: 'tracking', label: 'Tracking' },
+const STEPS: { key: Step; tKey: string }[] = [
+  { key: 'connect', tKey: 'steps.connect' },
+  { key: 'meta_assets', tKey: 'steps.choosePage' },
+  { key: 'chat', tKey: 'steps.interview' },
+  { key: 'analysis', tKey: 'steps.analysis' },
+  { key: 'strategy', tKey: 'steps.strategy' },
+  { key: 'creative', tKey: 'steps.creative' },
+  { key: 'tracking', tKey: 'steps.tracking' },
 ];
 
 const STEP_INDEX: Record<Step, number> = {
   connect: 0, meta_assets: 1, chat: 2, analysis: 3, website_check: 3, strategy: 4, creative: 5, tracking: 6, saving: 7,
 };
 
-const ANALYSIS_STEPS = [
-  { key: 'website', label: 'Scanning your website...' },
-  { key: 'research', label: 'Researching your market...' },
-  { key: 'strategy', label: 'Building your campaign plan...' },
-];
-
-const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  google_denied: 'Google connection canceled',
-  google_failed: 'Google connection failed — please try again',
-  meta_denied: 'Meta connection canceled',
-  meta_failed: 'Meta connection failed — please try again',
-  tiktok_denied: 'TikTok connection canceled',
-  tiktok_failed: 'TikTok connection failed — please try again',
-  tiktok_not_configured: 'TikTok integration is not yet active — coming soon',
-  invalid_state: 'Security error — please try again',
-};
+const ANALYSIS_STEP_KEYS = ['analysis.scanningWebsite', 'analysis.researchingMarket', 'analysis.buildingPlan'] as const;
+const ANALYSIS_STEP_IDS = ['website', 'research', 'strategy'] as const;
 
 const PLATFORM_BAR: Record<string, string> = {
   google: 'bg-blue-500',
@@ -64,6 +51,7 @@ interface Props {
 
 export default function OnboardingPageClient({ initialConnected, initialError, rethinkMode }: Props) {
   const router = useRouter();
+  const t = useTranslations('onboarding');
   const [step, setStep] = useState<Step>('connect');
   const [showRethinkWarning, setShowRethinkWarning] = useState(rethinkMode === true);
   // Never initialise from the URL param — it only reflects the LAST connected platform
@@ -71,10 +59,16 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   // always fetches the real state from the API.
   const [connected, setConnected] = useState({ google: false, meta: false, tiktok: false });
   const [statusLoading, setStatusLoading] = useState(true);
-  const [error, setError] = useState<string | null>(
-    initialError ? (OAUTH_ERROR_MESSAGES[initialError] ?? 'Connection error') : null,
-  );
+  const [error, setError] = useState<string | null>(null);
   const [errorCode] = useState<string | null>(initialError ?? null);
+
+  // Translate OAuth error once translations are mounted
+  useEffect(() => {
+    if (initialError) {
+      const key = `connect.oauthErrors.${initialError}` as Parameters<typeof t>[0];
+      try { setError(t(key)); } catch { setError('Connection error'); }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [pendingSettings, setPendingSettings] = useState<OnboardingSettings | null>(null);
   const [pendingConversation, setPendingConversation] = useState<ConversationMessage[]>([]);
   const [analysisStep, setAnalysisStep] = useState(0);
@@ -184,7 +178,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const token = await getClerkToken();
       window.location.href = `${API_URL}/auth/${platform}?token=${encodeURIComponent(token)}`;
     } catch {
-      setError('Session error — please refresh the page');
+      setError(t('connect.sessionError'));
     }
   }
 
@@ -326,8 +320,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   // ── Header ────────────────────────────────────────────────────────────────────
   const header = (
-    <header className="border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0">
-      <div className="max-w-2xl mx-auto flex items-center gap-4">
+    <header className="border-b border-slate-200 bg-white px-6 py-4 flex-shrink-0 relative">
+      <div className="max-w-2xl mx-auto flex items-center gap-4 pe-28">
         <Image src="/logo_nav.png" alt="Vigmis" width={160} height={36} priority className="flex-shrink-0" />
         <div className="flex-1 flex items-center min-w-0">
           {STEPS.map((s, i) => (
@@ -346,7 +340,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   STEP_INDEX[step] > i ? 'text-emerald-600' :
                   STEP_INDEX[step] === i ? 'text-indigo-600' :
                   'text-slate-400'
-                }`}>{s.label}</span>
+                }`}>{t(s.tKey as Parameters<typeof t>[0])}</span>
               </div>
               {i < STEPS.length - 1 && (
                 <div className={`flex-1 h-px mx-2 min-w-[8px] ${STEP_INDEX[step] > i ? 'bg-emerald-300' : 'bg-slate-200'}`} />
@@ -354,9 +348,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             </Fragment>
           ))}
         </div>
-        <div className="flex-shrink-0">
-          <LanguageSelector />
-        </div>
+      </div>
+      {/* Language selector — absolute to avoid displacing the step progress */}
+      <div className="absolute top-1/2 -translate-y-1/2 end-4">
+        <LanguageSelector />
       </div>
     </header>
   );
@@ -403,9 +398,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         <div className="flex-1 flex items-center justify-center p-6 py-12">
           <div className="w-full max-w-md space-y-8">
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-slate-900">Connect your ad accounts</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{t('connect.title')}</h1>
               <p className="text-slate-500 text-sm mt-2">
-                Connect the platforms you advertise on. You can always add more later — but connecting now means a better strategy from day one.
+                {t('connect.subtitle')}
               </p>
               {statusLoading && (
                 <div className="mt-3 flex justify-center">
@@ -472,11 +467,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   <GoogleIcon />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800">Google Ads</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Search, Display, Performance Max</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t('connect.googleDesc')}</p>
                   </div>
                   {connected.google
-                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Connected ✓</span>
-                    : <span className="text-xs text-slate-400 flex-shrink-0">Connect →</span>
+                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">{t('connect.connected')}</span>
+                    : <span className="text-xs text-slate-400 flex-shrink-0">{t('connect.connectArrow')}</span>
                   }
                 </button>
 
@@ -484,11 +479,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 {connected.google && (
                   <div className="mt-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                     <p className="text-xs font-semibold text-blue-800 mb-2">
-                      {googleAccountSelected ? '✓ Ad account selected' : 'Choose which Google Ads account Vigmis should manage:'}
+                      {googleAccountSelected ? `✓ ${t('connect.accountSelected')}` : t('connect.chooseAccount')}
                     </p>
-                    {googleAccountLoading && <p className="text-xs text-slate-500">Loading accounts…</p>}
+                    {googleAccountLoading && <p className="text-xs text-slate-500">{t('connect.loadingAccounts')}</p>}
                     {!googleAccountLoading && googleAccounts && googleAccounts.length === 0 && (
-                      <p className="text-xs text-amber-700">No Google Ads accounts found. Make sure you have an active account at ads.google.com.</p>
+                      <p className="text-xs text-amber-700">{t('connect.noAccounts')}</p>
                     )}
                     {!googleAccountLoading && googleAccounts?.map(a => (
                       <button
@@ -509,8 +504,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
                 {!connected.google && (
                   <p className="text-xs text-slate-400 mt-1.5 px-1">
-                    No account yet?{' '}
-                    <a href="https://ads.google.com/start" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Create a Google Ads account →</a>
+                    {t('connect.noAccountGoogle')}{' '}
+                    <a href="https://ads.google.com/start" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('connect.createGoogle')}</a>
                   </p>
                 )}
               </div>
@@ -523,18 +518,18 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   <MetaIcon />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800">Meta Ads</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Facebook, Instagram, Reels</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t('connect.metaDesc')}</p>
                   </div>
                   {connected.meta
-                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Connected ✓</span>
-                    : <span className="text-xs text-slate-400 flex-shrink-0">Connect →</span>
+                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">{t('connect.connected')}</span>
+                    : <span className="text-xs text-slate-400 flex-shrink-0">{t('connect.connectArrow')}</span>
                   }
                 </button>
                 {!connected.meta && (
                   <p className="text-xs text-slate-400 mt-1.5 px-1">
-                    No account yet?{' '}
-                    <a href="https://www.facebook.com/business/help/1710077379203657" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Create a Meta Business account →</a>
-                    {' '}— then come back and connect. Need help? Use the chat button below.
+                    {t('connect.noAccountGoogle')}{' '}
+                    <a href="https://www.facebook.com/business/help/1710077379203657" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('connect.createMeta')}</a>
+                    {' '}— {t('connect.metaHelp')}
                   </p>
                 )}
               </div>
@@ -543,14 +538,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 <button
                   onClick={async () => {
                     if (!tiktokAvailable) {
-                      setError('TikTok Ads integration is coming soon — connect Google or Meta for now.');
+                      setError(t('connect.tiktokComingSoon'));
                       return;
                     }
                     try {
                       const token = await getClerkToken();
                       window.location.href = `${API_URL}/auth/tiktok?token=${encodeURIComponent(token)}`;
                     } catch {
-                      setError('Session error — please refresh the page');
+                      setError(t('connect.sessionError'));
                     }
                   }}
                   className="w-full flex items-center gap-4 bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md rounded-xl px-5 py-4 transition-all shadow-sm text-left"
@@ -558,18 +553,18 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   <TikTokIcon />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800">TikTok Ads</p>
-                    <p className="text-xs text-slate-400 mt-0.5">TikTok for Business — In-Feed, Spark, TopView</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t('connect.tiktokDesc')}</p>
                   </div>
                   {connected.tiktok
-                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">Connected ✓</span>
-                    : <span className="text-xs text-slate-400 flex-shrink-0">Connect →</span>
+                    ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold flex-shrink-0">{t('connect.connected')}</span>
+                    : <span className="text-xs text-slate-400 flex-shrink-0">{t('connect.connectArrow')}</span>
                   }
                 </button>
                 {!connected.tiktok && (
                   <p className="text-xs text-slate-400 mt-1.5 px-1">
-                    No account yet?{' '}
-                    <a href="https://ads.tiktok.com/i18n/signup" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">Create a TikTok for Business account →</a>
-                    {' '}— then come back and connect. Need help? Use the chat button below.
+                    {t('connect.noAccountTikTok')}{' '}
+                    <a href="https://ads.tiktok.com/i18n/signup" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('connect.createTikTok')}</a>
+                    {' '}— {t('connect.tiktokHelp')}
                   </p>
                 )}
               </div>
@@ -584,13 +579,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
                 <span className="text-xs text-slate-600 leading-relaxed">
-                  By continuing, I agree to Vigmis&apos;s{' '}
-                  <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">Terms of Service</a>
-                  {', '}
-                  <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">Privacy Policy</a>
-                  {', and '}
-                  <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">Acceptable Use Policy</a>
-                  {' '}(including the AI system limitations described therein). I confirm I am 18 or older.
+                  {t.rich('connect.termsLabel', {
+                    tos: (chunks) => <a href="/terms" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsToS')}</a>,
+                    privacy: (chunks) => <a href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsPrivacy')}</a>,
+                    aup: (chunks) => <a href="/acceptable-use" target="_blank" className="text-indigo-600 hover:underline font-semibold">{t('connect.termsAUP')}</a>,
+                  })}
                 </span>
               </label>
 
@@ -601,7 +594,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   onChange={e => setMarketingOptIn(e.target.checked)}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
-                <span className="text-xs text-slate-400">Send me tips and product updates by email. (Optional)</span>
+                <span className="text-xs text-slate-400">{t('connect.marketingOptIn')}</span>
               </label>
 
               <label className="flex items-start gap-3 cursor-pointer">
@@ -611,10 +604,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   onChange={e => setHasParallelCampaigns(e.target.checked)}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                 />
-                <span className="text-xs text-slate-400">
-                  I have active campaigns on these platforms that I am <strong>not</strong> transferring to Vigmis.
-                  <span className="ml-1">(Helps calibrate benchmarks.)</span>
-                </span>
+                <span className="text-xs text-slate-400">{t('connect.parallelCampaigns')}</span>
               </label>
             </div>
 
@@ -633,9 +623,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               >
                 {(() => {
                   const count = [connected.google, connected.meta, connected.tiktok].filter(Boolean).length;
-                  if (count === 0) return 'Connect at least one platform to continue';
-                  if (count === 1) return 'Continue with 1 platform →';
-                  return `Continue with ${count} platforms →`;
+                  if (count === 0) return t('connect.continueZero');
+                  if (count === 1) return t('connect.continueOne');
+                  return t('connect.continueMany', { count });
                 })()}
               </button>
               <button
@@ -650,7 +640,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 disabled={!termsAccepted}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Skip — I'll connect later
+                {t('connect.skipLater')}
               </button>
             </div>
           </div>
@@ -673,10 +663,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           <div className="max-w-xl mx-auto space-y-5">
             <div>
               <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
-                Website Review
+                {t('websiteCheck.badge')}
               </div>
-              <h2 className="text-xl font-bold text-slate-900">Let's make sure we understand your business</h2>
-              <p className="text-slate-500 text-sm mt-1">Vigmis scanned your website. Here's what we understood — please confirm or add details.</p>
+              <h2 className="text-xl font-bold text-slate-900">{t('websiteCheck.title')}</h2>
+              <p className="text-slate-500 text-sm mt-1">{t('websiteCheck.subtitle')}</p>
             </div>
 
             {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
@@ -684,25 +674,25 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* What we understood */}
             <div className={`border rounded-xl p-5 space-y-3 ${websiteCheck.adequate ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                {websiteCheck.adequate ? 'What Vigmis understood from your website' : 'Website information is incomplete'}
+                {websiteCheck.adequate ? t('websiteCheck.understood') : t('websiteCheck.incomplete')}
               </p>
               {websiteCheck.summary && (
                 <p className="text-sm text-slate-800 leading-relaxed">{websiteCheck.summary}</p>
               )}
               {!websiteCheck.adequate && !websiteCheck.summary && (
-                <p className="text-sm text-amber-700">We couldn't extract enough information from your website to build a confident strategy.</p>
+                <p className="text-sm text-amber-700">{t('websiteCheck.notEnough')}</p>
               )}
               {websiteCheck.what_they_sell && (
                 <div className="grid grid-cols-2 gap-2">
                   {websiteCheck.hero_product && (
                     <div className="bg-white rounded-lg p-3 border border-white/60">
-                      <p className="text-xs text-slate-400 mb-0.5">Main product / service</p>
+                      <p className="text-xs text-slate-400 mb-0.5">{t('websiteCheck.mainProduct')}</p>
                       <p className="text-sm font-semibold text-slate-800">{websiteCheck.hero_product}</p>
                     </div>
                   )}
                   {websiteCheck.target_audience && (
                     <div className="bg-white rounded-lg p-3 border border-white/60">
-                      <p className="text-xs text-slate-400 mb-0.5">Target audience</p>
+                      <p className="text-xs text-slate-400 mb-0.5">{t('websiteCheck.targetAudience')}</p>
                       <p className="text-sm font-semibold text-slate-800">{websiteCheck.target_audience}</p>
                     </div>
                   )}
@@ -713,7 +703,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Questions from Vigmis */}
             {websiteCheck.unclear.length > 0 && (
               <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 shadow-sm">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Vigmis needs a few clarifications</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('websiteCheck.clarifications')}</p>
                 <ul className="space-y-1.5">
                   {websiteCheck.unclear.map((q, i) => (
                     <li key={i} className="text-sm text-slate-700 flex items-start gap-2">
@@ -729,15 +719,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">
                 {websiteCheck.unclear.length > 0
-                  ? 'Your answers / clarifications'
-                  : 'Anything to add or correct? (optional)'}
+                  ? t('websiteCheck.yourAnswers')
+                  : t('websiteCheck.anythingToAdd')}
               </label>
               <textarea
                 value={websiteNotes}
                 onChange={e => setWebsiteNotes(e.target.value)}
                 placeholder={websiteCheck.unclear.length > 0
-                  ? 'Answer the questions above — this helps Vigmis build a better strategy...'
-                  : 'e.g. Our hero product is the Premium plan. We target small business owners, not individuals...'}
+                  ? t('websiteCheck.answersPlaceholder')
+                  : t('websiteCheck.addPlaceholder')}
                 rows={4}
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
               />
@@ -748,7 +738,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 onClick={() => { setStep('chat'); setWebsiteCheck(null); setWebsiteNotes(''); }}
                 className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
               >
-                Back to chat
+                {t('websiteCheck.backToChat')}
               </button>
               <button
                 onClick={() => runAnalysisFlow(pendingSettings, undefined, true)}
@@ -756,8 +746,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 {websiteCheck.unclear.length > 0 && !websiteNotes.trim()
-                  ? 'Please answer above to continue'
-                  : 'Build my strategy →'}
+                  ? t('websiteCheck.answerAbove')
+                  : t('websiteCheck.buildStrategy')}
               </button>
             </div>
           </div>
@@ -775,12 +765,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           <div className="w-full max-w-sm space-y-10 text-center">
             <div>
               <div className="w-14 h-14 border-[3px] border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-              <h2 className="text-xl font-bold text-slate-900">Vigmis is working for you</h2>
-              <p className="text-sm text-slate-500 mt-1">This takes about 20 seconds</p>
+              <h2 className="text-xl font-bold text-slate-900">{t('analysis.working')}</h2>
+              <p className="text-sm text-slate-500 mt-1">{t('analysis.takes')}</p>
             </div>
             <div className="space-y-4 text-left">
-              {ANALYSIS_STEPS.map((s, i) => (
-                <div key={s.key} className="flex items-center gap-3">
+              {ANALYSIS_STEP_KEYS.map((tKey, i) => (
+                <div key={ANALYSIS_STEP_IDS[i]} className="flex items-center gap-3">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors ${
                     analysisStep > i ? 'bg-emerald-500 text-white' :
                     analysisStep === i ? 'bg-indigo-600 text-white' :
@@ -789,7 +779,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     {analysisStep > i ? '✓' : i + 1}
                   </div>
                   <span className={`text-sm font-medium ${analysisStep >= i ? 'text-slate-900' : 'text-slate-400'}`}>
-                    {s.label}
+                    {t(tKey)}
                   </span>
                 </div>
               ))}
@@ -813,8 +803,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         <div className="flex-1 overflow-y-auto p-6 py-8">
           <div className="max-w-xl mx-auto space-y-5">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">Your campaign plan is ready</h2>
-              <p className="text-slate-500 text-sm mt-1">Based on your website analysis and market research</p>
+              <h2 className="text-2xl font-bold text-slate-900">{t('strategy.ready')}</h2>
+              <p className="text-slate-500 text-sm mt-1">{t('strategy.basedOn')}</p>
             </div>
 
             {error && (
@@ -824,22 +814,22 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Strategic narrative */}
             {strategy.strategy_narrative && (
               <div className="bg-slate-900 rounded-xl p-5 space-y-3">
-                <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Strategic Plan</p>
+                <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest">{t('strategy.strategicPlan')}</p>
                 <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{strategy.strategy_narrative}</p>
               </div>
             )}
 
             {/* Market insights */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 space-y-3">
-              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Market Insights</p>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{t('strategy.marketInsights')}</p>
               <p className="text-sm text-slate-800 leading-relaxed">{strategy.market_insights}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                  <p className="text-xs text-slate-400 font-medium mb-1">Target Audience</p>
+                  <p className="text-xs text-slate-400 font-medium mb-1">{t('strategy.targetAudience')}</p>
                   <p className="text-sm text-slate-800 font-medium leading-snug">{strategy.target_audience}</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                  <p className="text-xs text-slate-400 font-medium mb-1">Estimated CPC</p>
+                  <p className="text-xs text-slate-400 font-medium mb-1">{t('strategy.estimatedCPC')}</p>
                   <p className="text-sm text-slate-800 font-bold">{strategy.estimated_cpc}</p>
                 </div>
               </div>
@@ -849,13 +839,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {strategy.funnel_strategy && (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-                  <p className="text-sm font-semibold text-slate-700">Marketing Funnel</p>
+                  <p className="text-sm font-semibold text-slate-700">{t('strategy.marketingFunnel')}</p>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {[
-                    { label: 'Awareness', value: strategy.funnel_strategy.awareness, color: 'bg-violet-500', badge: 'bg-violet-100 text-violet-700' },
-                    { label: 'Consideration', value: strategy.funnel_strategy.consideration, color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700' },
-                    { label: 'Conversion', value: strategy.funnel_strategy.conversion, color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700' },
+                    { label: t('strategy.awareness'), value: strategy.funnel_strategy.awareness, color: 'bg-violet-500', badge: 'bg-violet-100 text-violet-700' },
+                    { label: t('strategy.consideration'), value: strategy.funnel_strategy.consideration, color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700' },
+                    { label: t('strategy.conversion'), value: strategy.funnel_strategy.conversion, color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700' },
                   ].map(({ label, value, badge }) => (
                     <div key={label} className="px-5 py-4 flex gap-3">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full h-fit flex-shrink-0 ${badge}`}>{label}</span>
@@ -870,7 +860,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
                 <p className="text-sm font-semibold text-slate-700">
-                  Budget Allocation — <span className="text-indigo-600">${managedBudget}/month</span>
+                  {t('strategy.budgetAllocation')} — <span className="text-indigo-600">${managedBudget}/month</span>
                 </p>
               </div>
               <div className="divide-y divide-slate-50">
@@ -912,10 +902,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 ? 'border-amber-200 bg-amber-50'
                 : 'border-emerald-200 bg-emerald-50';
               const verdictLabel = ba.verdict === 'too_low'
-                ? '⚠ Budget may be too low'
+                ? t('strategy.budgetTooLow')
                 : ba.verdict === 'exceeds_ceiling'
-                ? '↓ Budget exceeds efficient ceiling'
-                : '✓ Budget is workable';
+                ? t('strategy.budgetCeiling')
+                : t('strategy.budgetOk');
               const verdictTextColor = ba.verdict === 'too_low'
                 ? 'text-red-700'
                 : ba.verdict === 'exceeds_ceiling'
@@ -924,17 +914,17 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               return (
                 <div className={`border rounded-xl p-5 space-y-4 ${verdictColor}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Budget Advisory</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{t('strategy.budgetAdvisory')}</p>
                     <span className={`text-xs font-bold px-2 py-1 rounded-full bg-white ${verdictTextColor}`}>{verdictLabel}</span>
                   </div>
                   <p className="text-sm text-slate-700 leading-relaxed">{ba.verdict_explanation}</p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
-                      { label: 'Minimum to enter market', value: `$${ba.minimum_monthly_usd}/mo` },
-                      { label: 'Recommended (learning phase)', value: `$${ba.recommended_learning_usd}/mo` },
-                      { label: 'Recommended (ongoing)', value: `$${ba.recommended_steady_usd}/mo` },
-                      { label: 'Efficiency ceiling', value: `$${ba.efficiency_ceiling_usd}/mo` },
+                      { label: t('strategy.minToEnter'), value: `$${ba.minimum_monthly_usd}/mo` },
+                      { label: t('strategy.recLearning'), value: `$${ba.recommended_learning_usd}/mo` },
+                      { label: t('strategy.recOngoing'), value: `$${ba.recommended_steady_usd}/mo` },
+                      { label: t('strategy.ceiling'), value: `$${ba.efficiency_ceiling_usd}/mo` },
                     ].map(item => (
                       <div key={item.label} className="bg-white rounded-lg p-3 border border-white/60">
                         <p className="text-xs text-slate-400 mb-0.5">{item.label}</p>
@@ -945,9 +935,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                     {[
-                      { label: 'Est. clicks/mo', value: ba.projected_clicks_monthly.toLocaleString() },
-                      { label: 'Est. leads/mo', value: ba.projected_leads_monthly.toLocaleString() },
-                      { label: 'Break-even sales', value: `${ba.break_even_conversions}` },
+                      { label: t('strategy.estClicks'), value: ba.projected_clicks_monthly.toLocaleString() },
+                      { label: t('strategy.estLeads'), value: ba.projected_leads_monthly.toLocaleString() },
+                      { label: t('strategy.breakEven'), value: `${ba.break_even_conversions}` },
                     ].map(item => (
                       <div key={item.label} className="bg-white rounded-lg p-3 border border-white/60">
                         <p className="text-sm font-black text-slate-900">{item.value}</p>
@@ -966,7 +956,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
                   {ba.platform_exclusions?.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500">Platforms not recommended:</p>
+                      <p className="text-xs font-semibold text-slate-500">{t('strategy.platformsNotRec')}</p>
                       {ba.platform_exclusions.map((e: any) => (
                         <p key={e.platform} className="text-xs text-slate-500 capitalize">✕ <strong>{e.platform}</strong> — {e.reason}</p>
                       ))}
@@ -978,14 +968,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
             {/* Recommendations */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Paid Campaign Recommendations</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('strategy.paidRecs')}</p>
               <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.recommendations}</p>
             </div>
 
             {/* Past performance notes */}
             {strategy.past_performance_notes && (
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
-                <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">Learnings from Your Previous Campaigns</p>
+                <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">{t('strategy.learnings')}</p>
                 <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.past_performance_notes}</p>
               </div>
             )}
@@ -994,8 +984,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {strategy.creative_brief && strategy.creative_brief.length > 0 && (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-                  <p className="text-sm font-semibold text-slate-700">Creative Brief</p>
-                  <p className="text-xs text-slate-400 mt-0.5">What creatives Vigmis will produce for each platform</p>
+                  <p className="text-sm font-semibold text-slate-700">{t('strategy.creativeBrief')}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t('strategy.creativeBriefSub')}</p>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {strategy.creative_brief.map((brief: any) => (
@@ -1010,16 +1000,16 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="bg-slate-50 rounded-lg p-2.5">
-                          <p className="text-slate-400 mb-1">Creatives to produce</p>
+                          <p className="text-slate-400 mb-1">{t('strategy.creativesToProduce')}</p>
                           <p className="font-semibold text-slate-700">{brief.quantity_images} image{brief.quantity_images !== 1 ? 's' : ''}{brief.quantity_videos > 0 ? ` · ${brief.quantity_videos} video${brief.quantity_videos !== 1 ? 's' : ''}` : ''}</p>
                         </div>
                         <div className="bg-slate-50 rounded-lg p-2.5">
-                          <p className="text-slate-400 mb-1">CTA</p>
+                          <p className="text-slate-400 mb-1">{t('strategy.cta')}</p>
                           <p className="font-semibold text-slate-700">{brief.cta}</p>
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-slate-500">Message angles:</p>
+                        <p className="text-xs font-semibold text-slate-500">{t('strategy.messageAngles')}</p>
                         {brief.hooks.map((hook: string, i: number) => (
                           <p key={i} className="text-xs text-slate-600 leading-relaxed pl-2 border-l-2 border-indigo-200">{hook}</p>
                         ))}
@@ -1033,13 +1023,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Missing platform suggestions */}
             {strategy.missing_platforms && strategy.missing_platforms.length > 0 && (
               <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-5 space-y-3">
-                <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Platform Opportunities</p>
-                <p className="text-xs text-amber-700">Vigmis recommends adding these platforms based on your business profile:</p>
+                <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">{t('strategy.platformOpportunities')}</p>
+                <p className="text-xs text-amber-700">{t('strategy.recPlatforms')}</p>
                 {strategy.missing_platforms.map((mp: any) => (
                   <div key={mp.platform} className="bg-white rounded-lg p-3.5 border border-amber-100">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-bold text-slate-900 capitalize">{mp.platform}</span>
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Not connected</span>
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{t('strategy.notConnected')}</span>
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">{mp.reason}</p>
                     <p className="text-xs text-emerald-700 font-medium mt-1.5">Potential: {mp.potential_uplift}</p>
@@ -1051,9 +1041,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Organic recommendations */}
             {strategy.organic_recommendations && (
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
-                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">Organic Growth — Complement Your Ads</p>
+                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">{t('strategy.organic')}</p>
                 <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.organic_recommendations}</p>
-                <p className="text-xs text-slate-400 mt-3">Organic channels reduce ad dependency over time and improve campaign quality scores.</p>
+                <p className="text-xs text-slate-400 mt-3">{t('strategy.organicSub')}</p>
               </div>
             )}
 
@@ -1071,9 +1061,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   <div className="px-5 py-4 flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-slate-900">Social Media Management</p>
+                        <p className="text-sm font-bold text-slate-900">{t('strategy.socialManagement')}</p>
                         {sp.recommended && (
-                          <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">AI Recommended</span>
+                          <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">{t('strategy.aiRecommended')}</span>
                         )}
                       </div>
                       <p className="text-xs text-slate-500 mt-1 leading-relaxed">{sp.rationale}</p>
@@ -1093,7 +1083,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   {socialEnabled && (
                     <div className="border-t border-violet-200 px-5 py-4 space-y-4">
                       <div>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select platforms</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t('strategy.selectPlatforms')}</p>
                         <div className="flex gap-2 flex-wrap">
                           {allPlatforms.map(p => {
                             const on = socialPlatforms.includes(p);
@@ -1113,12 +1103,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       </div>
 
                       <div>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Approval mode</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t('strategy.approvalMode')}</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           {([
-                            { value: 'auto', label: 'Auto', desc: 'Posts go live automatically' },
-                            { value: 'review', label: 'Review', desc: '24h window to approve' },
-                            { value: 'strict', label: 'Strict', desc: 'Manual approval required' },
+                            { value: 'auto', label: t('strategy.approvalAuto'), desc: t('strategy.approvalAutoDesc') },
+                            { value: 'review', label: t('strategy.approvalReview'), desc: t('strategy.approvalReviewDesc') },
+                            { value: 'strict', label: t('strategy.approvalStrict'), desc: t('strategy.approvalStrictDesc') },
                           ] as const).map(opt => (
                             <button
                               key={opt.value}
@@ -1133,7 +1123,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       </div>
 
                       <div className="bg-white border border-violet-100 rounded-xl p-3 flex items-center justify-between">
-                        <p className="text-xs text-slate-500">Estimated cost — 1 post/week per platform</p>
+                        <p className="text-xs text-slate-500">{t('strategy.estimatedCost')}</p>
                         <p className="text-sm font-bold text-violet-700">~${estimatedCost}/mo</p>
                       </div>
                     </div>
@@ -1146,14 +1136,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {showFeedback ? (
               <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 shadow-sm">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">What would you like to change?</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Vigmis will share its honest opinion before updating the plan.</p>
+                  <p className="text-sm font-semibold text-slate-800">{t('strategy.whatToChange')}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t('strategy.vigmisOpinion')}</p>
                 </div>
 
                 <textarea
                   value={strategyFeedback}
                   onChange={e => { setStrategyFeedback(e.target.value); setDiscussionResponse(null); }}
-                  placeholder="e.g. I want to include TikTok, or I'd prefer a lower budget, or focus only on Google Search..."
+                  placeholder={t('strategy.feedbackPlaceholder')}
                   rows={3}
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                 />
@@ -1161,21 +1151,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 {/* Vigmis's discussion response */}
                 {discussionResponse && (
                   <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
-                    <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Vigmis's Take</p>
+                    <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{t('strategy.vigmisTake')}</p>
                     <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">{discussionResponse}</p>
                     <div className="flex gap-2 pt-1">
                       <button
                         onClick={() => { setDiscussionResponse(null); setStrategyFeedback(''); }}
                         className="flex-1 border border-slate-200 text-slate-600 text-xs font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors"
                       >
-                        Modify my request
+                        {t('strategy.modifyRequest')}
                       </button>
                       <button
                         onClick={handleRevise}
                         disabled={isRevising}
                         className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
                       >
-                        {isRevising ? 'Updating...' : 'Proceed with my decision →'}
+                        {isRevising ? t('strategy.updating') : t('strategy.proceedDecision')}
                       </button>
                     </div>
                   </div>
@@ -1205,7 +1195,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       disabled={!strategyFeedback.trim() || isDiscussing}
                       className="flex-1 bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
                     >
-                      {isDiscussing ? 'Thinking...' : 'Get Vigmis\'s opinion →'}
+                      {isDiscussing ? t('strategy.thinking') : t('strategy.getOpinion')}
                     </button>
                   </div>
                 )}
@@ -1215,13 +1205,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 {/* Campaign Plan Summary — shown before approval */}
                 <div className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden">
                   <div className="bg-slate-900 px-5 py-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Campaign Plan Summary</p>
-                    <p className="text-white font-bold text-base mt-0.5">Ready for your approval</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('strategy.summaryTitle')}</p>
+                    <p className="text-white font-bold text-base mt-0.5">{t('strategy.summaryReady')}</p>
                   </div>
                   <div className="divide-y divide-slate-100">
                     {/* Platforms & budget */}
                     <div className="px-5 py-4 space-y-2">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Platforms & Budget</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('strategy.platformsBudget')}</p>
                       {strategy.platforms.map((p: any) => {
                         const amt = Math.round((managedBudget * p.budget_percentage) / 100);
                         return (
@@ -1232,37 +1222,37 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                         );
                       })}
                       <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                        <span className="text-sm font-bold text-slate-700">Total managed budget</span>
+                        <span className="text-sm font-bold text-slate-700">{t('strategy.totalManaged')}</span>
                         <span className="text-sm font-black text-indigo-600">${managedBudget}/mo</span>
                       </div>
                     </div>
                     {/* Budget decision */}
                     {strategy.budget_analysis && (
                       <div className="px-5 py-4 space-y-1">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Budget Decision</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('strategy.budgetDecision')}</p>
                         <p className="text-sm text-slate-700">{strategy.budget_analysis.verdict_explanation}</p>
                         <div className="flex gap-4 pt-1">
-                          <span className="text-xs text-slate-400">Est. clicks: <strong className="text-slate-700">{strategy.budget_analysis.projected_clicks_monthly.toLocaleString()}/mo</strong></span>
-                          <span className="text-xs text-slate-400">Est. leads: <strong className="text-slate-700">{strategy.budget_analysis.projected_leads_monthly.toLocaleString()}/mo</strong></span>
-                          <span className="text-xs text-slate-400">Break-even: <strong className="text-slate-700">{strategy.budget_analysis.break_even_conversions} sales</strong></span>
+                          <span className="text-xs text-slate-400">{t('strategy.estClicksLabel')} <strong className="text-slate-700">{strategy.budget_analysis.projected_clicks_monthly.toLocaleString()}/mo</strong></span>
+                          <span className="text-xs text-slate-400">{t('strategy.estLeadsLabel')} <strong className="text-slate-700">{strategy.budget_analysis.projected_leads_monthly.toLocaleString()}/mo</strong></span>
+                          <span className="text-xs text-slate-400">{t('strategy.breakEvenLabel')} <strong className="text-slate-700">{strategy.budget_analysis.break_even_conversions} sales</strong></span>
                         </div>
                       </div>
                     )}
                     {/* Goal */}
                     <div className="px-5 py-4 flex justify-between">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">Goal</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">{t('strategy.goal')}</span>
                       <span className="text-sm font-semibold text-slate-700 capitalize">{pendingSettings.goal}</span>
                     </div>
                     {/* Target */}
                     <div className="px-5 py-4 flex justify-between">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">Target Market</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider self-center">{t('strategy.targetMarket')}</span>
                       <span className="text-sm font-semibold text-slate-700">{(pendingSettings.geo_include ?? []).join(', ')}</span>
                     </div>
                     {/* Learning period */}
                     <div className="px-5 py-4">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Timeline</p>
-                      <p className="text-xs text-slate-500">Days 1–7: Learning phase — Vigmis collects data before making budget changes. Alerts are active from day 1.</p>
-                      <p className="text-xs text-slate-500 mt-1">Day 8+: Full optimization begins — budget adjustments, creative refresh, targeting review.</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.timeline')}</p>
+                      <p className="text-xs text-slate-500">{t('strategy.timelineDay1')}</p>
+                      <p className="text-xs text-slate-500 mt-1">{t('strategy.timelineDay8')}</p>
                     </div>
                   </div>
                 </div>
@@ -1276,8 +1266,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-slate-900 text-sm">Before you approve — any questions?</p>
-                      <p className="text-xs text-slate-500 mt-0.5">This is the right moment. Want to change the budget, adjust platforms, tweak the targeting, or push back on any part of the plan? Don't approve if anything feels off.</p>
+                      <p className="font-bold text-slate-900 text-sm">{t('strategy.beforeApprove')}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{t('strategy.beforeApproveDesc')}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -1286,7 +1276,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       value={strategyFeedback}
                       onChange={e => setStrategyFeedback(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && strategyFeedback.trim()) { setShowFeedback(true); setDiscussionResponse(null); } }}
-                      placeholder="e.g. Lower the budget, remove Google, focus only on Israel..."
+                      placeholder={t('strategy.askPlaceholder')}
                       className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                       dir="auto"
                     />
@@ -1295,7 +1285,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       disabled={!strategyFeedback.trim()}
                       className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
                     >
-                      Ask →
+                      {t('strategy.ask')}
                     </button>
                   </div>
                 </div>
@@ -1310,9 +1300,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
                     />
                     <span className="text-xs text-slate-700 leading-relaxed">
-                      I confirm that I have reviewed this campaign plan in full. The budget of{' '}
-                      <strong>${managedBudget}/month</strong> is my informed decision, made after reviewing Vigmis's analysis and recommendations.
-                      I understand that projected outcomes (clicks, leads, conversions) are estimates based on market benchmarks, not guarantees.
+                      {t('strategy.approveConfirm', { budget: `$${managedBudget}` })}
                     </span>
                   </label>
 
@@ -1322,7 +1310,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       disabled={!planApproved}
                       className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
                     >
-                      Approve Plan & Continue →
+                      {t('strategy.approveContinue')}
                     </button>
                   </div>
                 </div>
@@ -1333,7 +1321,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               onClick={() => setStep('chat')}
               className="w-full text-sm text-slate-400 hover:text-slate-600 transition-colors py-1"
             >
-              Go back to edit details
+              {t('strategy.backToDetails')}
             </button>
           </div>
         </div>
@@ -1346,28 +1334,28 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     const videoOptions = [
       {
         type: 'avatar' as const,
-        title: 'Talking Avatar',
-        subtitle: 'A realistic spokesperson presents your business',
+        title: t('creative.avatar'),
+        subtitle: t('creative.avatarDesc'),
         price: '$15',
-        bestFor: 'Services, consulting, apps',
+        bestFor: t('creative.avatarBestFor'),
         recommended: true,
         icon: '🎙️',
       },
       {
         type: 'cinematic' as const,
-        title: 'Cinematic',
-        subtitle: 'Cinematic visuals, product shots, transitions',
+        title: t('creative.cinematic'),
+        subtitle: t('creative.cinematicDesc'),
         price: '$12',
-        bestFor: 'Restaurants, fashion, real estate',
+        bestFor: t('creative.cinematicBestFor'),
         recommended: false,
         icon: '🎬',
       },
       {
         type: 'animation' as const,
-        title: 'Animation',
-        subtitle: 'Motion graphics and animated explainer',
+        title: t('creative.animation'),
+        subtitle: t('creative.animationDesc'),
         price: '$8',
-        bestFor: 'Tech, SaaS, e-commerce',
+        bestFor: t('creative.animationBestFor'),
         recommended: false,
         icon: '✨',
       },
@@ -1379,9 +1367,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         <div className="flex-1 overflow-y-auto p-6 py-8">
           <div className="max-w-xl mx-auto space-y-5">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">Creative Assets</h2>
+              <h2 className="text-2xl font-bold text-slate-900">{t('creative.title')}</h2>
               <p className="text-slate-500 text-sm mt-1">
-                Your campaign needs visual ads to run. Choose how you want to handle creative.
+                {t('creative.subtitle')}
               </p>
             </div>
 
@@ -1390,14 +1378,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             )}
 
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-              <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">AI Recommendation</p>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                A <strong>talking avatar</strong> video builds trust quickly — it works especially well on TikTok and Meta for service businesses.
-              </p>
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">{t('creative.aiRec')}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{t('creative.aiRecText')}</p>
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-slate-700">AI-generated video</p>
+              <p className="text-sm font-semibold text-slate-700">{t('creative.aiGenerated')}</p>
               {videoOptions.map(opt => (
                 <button
                   key={opt.type}
@@ -1413,15 +1399,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-slate-900">{opt.title}</span>
                       {opt.recommended && (
-                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">Recommended</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{t('creative.recommended')}</span>
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">{opt.subtitle}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Best for: {opt.bestFor}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t('creative.bestFor')} {opt.bestFor}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-lg font-bold text-slate-900">{opt.price}</p>
-                    <p className="text-xs text-slate-400">per video</p>
+                    <p className="text-xs text-slate-400">{t('creative.perVideo')}</p>
                   </div>
                 </button>
               ))}
@@ -1438,8 +1424,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               >
                 <span className="text-2xl flex-shrink-0">📁</span>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">I have my own creative</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Upload images or videos from the dashboard after setup</p>
+                  <p className="text-sm font-semibold text-slate-800">{t('creative.ownCreative')}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{t('creative.ownCreativeDesc')}</p>
                 </div>
               </button>
             </div>
@@ -1449,19 +1435,19 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 onClick={() => handleCreativeDone('skip')}
                 className="flex-1 border border-slate-200 text-slate-500 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
               >
-                Skip for now
+                {t('creative.skipForNow')}
               </button>
               <button
                 onClick={() => creativeChoice && handleCreativeDone(creativeChoice)}
                 disabled={!creativeChoice}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                Continue →
+                {t('creative.continue')}
               </button>
             </div>
 
             <p className="text-xs text-center text-slate-400">
-              You can always add or change creative assets from the dashboard
+              {t('creative.canChange')}
             </p>
           </div>
         </div>
@@ -1512,13 +1498,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           <div className="max-w-xl mx-auto space-y-5">
             <div>
               <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
-                Conversion Intelligence
+                {t('tracking.badge')}
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">Install your tracking pixel</h2>
-              <p className="text-slate-500 text-sm mt-1">
-                Vigmis measures your <strong>actual business results</strong>, not just what the ad platforms claim.
-                Without this, you only see platform ROAS — which is often 2–3× inflated.
-              </p>
+              <h2 className="text-2xl font-bold text-slate-900">{t('tracking.title')}</h2>
+              <p className="text-slate-500 text-sm mt-1">{t('tracking.subtitle')}</p>
             </div>
 
             {error && (
@@ -1527,11 +1510,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
             {/* Why this matters */}
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-2">
-              <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Why this matters</p>
-              <p className="text-sm text-slate-700 leading-relaxed">
-                Ad platforms like Meta and Google each claim credit for the same sale. The result: your reported ROAS is <strong>artificially inflated by 30–200%</strong>.
-                Vigmis measures what actually happened on your website — the real number.
-              </p>
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">{t('tracking.whyMatters')}</p>
+              <p className="text-sm text-slate-700 leading-relaxed">{t('tracking.whyText')}</p>
               {pendingSettings?.margin_pct && (
                 <p className="text-sm text-slate-700 leading-relaxed">
                   With your {pendingSettings.margin_pct}% margin, Vigmis will show your <strong>actual profit per campaign</strong>, not just revenue.
@@ -1542,8 +1522,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Pixel snippet */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-700">Step 1 — Paste this on every page of your website</p>
-                <span className="text-xs text-slate-400">Before &lt;/head&gt;</span>
+                <p className="text-sm font-semibold text-slate-700">{t('tracking.step1')}</p>
+                <span className="text-xs text-slate-400">{t('tracking.beforeHead')}</span>
               </div>
               <div className="p-4">
                 {pixelSnippet ? (
@@ -1559,11 +1539,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                           : 'bg-slate-900 hover:bg-slate-800 text-white'
                       }`}
                     >
-                      {pixelCopied ? '✓ Copied to clipboard!' : 'Copy snippet'}
+                      {pixelCopied ? t('tracking.copied') : t('tracking.copySnippet')}
                     </button>
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-slate-400 text-sm">Loading snippet...</div>
+                  <div className="text-center py-6 text-slate-400 text-sm">{t('tracking.loadingSnippet')}</div>
                 )}
               </div>
             </div>
@@ -1571,22 +1551,20 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {/* Verify installation */}
             <div className={`border rounded-xl p-5 space-y-3 ${pixelVerified ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'} shadow-sm`}>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-700">Step 2 — Verify installation</p>
-                {pixelVerified && <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">✓ Verified</span>}
+                <p className="text-sm font-semibold text-slate-700">{t('tracking.step2')}</p>
+                {pixelVerified && <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1 rounded-full">{t('tracking.verified')}</span>}
               </div>
               {pixelVerified ? (
-                <p className="text-sm text-emerald-700">Pixel is firing correctly. Vigmis is now tracking real conversions on your website.</p>
+                <p className="text-sm text-emerald-700">{t('tracking.pixelFiring')}</p>
               ) : (
                 <>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    After pasting the snippet, visit your website and come back here to verify it's working.
-                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{t('tracking.afterPasting')}</p>
                   <button
                     onClick={handleVerifyPixel}
                     disabled={pixelVerifying || !pixelSnippet}
                     className="w-full border border-indigo-200 text-indigo-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-indigo-50 disabled:opacity-40 transition-colors"
                   >
-                    {pixelVerifying ? 'Checking...' : 'Check if pixel is working →'}
+                    {pixelVerifying ? t('tracking.checking') : t('tracking.checkPixel')}
                   </button>
                 </>
               )}
@@ -1597,21 +1575,19 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-700">Step 3 — Connect Shopify (optional)</p>
-                    <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">Recommended</span>
+                    <p className="text-sm font-semibold text-slate-700">{t('tracking.shopifyStep')}</p>
+                    <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-semibold">{t('tracking.shopifyRec')}</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Direct order data = more accurate True ROAS than pixel alone</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t('tracking.shopifyDesc')}</p>
                 </div>
                 <div className="p-5 space-y-3">
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Connect your Shopify store so Vigmis receives actual order data with exact revenue per campaign — the gold standard for attribution.
-                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{t('tracking.shopifyDetails')}</p>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={shopifyDomain}
                       onChange={e => setShopifyDomain(e.target.value)}
-                      placeholder="yourstore.myshopify.com"
+                      placeholder={t('tracking.shopifyPlaceholder')}
                       className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                     <button
@@ -1619,10 +1595,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       disabled={!shopifyDomain.trim() || shopifyConnecting}
                       className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
                     >
-                      {shopifyConnecting ? 'Connecting...' : 'Connect →'}
+                      {shopifyConnecting ? t('tracking.connecting') : t('tracking.connectShopify')}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-400">WooCommerce, Wix, and custom integrations coming soon.</p>
+                  <p className="text-xs text-slate-400">{t('tracking.wooCommerce')}</p>
                 </div>
               </div>
             )}
@@ -1633,20 +1609,18 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 onClick={() => handleTrackingDone(true)}
                 className="flex-1 border border-slate-200 text-slate-500 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
               >
-                Skip for now
+                {t('tracking.skipForNow')}
               </button>
               <button
                 onClick={() => handleTrackingDone(false)}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                {pixelVerified ? 'Launch my campaigns →' : "I've installed the pixel →"}
+                {pixelVerified ? t('tracking.launchCampaigns') : t('tracking.installedPixel')}
               </button>
             </div>
 
             {!pixelVerified && (
-              <p className="text-xs text-center text-slate-400">
-                You can always install tracking later from the dashboard — campaigns will start even without it.
-              </p>
+              <p className="text-xs text-center text-slate-400">{t('tracking.installLater')}</p>
             )}
           </div>
         </div>
@@ -1663,8 +1637,8 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           <div className="text-center space-y-4">
             <div className="w-12 h-12 border-[3px] border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
             <div>
-              <p className="font-semibold text-slate-900">Setting up your campaigns...</p>
-              <p className="text-sm text-slate-500 mt-1">Just a moment</p>
+              <p className="font-semibold text-slate-900">{t('saving.title')}</p>
+              <p className="text-sm text-slate-500 mt-1">{t('saving.subtitle')}</p>
             </div>
           </div>
         </div>
