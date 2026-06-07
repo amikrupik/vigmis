@@ -109,14 +109,14 @@ const ConversationMessageSchema = z.object({
 
 const SaveSettingsSchema = z.object({
   business_type: z.enum(['ecommerce', 'hero_product', 'lead_gen', 'saas', 'general_store']).default('ecommerce'),
-  website_url: z.string().url().optional(),
-  management_percentage: z.number().int().min(1).max(100).default(100),
-  budget_monthly_ils: z.number().int().positive(),
+  website_url: z.preprocess(v => (v === '' ? undefined : v), z.string().url().optional()),
+  management_percentage: z.number().min(1).max(100).default(100).transform(v => Math.round(v)),
+  budget_monthly_ils: z.number().positive().transform(v => Math.round(v)),
   goal: z.enum(['leads', 'purchases', 'traffic', 'awareness']),
   margin_pct: z.number().min(0).max(100).optional().nullable(),
   hero_product_name: z.string().optional().nullable(),
   hero_product_margin_pct: z.number().min(0).max(100).optional().nullable(),
-  geo_include: z.array(z.string()).min(1),
+  geo_include: z.array(z.string()).default([]),
   geo_exclude: z.array(z.string()).default([]),
   exclusions: z.string().optional(),
   open_notes: z.string().optional(),

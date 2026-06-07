@@ -300,7 +300,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         }
       }
 
-      if (!res.ok) throw new Error('Failed to save settings');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const detail = errData?.details?.fieldErrors
+          ? Object.entries(errData.details.fieldErrors).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
+          : errData?.message ?? errData?.error ?? 'Failed to save settings';
+        throw new Error(detail);
+      }
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
