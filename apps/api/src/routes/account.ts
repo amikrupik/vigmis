@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { db, decryptToken } from '@vigmis/db';
 import { createClerkClient } from '@clerk/backend';
 import { authenticate } from '../middleware/auth.js';
+import { calculateFee, currentMonth } from '../billing/calculator.js';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
@@ -90,6 +91,39 @@ export async function accountRoutes(app: FastifyInstance) {
     try {
       await db.from('campaigns').update({ status: 'paused' }).eq('tenant_id', tenantId);
     } catch (err) { log('campaign pause failed', err); }
+
+    // 1b. Calculate current-month accrued fee BEFORE the cascade wipes the data.
+    // The month-end invoice cron won't find deleted tenants, so we notify billing now.
+    try {
+      const period = currentMonth();
+      const fee = await calculateFee(tenantId, period);
+      if (fee.totalUsd > 0) {
+        const { data: settings } = await db
+          .from('client_settings')
+          .select('business_name, content_language')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+        const name = (settings as any)?.business_name ?? tenantId.slice(0, 8);
+        await sendEmail(
+          'billing@vigmis.com',
+          `[Billing Action Required] Account deleted mid-month — ${name}`,
+          `<div style="font-family:sans-serif;max-width:600px">
+            <h2 style="color:#1e293b">Account Deleted — Final Charge Required</h2>
+            <p>Tenant <strong>${name}</strong> (${tenantId}) deleted their account on ${new Date().toISOString().slice(0, 10)}.</p>
+            <p>Accrued fee for ${period.start.toISOString().slice(0, 7)}:</p>
+            <ul>
+              <li>Managed spend (estimate): <strong>$${fee.managedSpendUsd.toFixed(2)}</strong></li>
+              <li>Fee (${fee.feePercentage}%): <strong>$${fee.percentageFeeUsd.toFixed(2)}</strong></li>
+              <li>Subscription: <strong>$${fee.subscriptionUsd.toFixed(2)}</strong></li>
+              <li>Total owed: <strong>$${fee.totalUsd.toFixed(2)}</strong></li>
+            </ul>
+            <p style="color:#ef4444">This tenant has been deleted. Collect manually via Paddle or mark as uncollectable.</p>
+          </div>`,
+          'billing@vigmis.com',
+          'Vigmis Billing',
+        );
+      }
+    } catch (err) { log('final fee notification failed', err); }
 
     // 2. Revoke OAuth across all connected platforms — Meta, Google, TikTok.
     await revokePlatformTokens(tenantId, log);
