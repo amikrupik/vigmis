@@ -4,7 +4,7 @@ import PublicFooter from '../components/PublicFooter';
 
 export const metadata = { title: "Terms of Service — Vigmis" };
 
-const LAST_UPDATED = "May 28, 2026";
+const LAST_UPDATED = "June 8, 2026";
 
 export default function TermsPage() {
   return (
@@ -59,9 +59,11 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">5. Ad Spend & Billing</h2>
             <p className="mb-3"><strong>Ad spend:</strong> You pay Google, Meta, and TikTok directly via your own billing accounts. Vigmis does not control, access, or process payments to ad platforms. Vigmis has no ability to stop or retrieve ad spend once committed to a platform.</p>
-            <p className="mb-3"><strong>Vigmis fee:</strong> We charge a management fee based on the ad spend that Vigmis actively manages, plus a monthly subscription fee for Pro plan users. Fees are billed monthly via Lemon Squeezy, our payment processor and Merchant of Record.</p>
+            <p className="mb-3"><strong>Vigmis fee — Grow plan:</strong> A management fee of 7% of total ad spend managed by Vigmis in that billing month, subject to a minimum of $29/month. This fee is calculated and invoiced at the end of each calendar month based on actual spend data received from ad platforms.</p>
+            <p className="mb-3"><strong>Vigmis fee — Scale plan:</strong> A flat subscription fee of $49/month plus 6% of total ad spend managed by Vigmis in that billing month. The subscription fee is charged at the start of each billing period via Paddle.</p>
+            <p className="mb-3"><strong>Billing obligation on cancellation:</strong> You remain obligated to pay all fees accrued up to and including the date of account cancellation or deletion. For Grow plan users, this means the management fee on all ad spend that occurred during the current calendar month up to the cancellation date, regardless of whether the monthly invoice has yet been generated. For Scale plan users, the subscription fee already collected for the current billing period is non-refundable and access continues through the end of that period.</p>
             <p className="mb-3"><strong>Fee accuracy:</strong> Management fees are calculated based on data received from ad platforms. We cannot guarantee the accuracy of spend data provided by third-party platforms. If you dispute a fee, contact <a href="mailto:billing@vigmis.com" className="text-indigo-600 hover:underline">billing@vigmis.com</a> within 30 days of the invoice date.</p>
-            <p><strong>Refunds:</strong> Service fees are non-refundable except where required by applicable law or as stated in our Refund Policy. Ad spend refunds must be requested directly from the respective ad platform. Vigmis has no ability to issue ad spend refunds on your behalf.</p>
+            <p><strong>Refunds:</strong> Service fees are non-refundable except where required by applicable law or as stated in our <Link href="/refund" className="text-indigo-600 hover:underline">Refund & Cancellation Policy</Link>. Ad spend refunds must be requested directly from the respective ad platform. Vigmis has no ability to issue ad spend refunds on your behalf.</p>
           </section>
 
           <section>
@@ -224,9 +226,39 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">16. Termination</h2>
-            <p className="mb-3">You may cancel your account at any time from the Settings page. Upon cancellation, Vigmis will stop managing your campaigns. You remain responsible for any campaigns still running on ad platforms after cancellation — Vigmis does not automatically pause campaigns upon account cancellation unless you explicitly request it.</p>
-            <p>We may suspend or terminate your account immediately, without notice, for violation of these Terms, fraudulent activity, non-payment, or conduct that may expose Vigmis to legal liability. Upon termination, your data will be retained for 30 days before permanent deletion, unless a longer retention period is required by law.</p>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">16. Termination & Cancellation</h2>
+
+            <p className="mb-4 font-semibold text-slate-800">16.1 — Two distinct exit paths</p>
+            <p className="mb-3">Vigmis offers two separate ways to end your relationship with the Service, each with different effects:</p>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-4 space-y-3 text-sm">
+              <div>
+                <p className="font-semibold text-slate-800 mb-1">Path A — Cancel subscription (Scale plan only)</p>
+                <p className="text-slate-600">Access: Dashboard → Billing → Manage Subscription → Cancel.<br />
+                Effect: Your Scale subscription is cancelled. You retain full access to your account and all campaign data until the end of the current billing period, after which your plan reverts to Grow. Campaigns continue running under the Grow plan terms. No data is deleted.</p>
+              </div>
+              <div className="border-t border-slate-200 pt-3">
+                <p className="font-semibold text-slate-800 mb-1">Path B — Delete account (all users)</p>
+                <p className="text-slate-600">Access: Dashboard → Settings → Danger Zone → Delete Account.<br />
+                Effect: Immediate and permanent. All active campaigns are paused immediately. Vigmis is disconnected from your Meta, Google, and TikTok accounts (OAuth tokens are revoked). Your Vigmis account, all campaign data, strategy, settings, and history are permanently deleted. This action is irreversible.</p>
+              </div>
+            </div>
+
+            <p className="mb-3 font-semibold text-slate-800">16.2 — Billing obligations on exit</p>
+            <p className="mb-3"><strong>Grow plan:</strong> You are obligated to pay the management fee on all ad spend that occurred from the first day of the current calendar month up to and including the date of account deletion. This obligation exists regardless of when the monthly invoice is generated. If you delete your account before the end-of-month invoice run, you may be contacted by our billing team at billing@vigmis.com to settle the outstanding amount.</p>
+            <p className="mb-3"><strong>Scale plan:</strong> The subscription fee charged at the start of the current billing period is non-refundable. You remain liable for the management fee on all ad spend accrued up to the cancellation or deletion date. If you cancel the subscription (Path A), you are not charged for the next period. If you delete your account mid-period (Path B), the subscription fee for the current period is not refunded.</p>
+
+            <p className="mb-3 font-semibold text-slate-800">16.3 — Data export</p>
+            <p className="mb-3">Before deleting your account, you may download all your data (campaigns, settings, audit history) as a JSON file from Dashboard → Settings → Export Data. This export is available until the moment of deletion.</p>
+
+            <p className="mb-3 font-semibold text-slate-800">16.4 — What happens to connected platforms</p>
+            <p className="mb-3">Upon account deletion, Vigmis automatically revokes its OAuth access from Meta (Facebook/Instagram), Google Ads, Google Analytics, and TikTok. You can verify this in each platform's connected-apps settings. Vigmis does not retain any platform access tokens after deletion.</p>
+
+            <p className="mb-3 font-semibold text-slate-800">16.5 — Termination by Vigmis</p>
+            <p className="mb-3">We may suspend or terminate your account immediately, without prior notice, for: violation of these Terms or our Acceptable Use Policy; fraudulent activity; non-payment of fees; or conduct that may expose Vigmis to legal, reputational, or platform-relationship risk. Upon termination by Vigmis, campaigns will be paused and account data deleted in the same manner as a user-initiated deletion. You remain liable for any fees accrued prior to termination.</p>
+
+            <p className="mb-3 font-semibold text-slate-800">16.6 — Right to return</p>
+            <p>After deleting your account, you may create a new Vigmis account at any time using the same or a different email address. No prior account history is retained or restored.</p>
           </section>
 
           <section>
