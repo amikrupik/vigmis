@@ -270,8 +270,9 @@ export async function generateCreative(
   brief: Record<string, any>,
   platform?: string,
   campaign_id?: string,
+  parent_job_id?: string,
 ) {
-  return apiCall('/creatives/generate', 'POST', { type, brief, platform, campaign_id });
+  return apiCall('/creatives/generate', 'POST', { type, brief, platform, campaign_id, parent_job_id });
 }
 
 export async function getCreativeStatus(jobId: string) {
