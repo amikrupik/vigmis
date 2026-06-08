@@ -88,6 +88,71 @@ export async function createStripePortalSession(
   return session.url;
 }
 
+// Create a standalone Stripe Invoice for the variable management fee.
+// Returns the Stripe invoice ID so we can store it in billing_invoices.
+export async function chargeManagementFee(
+  customerId: string,
+  tenantId: string,
+  amountCents: number,
+  description: string,
+  periodMonth: string,
+): Promise<string> {
+  const stripe = getStripe();
+
+  await stripe.invoiceItems.create({
+    customer: customerId,
+    amount: amountCents,
+    currency: 'usd',
+    description,
+    metadata: { tenantId, period: periodMonth },
+  });
+
+  const invoice = await stripe.invoices.create({
+    customer: customerId,
+    auto_advance: true,
+    collection_method: 'charge_automatically',
+    metadata: { tenantId, period: periodMonth, type: 'management_fee' },
+  });
+
+  // Finalize immediately so Stripe charges right away.
+  await stripe.invoices.finalizeInvoice(invoice.id);
+
+  return invoice.id;
+}
+
+// Create a one-time Stripe Checkout for a creative revision approval.
+// Returns the hosted checkout URL. Metadata triggers approved_at on completion.
+export async function createCreativeApprovalCheckout(
+  customerId: string,
+  tenantId: string,
+  jobId: string,
+  amountCents: number,
+  description: string,
+  successUrl: string,
+  cancelUrl: string,
+): Promise<string> {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    line_items: [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: { name: description },
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: { action: 'creative_approval', tenantId, jobId },
+  });
+
+  return session.url!;
+}
+
 // Verify a Stripe webhook signature.
 export function verifyStripeWebhook(
   rawBody: Buffer | string,

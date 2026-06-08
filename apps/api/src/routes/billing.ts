@@ -16,6 +16,7 @@ import {
   createStripeCheckoutSession,
   createStripePortalSession,
   verifyStripeWebhook,
+  chargeManagementFee,
 } from '../billing/stripe.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
 import { getUsageSummary } from '../services/usage.js';
@@ -118,6 +119,19 @@ export async function billingRoutes(app: FastifyInstance) {
           break;
         }
 
+        // Special case: creative revision approval payment
+        if (obj.metadata?.action === 'creative_approval' && tenantId) {
+          const jobId = obj.metadata?.jobId;
+          if (jobId) {
+            const { error: approveErr } = await db.from('creative_jobs')
+              .update({ approved_at: new Date().toISOString() })
+              .eq('id', jobId)
+              .eq('tenant_id', tenantId);
+            if (approveErr) request.log.error({ err: approveErr, jobId }, 'creative approval after payment failed');
+          }
+          break;
+        }
+
         // Normal case: subscription upgrade
         const subscriptionId = obj.subscription;
         if (tenantId && subscriptionId) {
@@ -185,8 +199,33 @@ export async function billingRoutes(app: FastifyInstance) {
         break;
       }
 
+      case 'invoice.payment_succeeded': {
+        // Management fee invoice paid — mark billing_invoice as paid
+        const stripeInvoiceId = obj.id;
+        const isManagementFee = obj.metadata?.type === 'management_fee';
+        if (isManagementFee && stripeInvoiceId) {
+          const { error: paidErr } = await db
+            .from('billing_invoices')
+            .update({ status: 'paid' })
+            .eq('stripe_invoice_id', stripeInvoiceId);
+          if (paidErr) request.log.error({ err: paidErr, stripeInvoiceId }, 'invoice paid update failed');
+        }
+        break;
+      }
+
       case 'invoice.payment_failed': {
-        // Subscription payment failed — downgrade to free until resolved
+        // Management fee failed — mark as past_due
+        const stripeInvoiceId = obj.id;
+        const isManagementFee = obj.metadata?.type === 'management_fee';
+        if (isManagementFee && stripeInvoiceId) {
+          const { error: failErr } = await db
+            .from('billing_invoices')
+            .update({ status: 'past_due' })
+            .eq('stripe_invoice_id', stripeInvoiceId);
+          if (failErr) request.log.error({ err: failErr, stripeInvoiceId }, 'invoice failed update error');
+        }
+
+        // Also handle subscription payment failure — downgrade to free until resolved
         const subscriptionId = obj.subscription;
         if (subscriptionId) {
           const { data: billing } = await db
@@ -227,11 +266,41 @@ export async function billingRoutes(app: FastifyInstance) {
     if (!tenants?.length) return reply.send({ processed: 0 });
 
     const period = currentMonth();
+    const periodMonth = period.start.toISOString().slice(0, 7); // "2026-06"
     let processed = 0;
 
     for (const tenant of tenants) {
       const fee = await calculateFee(tenant.id, period);
       if (fee.totalUsd <= 0) continue;
+
+      // Get stripe_customer_id if tenant has one
+      const { data: billing } = await db
+        .from('billing_customers')
+        .select('stripe_customer_id')
+        .eq('tenant_id', tenant.id)
+        .maybeSingle();
+      const stripeCustomerId = (billing as any)?.stripe_customer_id ?? null;
+
+      // For Grow: charge full fee. For Scale: subscription ($49) already billed by Stripe recurring,
+      // so only charge the percentage portion on top.
+      const stripeChargeUsd = fee.totalUsd - fee.subscriptionUsd;
+
+      let stripeInvoiceId: string | null = null;
+      if (stripeCustomerId && stripeChargeUsd > 0) {
+        try {
+          const description = `Vigmis management fee ${periodMonth} — ${fee.feePercentage}% of $${fee.managedSpendUsd.toFixed(2)} ad spend`;
+          const amountCents = Math.round(stripeChargeUsd * 100);
+          stripeInvoiceId = await chargeManagementFee(
+            stripeCustomerId,
+            tenant.id,
+            amountCents,
+            description,
+            periodMonth,
+          );
+        } catch (err) {
+          request.log.error({ err, tenantId: tenant.id }, 'chargeManagementFee failed');
+        }
+      }
 
       await db.from('billing_invoices').insert({
         tenant_id: tenant.id,
@@ -242,7 +311,8 @@ export async function billingRoutes(app: FastifyInstance) {
         fee_usd: fee.percentageFeeUsd,
         subscription_usd: fee.subscriptionUsd,
         total_usd: fee.totalUsd,
-        status: 'draft',
+        stripe_invoice_id: stripeInvoiceId,
+        status: stripeInvoiceId ? 'open' : 'draft',
       });
 
       processed++;

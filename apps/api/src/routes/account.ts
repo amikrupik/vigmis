@@ -26,6 +26,8 @@ async function sendEmail(to: string, subject: string, html: string, from = 'hell
   });
 }
 
+const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+
 export async function accountRoutes(app: FastifyInstance) {
 
   // ── Final balance (before deletion) ───────────────────────────────────────
@@ -44,7 +46,6 @@ export async function accountRoutes(app: FastifyInstance) {
   app.delete('/account', { preHandler: authenticate }, async (request, reply) => {
     const tenantId = request.tenantId;
     const clerkUserId = request.clerkUserId;
-    const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
     const stripe = getStripe();
 
     // 1. Cancel Stripe subscription so it doesn't renew.

@@ -19,6 +19,7 @@ import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
+import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
 
 // ── Supabase Storage upload ───────────────────────────────────────────────────
 // Copies a provider video URL to Supabase Storage bucket "creatives"
@@ -575,6 +576,66 @@ export async function creativeRoutes(app: FastifyInstance) {
       const message = err instanceof Error ? err.message : 'Scoring failed';
       return reply.code(500).send({ error: message });
     }
+  });
+
+  // POST /creatives/:id/approve — approve a completed creative (free for rev 0-1, paid for rev 2+)
+  app.post('/creatives/:id/approve', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { data: job, error: fetchErr } = await db
+      .from('creative_jobs')
+      .select('id, type, status, revision_number, approved_at, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (fetchErr || !job) return reply.code(404).send({ error: 'Job not found' });
+    if (job.status !== 'completed') return reply.code(400).send({ error: 'Job is not completed yet' });
+    if (job.approved_at) return reply.send({ success: true, charged: false, already_approved: true });
+
+    const revisionNumber = job.revision_number ?? 0;
+
+    // First two deliveries (original + first revision) are free to approve
+    if (revisionNumber <= 1) {
+      await db
+        .from('creative_jobs')
+        .update({ approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('tenant_id', request.tenantId);
+
+      return reply.send({ success: true, charged: false });
+    }
+
+    // Revision 2+: charge before approving
+    const APPROVAL_PRICES: Record<string, number> = {
+      avatar: 1500,
+      cinematic: 1200,
+      animation: 800,
+      image: 500,
+    };
+    const amountCents = APPROVAL_PRICES[job.type] ?? 1500;
+
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('email')
+      .eq('id', request.tenantId)
+      .single();
+
+    const email = tenant?.email ?? `tenant+${request.tenantId}@vigmis.com`;
+    const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+
+    const customerId = await getOrCreateStripeCustomer(request.tenantId, email);
+    const checkoutUrl = await createCreativeApprovalCheckout(
+      customerId,
+      request.tenantId,
+      job.id,
+      amountCents,
+      `Creative approval — ${job.type} revision ${revisionNumber}`,
+      `${WEB_URL}/creatives?approved=${job.id}`,
+      `${WEB_URL}/creatives?canceled=${job.id}`,
+    );
+
+    return reply.code(402).send({ success: false, charged: true, checkout_url: checkoutUrl });
   });
 
   // POST /creatives/:id/reject — mark a job as rejected (user doesn't want it → no charge)
