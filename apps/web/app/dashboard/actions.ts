@@ -282,6 +282,10 @@ export async function getCreatives() {
   return apiCall('/creatives');
 }
 
+export async function rejectCreative(jobId: string) {
+  return apiCall(`/creatives/${jobId}/reject`, 'POST', {});
+}
+
 // ── Emergency controls ────────────────────────────────────────────────────────
 
 export async function pauseAllCampaigns() {

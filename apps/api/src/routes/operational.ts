@@ -7,6 +7,7 @@
 // POST /ops/cron/news-scan              → cron-protected
 // POST /ops/cron/weather                → cron-protected
 // POST /ops/cron/shopify-sync           → cron-protected nightly Shopify full sync
+// POST /ops/cron/ai-landscape           → monthly digest email to team (1st of month)
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -16,6 +17,7 @@ import { getOperationalContext } from '../services/operational-awareness.js';
 import { scanNewsForTenant, dispatchNewsScanCron } from '../services/news-monitor.js';
 import { refreshWeatherForTenant, dispatchWeatherCron } from '../services/weather.js';
 import { dispatchShopifySyncCron } from '../services/shopify-sync.js';
+import { runAiLandscapeDigest } from '../services/ai-landscape.js';
 import { hasValidCronSecret } from '../middleware/secrets.js';
 
 function cronAuth(req: FastifyRequest): boolean {
@@ -98,5 +100,13 @@ export async function operationalRoutes(app: FastifyInstance) {
     if (!cronAuth(request)) return reply.code(401).send({ error: 'Unauthorized' });
     const r = await dispatchShopifySyncCron();
     return reply.send(r);
+  });
+
+  app.post('/ops/cron/ai-landscape', async (request, reply) => {
+    if (!cronAuth(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const warnings: string[] = [];
+    const log = (msg: string) => { request.log.info(msg); warnings.push(msg); };
+    const result = await runAiLandscapeDigest(log);
+    return reply.send({ ...result, log: warnings });
   });
 }

@@ -535,4 +535,27 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: message });
     }
   });
+
+  // POST /creatives/:id/reject — mark a job as rejected (user doesn't want it → no charge)
+  app.post('/creatives/:id/reject', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { data: job, error: fetchErr } = await db
+      .from('creative_jobs')
+      .select('id, status, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (fetchErr || !job) return reply.code(404).send({ error: 'Job not found' });
+    if (job.status === 'rejected') return reply.send({ success: true, already_rejected: true });
+
+    const { error } = await db
+      .from('creative_jobs')
+      .update({ status: 'rejected', updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId);
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ success: true });
+  });
 }

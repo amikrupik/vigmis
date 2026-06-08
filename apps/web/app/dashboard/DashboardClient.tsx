@@ -8,7 +8,7 @@ import {
   getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
-  generateCreative, getCreatives, getCreativeStatus,
+  generateCreative, getCreatives, getCreativeStatus, rejectCreative,
   createAbTest, getAbTests, concludeAbTest,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
@@ -1605,10 +1605,13 @@ function CreativeTab({ settings }: any) {
                             {job.revision_requested ? 'Revision requested' : 'Request revision (1 free)'}
                           </button>
                           <button
-                            onClick={() => setJobs(prev => prev.filter(j => j.id !== job.id))}
+                            onClick={async () => {
+                              await rejectCreative(job.id);
+                              setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'rejected' } : j));
+                            }}
                             className="border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
-                            Cancel (no charge)
+                            Discard — no charge
                           </button>
                         </div>
                       </div>

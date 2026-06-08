@@ -12,6 +12,7 @@ export const AI_ROUTING: Record<TaskType, string> = {
   report_generation:     "anthropic/claude-sonnet-4-6",
   cheap_task:            "openai/gpt-4o-mini",
   chat:                  "anthropic/claude-sonnet-4-6",
+  web_research:          "perplexity/sonar-pro",
 };
 
 // Cost per 1K tokens (input/output) in USD
@@ -22,6 +23,7 @@ export const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "anthropic/claude-sonnet-4-6":     { input: 0.003,   output: 0.015 },
   "anthropic/claude-haiku-4-5-20251001": { input: 0.00025, output: 0.00125 },
   "google/gemini-2.5-flash":            { input: 0.0001,  output: 0.0004 },
+  "perplexity/sonar-pro":               { input: 0.003,   output: 0.015 },
 };
 
 // Fallback: if primary provider is unavailable, use this model

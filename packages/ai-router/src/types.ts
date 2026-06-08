@@ -7,7 +7,8 @@ export type TaskType =
   | "optimization_decision"
   | "report_generation"
   | "cheap_task"
-  | "chat";
+  | "chat"
+  | "web_research";
 
 export type AIProvider = "openai" | "anthropic" | "google";
 

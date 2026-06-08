@@ -1636,4 +1636,102 @@ Security Phase 1 — ראו docs/SECURITY_PLAN.md v1.3
 
 *עדכון אחרון: 2026-06-06 — Multi-user complete, Security Plan v1.3, Instatus webhook, full QA round.*
 
+---
+
+## 40. ביטול חשבון ופרישה מהמערכת ✅ נבנה (2026-06-08)
+
+### 40.1 שני מסלולי יציאה
+
+**מסלול A — ביטול מנוי Scale:**
+- גישה: Dashboard → Billing → Manage Subscription → Cancel (פורטל Paddle)
+- אפקט: המנוי מסתיים בסוף תקופת החיוב. גישה מלאה נשמרת עד אז. החשבון עובר ל-Grow — שום נתון לא נמחק.
+
+**מסלול B — מחיקת חשבון (כל המשתמשים):**
+- גישה: Dashboard → Settings → Danger Zone → Delete Account → הקלד DELETE
+- אפקט מיידי וסופי:
+  - כל הקמפיינים מושהים
+  - OAuth מבוטל: Meta, Google Ads, TikTok
+  - Clerk user נמחק
+  - כל נתוני הטנאנט נמחקים (CASCADE DELETE)
+  - משתמש מועבר ל-/sign-in?deleted=1 עם goodbye banner
+
+### 40.2 חיוב בביטול
+
+| תוכנית | ביטול מנוי (A) | מחיקת חשבון (B) |
+|---|---|---|
+| Grow (7%) | לא רלוונטי | חייב על הוצאה שכבר הייתה מ-1 לחודש עד יום המחיקה |
+| Scale | $49 לא מוחזר, גישה עד סוף תקופה | $49 לא מוחזר + 6% עד יום המחיקה |
+
+**Email אוטומטי לביטול mid-month:** לפני מחיקה, מחשב accrued fee ושולח email ל-billing@vigmis.com עם סכום חוב ופירוט.
+
+### 40.3 Export Data
+- לפני מחיקה: הורדת כל הנתונים כ-JSON (קמפיינים, הגדרות, audit log)
+- גישה: Settings → Export Data
+- Nudge אוטומטי בmodal המחיקה: "Consider downloading your data first"
+
+### 40.4 עדכוני Legal (2026-06-08)
+- Terms §5: חיוב בביטול מפורש לכל תוכנית
+- Terms §16: נכתב מחדש — 2 מסלולים, OAuth revocation, זכות לחזור
+- Refund Policy: עדכון מלא עם שתי האפשרויות ומה חייבים בכל אחת
+
+---
+
+## 41. Monthly AI Landscape Email ✅ נבנה (2026-06-08)
+
+### 41.1 מה זה
+מייל חודשי אוטומטי ל-ami@tmgt.co.il עם digest של:
+- כלי AI לקריאייטיב חדשים ומשופרים (image, video, copy)
+- עדכוני פלטפורמות: Google Ads, Meta Ads, TikTok Ads
+- מנועי AI חדשים שיצאו או השתפרו (Anthropic, OpenAI, Google, Perplexity)
+- מה מתחרי Vigmis (Madgicx, Pencil, Smartly.io, Albert) הוסיפו
+- המלצות קונקרטיות: מה להטמיע, מה לבחון, מה לפסול
+
+### 41.2 טכנולוגיה
+- מנוע חיפוש: Perplexity Sonar Pro (web search built-in) דרך OpenRouter
+- Task type חדש: `web_research` → `perplexity/sonar-pro`
+- ייצור ה-digest: Claude Sonnet (analysis task) — מסנתז את תוצאות החיפוש לדוח מובנה
+- שליחה: SendGrid → ami@tmgt.co.il
+
+### 41.3 תזמון
+Cron: `0 8 1 * *` — ה-1 לכל חודש בשעה 8:00 UTC
+
+### 41.4 פורמט האימייל
+HTML מעוצב עם 5 סעיפים:
+1. Creative AI Tools — חדש/משופר החודש
+2. Ad Platform Updates — שינויים ב-Google/Meta/TikTok
+3. AI Models & Capabilities — מה יצא
+4. Competitor Intelligence — מה מתחרים הוסיפו
+5. Recommendations for Vigmis — המלצות לפעולה מדורגות לפי עדיפות
+
+---
+
+## 42. שיפורי עריכת תמונות AI (Creative Studio) ✅ נבנה (2026-06-08)
+
+### 42.1 הבעיה שנפתרה
+לפני: משתמש מקבל תמונה טובה → מנסה לתקן → כל תיקון יוצר תמונה חדשה → אובד ההקשר → לופ.
+
+### 42.2 פתרון: Keep/Change — עריכה מובנית
+טופס עריכה במקום textarea פשוט:
+- **Keep:** [מה לשמור בדיוק — רקע, צבעים, סגנון, סאבג'קט]
+- **Change:** [מה לשנות — ספציפי בלבד]
+- הגרסה הקודמת מוצגת כ-reference לצד הטופס
+- Prompt builder אוטומטי: "Starting from: [description]. Keep exactly: [keep fields]. ONLY change: [change field]. Do not alter anything else."
+
+### 42.3 אפשרויות תיקון למשתמש
+1. **Refine** — Keep/Change form עם reference לגרסה הקודמת
+2. **Variation** — גרסה אחרת על בסיס אותו prompt (temperature שונה)
+3. **New prompt** — מחיקת ההקשר והתחלה מחדש
+4. **Discard (לא לחייב)** — דחיית הדור; ה-job מסומן `status: rejected`
+
+### 42.4 מדיניות חיוב ל-rejected generations
+- כפתור "Discard — don't charge" בכל job שלא נוצל
+- job מסומן `status: rejected` ב-creative_jobs
+- חיוב ב-billing calculator: רק jobs עם `status = 'completed'` שלא הוחזרו
+- job שלא נוצל תוך 7 ימים ← auto-rejected (לא חייבים)
+
+---
+
+## 43. P&L — תכנית עסקית (2026-06-08)
+
+### ראו: docs/BUSINESS_PLAN_2026.md
 
