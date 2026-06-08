@@ -48,7 +48,7 @@ const app = Fastify({
         'req.headers["x-admin-secret"]',
         'req.headers["x-cron-secret"]',
         'req.headers["x-shopify-hmac-sha256"]',
-        'req.headers["paddle-signature"]',
+        'req.headers["stripe-signature"]',
       ],
       censor: '[redacted]',
     },
@@ -65,7 +65,7 @@ const app = Fastify({
   },
 });
 
-// Capture the raw request body so webhook HMAC verification (Shopify, Paddle)
+// Capture the raw request body so webhook HMAC verification (Shopify, Stripe)
 // validates the exact bytes the provider signed — re-serializing via
 // JSON.stringify() does not reproduce the original byte stream.
 app.addContentTypeParser(

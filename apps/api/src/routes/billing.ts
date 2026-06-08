@@ -1,9 +1,9 @@
-// Billing routes — powered by Paddle Billing (2023 API)
+// Billing routes — powered by Stripe
 //
 // GET  /billing/status        — current plan + fee estimate
-// POST /billing/checkout      — create Paddle checkout → return hosted URL
-// POST /billing/portal        — Paddle customer portal → return URL
-// POST /billing/webhook       — Paddle webhook events
+// POST /billing/checkout      — create Stripe checkout session → return hosted URL
+// POST /billing/portal        — Stripe customer portal → return URL
+// POST /billing/webhook       — Stripe webhook events
 // POST /billing/invoice       — generate monthly invoice (cron)
 // GET  /billing/invoices      — invoice history
 
@@ -12,11 +12,11 @@ import { db } from '@vigmis/db';
 import { assertCronSecret } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
 import {
-  getOrCreatePaddleCustomer,
-  createPaddleCheckout,
-  createPaddlePortalSession,
-  verifyPaddleWebhook,
-} from '../billing/paddle.js';
+  getOrCreateStripeCustomer,
+  createStripeCheckoutSession,
+  createStripePortalSession,
+  verifyStripeWebhook,
+} from '../billing/stripe.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
 import { getUsageSummary } from '../services/usage.js';
 
@@ -52,9 +52,8 @@ export async function billingRoutes(app: FastifyInstance) {
     });
   });
 
-  // ── Checkout (upgrade to Pro) ──────────────────────────────────────────────
+  // ── Checkout (upgrade to Scale) ────────────────────────────────────────────
   app.post('/billing/checkout', { preHandler: authenticate }, async (request, reply) => {
-    // Fetch tenant email from Clerk user record
     const { data: tenant } = await db
       .from('tenants')
       .select('email')
@@ -62,11 +61,12 @@ export async function billingRoutes(app: FastifyInstance) {
       .single();
 
     const email = tenant?.email ?? `tenant+${request.tenantId}@vigmis.com`;
-    const customerId = await getOrCreatePaddleCustomer(request.tenantId, email);
-    const checkoutUrl = await createPaddleCheckout(
+    const customerId = await getOrCreateStripeCustomer(request.tenantId, email);
+    const checkoutUrl = await createStripeCheckoutSession(
       customerId,
       request.tenantId,
       `${WEB_URL}/billing?success=true`,
+      `${WEB_URL}/billing?canceled=true`,
     );
 
     return reply.send({ url: checkoutUrl });
@@ -76,44 +76,43 @@ export async function billingRoutes(app: FastifyInstance) {
   app.post('/billing/portal', { preHandler: authenticate }, async (request, reply) => {
     const { data: billing } = await db
       .from('billing_customers')
-      .select('paddle_customer_id')
+      .select('stripe_customer_id')
       .eq('tenant_id', request.tenantId)
       .maybeSingle();
 
-    const customerId = (billing as any)?.paddle_customer_id;
+    const customerId = (billing as any)?.stripe_customer_id;
     if (!customerId) {
-      // Not yet a Paddle customer — send to billing page
       return reply.send({ url: `${WEB_URL}/billing` });
     }
 
-    const portalUrl = await createPaddlePortalSession(customerId);
+    const portalUrl = await createStripePortalSession(customerId, `${WEB_URL}/billing`);
     return reply.send({ url: portalUrl });
   });
 
-  // ── Paddle Webhook ─────────────────────────────────────────────────────────
+  // ── Stripe Webhook ─────────────────────────────────────────────────────────
   app.post('/billing/webhook', async (request, reply) => {
-    const signature = request.headers['paddle-signature'] as string | null;
+    const signature = request.headers['stripe-signature'] as string | null;
     const rawBody = ((request as any).rawBody ?? JSON.stringify(request.body)) as string;
 
-    const valid = await verifyPaddleWebhook(rawBody, signature);
-    if (!valid) return reply.code(400).send({ error: 'Invalid webhook signature' });
+    let event;
+    try {
+      event = verifyStripeWebhook(rawBody, signature);
+    } catch (err) {
+      return reply.code(400).send({ error: 'Invalid webhook signature' });
+    }
 
-    const event = request.body as any;
-    const eventType = event.event_type as string;
-    const data = event.data as any;
+    const obj = event.data.object as any;
 
-    switch (eventType) {
-      case 'transaction.completed': {
-        // New subscription payment succeeded
-        const tenantId = data.custom_data?.tenantId;
-        const subscriptionId = data.subscription_id;
-        const customerId = data.customer_id;
-
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const tenantId = obj.metadata?.tenantId;
+        const subscriptionId = obj.subscription;
+        const customerId = obj.customer;
         if (tenantId && subscriptionId) {
           await db.from('billing_customers').upsert(
             {
               tenant_id: tenantId,
-              paddle_customer_id: customerId,
+              stripe_customer_id: customerId,
               plan: 'pro',
               subscription_id: subscriptionId,
               subscription_status: 'active',
@@ -125,29 +124,45 @@ export async function billingRoutes(app: FastifyInstance) {
         break;
       }
 
-      case 'subscription.activated': {
-        const tenantId = data.custom_data?.tenantId;
-        if (tenantId) {
-          await db.from('billing_customers').upsert(
-            {
-              tenant_id: tenantId,
-              paddle_customer_id: data.customer_id,
-              plan: 'pro',
-              subscription_id: data.id,
-              subscription_status: 'active',
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'tenant_id' },
-          );
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const { data: billing } = await db
+          .from('billing_customers')
+          .select('tenant_id')
+          .eq('subscription_id', obj.id)
+          .maybeSingle();
+
+        if (billing) {
+          const plan = obj.status === 'active' ? 'pro' : 'free';
+          await db.from('billing_customers')
+            .update({ plan, subscription_status: obj.status, updated_at: new Date().toISOString() })
+            .eq('tenant_id', billing.tenant_id);
+        } else {
+          // Fallback: match by stripe_customer_id
+          const tenantId = obj.metadata?.tenantId;
+          if (tenantId) {
+            const plan = obj.status === 'active' ? 'pro' : 'free';
+            await db.from('billing_customers').upsert(
+              {
+                tenant_id: tenantId,
+                stripe_customer_id: obj.customer,
+                plan,
+                subscription_id: obj.id,
+                subscription_status: obj.status,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'tenant_id' },
+            );
+          }
         }
         break;
       }
 
-      case 'subscription.canceled': {
+      case 'customer.subscription.deleted': {
         const { data: billing } = await db
           .from('billing_customers')
           .select('tenant_id')
-          .eq('subscription_id', data.id)
+          .eq('subscription_id', obj.id)
           .maybeSingle();
 
         if (billing) {
@@ -158,18 +173,20 @@ export async function billingRoutes(app: FastifyInstance) {
         break;
       }
 
-      case 'subscription.updated': {
-        const { data: billing } = await db
-          .from('billing_customers')
-          .select('tenant_id')
-          .eq('subscription_id', data.id)
-          .maybeSingle();
-
-        if (billing) {
-          const plan = data.status === 'active' ? 'pro' : 'free';
-          await db.from('billing_customers')
-            .update({ plan, subscription_status: data.status, updated_at: new Date().toISOString() })
-            .eq('tenant_id', billing.tenant_id);
+      case 'invoice.payment_failed': {
+        // Subscription payment failed — downgrade to free until resolved
+        const subscriptionId = obj.subscription;
+        if (subscriptionId) {
+          const { data: billing } = await db
+            .from('billing_customers')
+            .select('tenant_id')
+            .eq('subscription_id', subscriptionId)
+            .maybeSingle();
+          if (billing) {
+            await db.from('billing_customers')
+              .update({ subscription_status: 'past_due', updated_at: new Date().toISOString() })
+              .eq('tenant_id', billing.tenant_id);
+          }
         }
         break;
       }

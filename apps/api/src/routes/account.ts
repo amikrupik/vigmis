@@ -117,7 +117,7 @@ export async function accountRoutes(app: FastifyInstance) {
               <li>Subscription: <strong>$${fee.subscriptionUsd.toFixed(2)}</strong></li>
               <li>Total owed: <strong>$${fee.totalUsd.toFixed(2)}</strong></li>
             </ul>
-            <p style="color:#ef4444">This tenant has been deleted. Collect manually via Paddle or mark as uncollectable.</p>
+            <p style="color:#ef4444">This tenant has been deleted. Collect manually via Stripe or mark as uncollectable.</p>
           </div>`,
           'billing@vigmis.com',
           'Vigmis Billing',

@@ -23,7 +23,7 @@ export default function RefundPage() {
             <div className="space-y-4">
               <div className="border border-slate-200 rounded-xl p-5 bg-slate-50">
                 <p className="font-semibold text-slate-800 mb-1">Option 1 — Cancel subscription (Scale plan)</p>
-                <p className="text-sm mb-2">Dashboard → <Link href="/billing" className="text-indigo-600 hover:underline">Billing</Link> → "Manage Subscription" → Cancel in the Paddle portal.</p>
+                <p className="text-sm mb-2">Dashboard → <Link href="/billing" className="text-indigo-600 hover:underline">Billing</Link> → "Manage Subscription" → Cancel in the Stripe billing portal.</p>
                 <p className="text-sm text-slate-600">Your subscription ends at the close of the current billing period. <strong>You keep full access until then.</strong> Your account and all campaign data remain intact. Campaigns continue running on the Grow plan terms after the period ends.</p>
               </div>
               <div className="border border-slate-200 rounded-xl p-5 bg-slate-50">
