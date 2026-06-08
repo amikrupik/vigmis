@@ -276,6 +276,40 @@ export async function socialRoutes(app: FastifyInstance) {
 
     await db.from('social_posts').update(update).eq('id', id);
 
+    // ── Scale post credits (A5) ───────────────────────────────────────────────
+    // Scale plan: 5 posts/month free. Additional posts charged $1 each.
+    // Credit tracking is best-effort — do not block publish on DB errors.
+    try {
+      const { data: billingRow } = await db
+        .from('billing_customers')
+        .select('plan, scale_post_credits_used, credits_period, downgrade_requested_at')
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle();
+
+      if (billingRow && (billingRow as any).plan === 'pro' && !(billingRow as any).downgrade_requested_at) {
+        const nowPeriod = (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        })();
+        const storedPeriod = (billingRow as any).credits_period ?? '';
+        const postUsed = storedPeriod === nowPeriod ? ((billingRow as any).scale_post_credits_used ?? 0) : 0;
+        const POST_LIMIT = 5;
+
+        if (postUsed < POST_LIMIT) {
+          // Consume a free credit
+          await db.from('billing_customers').update({
+            scale_post_credits_used: postUsed + 1,
+            credits_period: nowPeriod,
+            updated_at: new Date().toISOString(),
+          }).eq('tenant_id', request.tenantId);
+        }
+        // If post_used >= POST_LIMIT, the $1 charge will appear on the monthly invoice
+        // (tracked as cost_usd on the social_post record)
+      }
+    } catch {
+      // Non-fatal — continue with publish
+    }
+
     // Publish immediately (gate + snapshot already done above)
     let publishResult: { success: boolean; externalId?: string; error?: string } | null = null;
     if (publish_now) {

@@ -4,7 +4,7 @@ import PublicFooter from '../components/PublicFooter';
 
 export const metadata = { title: "Terms of Service — Vigmis" };
 
-const LAST_UPDATED = "June 8, 2026";
+const LAST_UPDATED = "June 9, 2026";
 
 export default function TermsPage() {
   return (
@@ -219,9 +219,10 @@ export default function TermsPage() {
             <p className="mb-3">The following policy applies to all AI-generated creative content produced by Vigmis, including videos (HeyGen, Kling, Pika), images (DALL-E/OpenAI), and AI-generated social posts.</p>
             <ul className="list-disc list-inside space-y-2 mb-3">
               <li><strong>You are charged only upon approval.</strong> Clicking "Approve &amp; Pay" constitutes your authorisation to charge the generation fee. You are not charged for any generation you have not approved.</li>
-              <li><strong>First generation and first revision are free.</strong> One free revision is included per creative. Revision 2 and above are charged at the same rate as a new generation of that type.</li>
-              <li><strong>Per-type pricing (revision 2+):</strong> Avatar video (HeyGen) — $15; Cinematic video (Replicate) — $12; Animation (Replicate) — $8; Standalone image creative — $5. Text-only social posts and post copy are not subject to revision charges.</li>
-              <li><strong>Maximum 5 revisions per brief.</strong> After 5 attempts on a single brief, Vigmis may require starting from a new concept. Vigmis is not obligated to continue generating on a brief indefinitely.</li>
+              <li><strong>First generation and first two revisions are free.</strong> Revisions 0, 1, and 2 are included with no additional charge. Revisions 3, 4, and 5 are charged at 50% of the original generation price for that type.</li>
+              <li><strong>Per-type pricing (revisions 3–5, 50% rate):</strong> Avatar video — $7.50; Cinematic video — $6.00; Animation — $4.00; Standalone image creative — $2.50. Text-only social posts and post copy are not subject to revision charges.</li>
+              <li><strong>Maximum 5 revisions per brief.</strong> After 5 revision attempts on a single brief, you must start a new creative. Vigmis will not continue generating on a single brief after 5 attempts.</li>
+              <li><strong>Creative Approvals are final.</strong> Once you approve a creative, it is considered closed. After approval, any modification — no matter how small — requires creating a new creative. Approved creatives cannot be revised.</li>
               <li><strong>Discard at any time before approval.</strong> If you click "Discard — no charge" before approving, you will not be charged. Any completed creative not approved within 7 days is automatically discarded at no charge.</li>
               <li><strong>Once approved, non-refundable.</strong> Third-party provider costs are incurred immediately upon generation. Approved generations are non-refundable. If generation fails after approval due to a technical error on our side, you receive a full retry credit.</li>
               <li><strong>Delivery time:</strong> Approximately 3–8 minutes for videos; seconds for images. Exact timing depends on third-party provider availability.</li>
@@ -229,6 +230,24 @@ export default function TermsPage() {
               <li><strong>Provider disclaimers:</strong> Vigmis is not responsible if a creative provider (HeyGen, Kling, Pika, OpenAI, or similar) is unavailable, changes pricing, modifies its service, or produces output that does not meet your expectations.</li>
               <li>You may not use generated creatives for illegal, misleading, or harmful advertising. All creatives are subject to the Acceptable Use Policy.</li>
             </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">15.A Creative Credits (Scale Plan)</h2>
+            <p className="mb-3">Scale plan subscribers receive a monthly creative credit bundle that resets on the 1st of each calendar month:</p>
+            <ul className="list-disc list-inside space-y-2 mb-3">
+              <li><strong>1 Video Credit:</strong> Covers one AI video generation per month (any type: avatar, cinematic, or animation). The credit applies to the first generation of the month only.</li>
+              <li><strong>3 Image Credits:</strong> Cover three AI image creative generations per month. The credits apply to the first three image generations of the month.</li>
+              <li><strong>5 Post Credits:</strong> Cover five social post publications per month (caption writing and publishing included). The credits apply to the first five posts of the month.</li>
+              <li><strong>Credits do not roll over.</strong> Unused credits expire at the end of each calendar month and are not refunded or carried forward. Use it or lose it.</li>
+              <li><strong>Credits are non-refundable.</strong> Monthly credits are included in the Scale subscription fee and are not separately refundable.</li>
+              <li>Once your monthly credits are consumed, additional creatives and posts are charged at the standard add-on rates listed in the pricing schedule.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">15.B AI Provider Flexibility</h2>
+            <p>Vigmis uses AI models and third-party providers (including but not limited to OpenAI, HeyGen, Replicate, and future providers) to generate creative content. Vigmis may change AI models, providers, generation pipelines, and internal cost structures at any time, without prior notice, and without changes to the prices charged to you. The quality and style of AI output may vary between providers and model versions. Vigmis does not guarantee consistent output quality across provider changes, but always aims to maintain or improve output quality over time.</p>
           </section>
 
           <section>

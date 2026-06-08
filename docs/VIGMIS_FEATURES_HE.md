@@ -1,6 +1,6 @@
 # Vigmis — ספר פיצ'רים מלא
 
-**תאריך עדכון:** 2026-06-09  
+**תאריך עדכון:** 2026-06-09 (Creative Studio Pro + Billing Model Final)  
 **מקור אמת לתמחור:** `apps/api/src/billing/pricing.ts`  
 **מקור אמת לטכנולוגיה:** קוד בפועל ב-monorepo
 
@@ -259,38 +259,82 @@ POST /creatives/generate
  Approve / Reject / Request Revision
 ```
 
-### 7.3 מערכת Revisions
+### 7.3 מערכת Revisions — מחיר מעודכן
 
 | Revision Number | עלות |
 |---|---|
 | 0 (דור ראשון) | חינם (לפני אישור) |
 | 1 (תיקון ראשון) | חינם |
-| 2+ (תיקון שני ומעלה) | מחיר מלא לפי סוג |
+| 2 (תיקון שני) | חינם |
+| 3–5 | 50% ממחיר דור ראשון |
+| 6+ | חסום — חייבים להתחיל creative חדש |
 
-**מחירי revision 2+:**
-- Avatar: $15
-- Cinematic: $12
-- Animation: $8
-- Image: $5
+**מחירי revision 3–5 (50%):**
+- Avatar: $7.50
+- Cinematic: $6.00
+- Animation: $4.00
+- Image: $2.50
 
-**מקסימום:** 5 revisions לכל brief. אחרי 5 → Vigmis מציעה להתחיל מחדש.
+**מקסימום:** 5 revisions לכל brief. אחרי 5 → Vigmis חוסמת יצירה חדשה על אותו brief.
+
+**אישור = נעילה:** לאחר שלקוח מאשר creative → closed. כל שינוי = creative חדש.
 
 **Auto-discard:** קריאייטיב שהושלם אך לא אושר תוך 7 ימים → נדחה אוטומטית, ללא חיוב.
 
-### 7.4 Approve & Pay Flow
-- Revision 0 + 1: POST /creatives/:id/approve → sets `approved_at`, לא חיוב.
-- Revision 2+: POST /creatives/:id/approve → יוצר Stripe Checkout session → 402 + `checkout_url`.
+### 7.4 Approve & Pay Flow (מעודכן)
+- Revision 0–2: POST /creatives/:id/approve → sets `approved_at`, לא חיוב.
+- Revision 3–5: POST /creatives/:id/approve → יוצר Stripe Checkout session → 402 + `checkout_url` (מחיר 50%).
 - לאחר תשלום ב-Stripe: webhook `checkout.session.completed` → `approved_at` נרשם.
 
 ### 7.5 Reject Flow
 - POST /creatives/:id/reject → status=rejected, אין חיוב.
 - Auto-discard cron ב-02:00 UTC: כל `completed` + `approved_at IS NULL` + `updated_at < 7 days ago` → rejected.
 
-### 7.6 כלול במסלולים
+### 7.6 כלול במסלולים (Scale Credits System)
 
 | | Grow | Scale |
 |---|---|---|
-| קריאייטיב כלול | אפס — כל דבר בתשלום | 1 וידאו (כל סוג) + 3 Image Creatives לחודש |
+| Video Credits / חודש | אפס | 1 (כל סוג) |
+| Image Credits / חודש | אפס | 3 |
+| Post Credits / חודש | אפס | 5 |
+
+**חשוב:** Credits לא מצטברים. נאפסים ב-1 לחודש. לא ניתנים להחזר.
+- אם נוצל Video Credit → יצירת הוידאו הבאה באותו חודש תחויב במחיר מלא.
+- בביטול Scale (downgrade) → credits חדשים לא ניתנים; Credits שנוצלו כבר בתקף עד סוף החודש.
+
+### 7.6b Brand DNA System (חדש)
+- כל Creative מקבל אוטומטית Brand DNA injection לפני שנשלח ל-provider.
+- **Brand Colors**: עד 5 hex colors ב-Settings → Brand DNA.
+- **Do Not Change Elements**: Logo / Product / Face/Person / Colors / Background / Text / Layout — checkboxes.
+- **Approved Styles**: styles שנלמדו מ-creatives שאושרו בעבר.
+- DNA string מוזרק לתוך prompt/script לפני שליחה ל-HeyGen / Replicate / DALL-E.
+
+### 7.6c Keep/Change Form (חדש — לrevisions)
+כשמשתמש לוחץ "Request Revision" על creative מושלם:
+1. צ'קבוקסים — מה **לשמור בדיוק**: Logo, Product, Face, Background, Text, Colors.
+2. שדה טקסט — מה **לשנות**.
+3. ה-API בונה: `"KEEP EXACTLY: [list]. CHANGE ONLY: [description]. DO NOT modify anything else."`
+
+### 7.6d Creative Studio Pro (עמוד עצמאי /studio)
+- עמוד נפרד `/studio` — ניהול כל ה-creatives.
+- לכל creative: Version History (V1→V2→V3...) timeline.
+- Compare: השוואת שתי גרסאות זו לצד זו.
+- Restore: יצירת revision חדש מ-brief של גרסה ישנה.
+- Status badges: queued / processing / completed / failed / approved / credit-used.
+- Approve / Discard / Request Revision — לכל creative מושלם.
+
+### 7.6e AI Critic Service (חדש — לתמונות בלבד)
+- `services/creative-critic.ts` — GPT-4o Vision משווה before/after.
+- Returns: `{ score: 0-1, issues: string[], pass: boolean }`.
+- score ≥ 0.75 = pass; < 0.75 = fail → regenerate silently (עד 2 retries).
+- `critic_score` נשמר ב-`creative_jobs.critic_score`.
+- **רק לrevisions עם תמונות** — לא לסרטונים (יקר מדי).
+
+### 7.6f Best-of-3 Images (חדש — DALL-E בלבד)
+- כל יצירת תמונה מייצרת 3 variants במקביל.
+- כל variant עובר דרך `creative-scorer.ts` (GPT-4o Vision).
+- ה-variant עם הציון הגבוה ביותר מוחזר ללקוח.
+- כל 3 URLs נשמרים ב-`creative_jobs.brief._all_candidate_urls` לצפייה עתידית.
 
 ### 7.7 אחסון
 - כל קריאייטיב מועלה ל-Supabase Storage bucket "creatives" לאחר completion.

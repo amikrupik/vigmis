@@ -84,6 +84,15 @@ export default function RefundPage() {
             <p className="mb-2 font-semibold text-slate-800">Maximum revisions:</p>
             <p className="text-sm mb-4">Up to 5 revision attempts per brief. After 5, Vigmis will offer to restart from a fresh concept. Vigmis is not obligated to continue generating indefinitely on a single brief.</p>
 
+            <p className="mb-2 font-semibold text-slate-800">Revision pricing update:</p>
+            <p className="text-sm mb-4">Revisions 0, 1, and 2 are free. Revisions 3–5 are charged at 50% of the original generation price (Avatar $7.50, Cinematic $6.00, Animation $4.00, Image $2.50). After 5 revisions, a new creative must be started.</p>
+
+            <p className="mb-2 font-semibold text-slate-800">Approved creatives are final and non-refundable:</p>
+            <p className="text-sm mb-4">Once you approve a creative, it is locked. No further revisions or refunds are available for approved creatives. Any modification after approval requires a new creative job at full price.</p>
+
+            <p className="mb-2 font-semibold text-slate-800">Scale credits are non-refundable:</p>
+            <p className="text-sm mb-4">Monthly creative credits (1 video, 3 images, 5 posts) are included in the Scale subscription fee and are non-refundable. Unused credits expire at the end of each calendar month and do not roll over.</p>
+
             <p className="mb-2 font-semibold text-slate-800">Non-refundable once approved:</p>
             <p className="text-sm">Once you approve a creative and confirm the charge, the fee is non-refundable — third-party provider costs (HeyGen, Kling, Pika, DALL-E/OpenAI) are incurred immediately upon generation. If generation fails after approval due to a technical error on our side, you receive a full credit for a retry.</p>
           </section>

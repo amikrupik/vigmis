@@ -1,30 +1,60 @@
-// Video Creative Generation API
+// Video & Image Creative Generation API
 //
-// POST /creatives/generate    — submit a video generation job
+// POST /creatives/generate    — submit a generation job (video or image)
 // GET  /creatives/:id/status  — poll job status
-// GET  /creatives             — list all creative jobs for tenant
+// GET  /creatives             — list all creative jobs for tenant (with chain info)
+// POST /creatives/:id/approve — approve a completed creative
+// POST /creatives/:id/reject  — discard without charge
+// POST /creatives/score       — vision-based pre-launch scoring
+// PATCH /settings/brand       — update brand DNA (colors, locked elements, approved styles)
 //
-// Supported providers (activate by adding API keys to Railway):
+// Supported providers:
 //   avatar    → HeyGen       (HEYGEN_API_KEY)       $15/video
-//   cinematic → Replicate    (REPLICATE_API_TOKEN)  $12/video  (minimax/video-01)
-//   animation → Replicate    (REPLICATE_API_TOKEN)  $8/video   (lucataco/animate-diff-v2)
+//   cinematic → Replicate    (REPLICATE_API_TOKEN)  $12/video
+//   animation → Replicate    (REPLICATE_API_TOKEN)  $8/video
+//   image     → DALL-E 3     (OPENAI_API_KEY)       $5/image
 //
-// Until keys are present: jobs are queued with status "pending_setup"
-// and the user sees a friendly "coming soon" message.
+// Revision pricing (A1):
+//   revision 0-2: free (set approved_at immediately)
+//   revision 3-5: 50% of original price
+//   revision 6+: blocked at generate time
 //
-// Creative assets are stored in Supabase Storage bucket "creatives".
-// TODO: create the "creatives" bucket in Supabase → Storage → New Bucket → Public.
+// Scale credits (A2):
+//   Plan 'pro': 1 video credit + 3 image credits per month, reset on new period
+//
+// Brand DNA (B2): injected from client_settings into every prompt
+//
+// Keep/Change (C2): parent revision includes keep_elements + change_request
+//
+// AI Critic (C5): image-only, compare before/after, retry up to 2x if score < 0.75
+//
+// Best-of-3 (C6): image-only, generate 3 DALL-E images, return highest-scoring
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
+import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
 
+// ── Revision pricing (50% of original for revisions 3-5) ────────────────────
+// Full prices in cents
+const FULL_PRICES_CENTS: Record<string, number> = {
+  avatar: 1500,
+  cinematic: 1200,
+  animation: 800,
+  image: 500,
+};
+
+// 50% revision prices in cents (revisions 3-5)
+const REVISION_PRICES_CENTS: Record<string, number> = {
+  avatar: 750,
+  cinematic: 600,
+  animation: 400,
+  image: 250,
+};
+
 // ── Supabase Storage upload ───────────────────────────────────────────────────
-// Copies a provider video URL to Supabase Storage bucket "creatives"
-// and returns the permanent CDN URL.
-// TODO: create bucket "creatives" in Supabase → Storage → New Bucket → Public.
 
 async function uploadVideoToStorage(
   providerUrl: string,
@@ -36,8 +66,7 @@ async function uploadVideoToStorage(
     if (!res.ok) return null;
 
     const buffer = await res.arrayBuffer();
-    const ext = providerUrl.includes('.mp4') ? 'mp4' : 'mp4';
-    const path = `${tenantId}/${jobId}.${ext}`;
+    const path = `${tenantId}/${jobId}.mp4`;
 
     const { error } = await db.storage
       .from('creatives')
@@ -59,7 +88,36 @@ async function uploadVideoToStorage(
   }
 }
 
-type CreativeType = 'avatar' | 'cinematic' | 'animation';
+async function uploadImageToStorage(
+  imageUrl: string,
+  jobId: string,
+  tenantId: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(imageUrl);
+    if (!res.ok) return null;
+
+    const buffer = await res.arrayBuffer();
+    const path = `${tenantId}/${jobId}.png`;
+
+    const { error } = await db.storage
+      .from('creatives')
+      .upload(path, buffer, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+
+    if (error) return null;
+
+    const { data } = db.storage.from('creatives').getPublicUrl(path);
+    return data.publicUrl;
+  } catch (err) {
+    console.error('uploadImageToStorage failed:', err);
+    return null;
+  }
+}
+
+type CreativeType = 'avatar' | 'cinematic' | 'animation' | 'image';
 type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup';
 
 // ── Provider availability ────────────────────────────────────────────────────
@@ -69,12 +127,11 @@ function isProviderReady(type: CreativeType): boolean {
     case 'avatar':    return !!process.env.HEYGEN_API_KEY;
     case 'cinematic': return !!process.env.REPLICATE_API_TOKEN;
     case 'animation': return !!process.env.REPLICATE_API_TOKEN;
+    case 'image':     return !!process.env.OPENAI_API_KEY;
   }
 }
 
 // ── HeyGen — Talking Avatar ──────────────────────────────────────────────────
-// Docs: https://docs.heygen.com/reference/create-an-avatar-video-v2
-// POST https://api.heygen.com/v2/video/generate
 
 async function submitHeyGenJob(brief: {
   script: string;
@@ -135,7 +192,7 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
   if (!res.ok) return { status: 'processing' };
 
   const json = await res.json() as {
-    data?: { status: string; video_url?: string; thumbnail_url?: string }
+    data?: { status: string; video_url?: string }
   };
 
   const s = json.data?.status;
@@ -145,13 +202,9 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
 }
 
 // ── Replicate — Cinematic + Animation ────────────────────────────────────────
-// Docs: https://replicate.com/docs/reference/http
-// Cinematic: minimax/video-01 — photorealistic, cinematic quality, ~$0.05/video
-// Animation: lucataco/animate-diff-v2 — smooth motion graphics, ~$0.03/video
 
 const REPLICATE_API = 'https://api.replicate.com/v1';
 
-// Replicate model identifiers (owner/name — latest version resolved automatically)
 const REPLICATE_MODELS = {
   cinematic: 'minimax/video-01',
   animation: 'lucataco/animate-diff-v2',
@@ -168,7 +221,7 @@ async function submitReplicateJob(
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'Prefer': 'wait=5',   // wait up to 5s for fast models before falling back to polling
+      'Prefer': 'wait=5',
     },
     body: JSON.stringify({ input }),
   });
@@ -178,7 +231,7 @@ async function submitReplicateJob(
     throw new Error(`Replicate API error (${res.status}): ${body}`);
   }
 
-  const json = await res.json() as { id?: string; error?: string; status?: string };
+  const json = await res.json() as { id?: string; error?: string };
   if (!json.id) throw new Error(`Replicate: ${json.error ?? 'No prediction ID returned'}`);
 
   return { jobId: json.id };
@@ -209,11 +262,7 @@ async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus;
   return { status: 'processing' };
 }
 
-async function submitCinematicJob(brief: {
-  prompt: string;
-  negative_prompt?: string;
-  duration?: number;
-}): Promise<{ jobId: string }> {
+async function submitCinematicJob(brief: { prompt: string }): Promise<{ jobId: string }> {
   return submitReplicateJob(REPLICATE_MODELS.cinematic, {
     prompt: brief.prompt,
     prompt_optimizer: true,
@@ -234,6 +283,203 @@ async function submitAnimationJob(brief: {
   });
 }
 
+// ── DALL-E 3 — Image Creative ─────────────────────────────────────────────────
+// Synchronous — returns URL immediately (no polling)
+
+async function submitDallEJob(brief: {
+  prompt: string;
+  style?: string;
+}): Promise<{ jobId: string; url: string }> {
+  const apiKey = process.env.OPENAI_API_KEY!;
+
+  const styleHint = brief.style ? `, style: ${brief.style}` : '';
+  const fullPrompt = `${brief.prompt}${styleHint}. High quality advertising creative image. Suitable for digital ads.`;
+
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: fullPrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      response_format: 'url',
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`DALL-E API error: ${body}`);
+  }
+
+  const data = await res.json() as { data: Array<{ url: string }> };
+  const url = data.data[0]?.url;
+  if (!url) throw new Error('DALL-E returned no image URL');
+
+  return { jobId: `dalle-${Date.now()}`, url };
+}
+
+// ── Best-of-3 for images ───────────────────────────────────────────────────────
+// Generates 3 images in parallel, scores each, returns highest-scoring one
+
+async function generateBestOfThreeImages(
+  prompt: string,
+  style: string | undefined,
+): Promise<{ url: string; score: number; allUrls: string[] }> {
+  const results = await Promise.allSettled([
+    submitDallEJob({ prompt, style }),
+    submitDallEJob({ prompt, style }),
+    submitDallEJob({ prompt, style }),
+  ]);
+
+  const urls: string[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') urls.push(r.value.url);
+  }
+
+  if (urls.length === 0) throw new Error('All DALL-E generations failed');
+  if (urls.length === 1) return { url: urls[0], score: 0, allUrls: urls };
+
+  // Score each image
+  const scores = await Promise.allSettled(
+    urls.map(u => scoreCreativeImage(u, { platform: 'meta', goal: 'awareness' })),
+  );
+
+  let bestUrl = urls[0];
+  let bestScore = 0;
+
+  for (let i = 0; i < urls.length; i++) {
+    const s = scores[i];
+    if (s.status === 'fulfilled' && s.value.score > bestScore) {
+      bestScore = s.value.score;
+      bestUrl = urls[i];
+    }
+  }
+
+  return { url: bestUrl, score: bestScore, allUrls: urls };
+}
+
+// ── Brand DNA builder ─────────────────────────────────────────────────────────
+
+function buildBrandDNA(settings: {
+  brand_colors?: string[] | null;
+  do_not_change_elements?: string[] | null;
+  approved_creative_styles?: any[] | null;
+}): string {
+  const parts: string[] = [];
+
+  if (settings.brand_colors && settings.brand_colors.length > 0) {
+    parts.push(`Brand colors: ${settings.brand_colors.join(', ')}`);
+  }
+
+  if (settings.do_not_change_elements && settings.do_not_change_elements.length > 0) {
+    parts.push(`DO NOT MODIFY these elements: ${settings.do_not_change_elements.join(', ')}`);
+  }
+
+  if (settings.approved_creative_styles && settings.approved_creative_styles.length > 0) {
+    const styleDesc = settings.approved_creative_styles
+      .map((s: any) => (typeof s === 'string' ? s : s.description ?? JSON.stringify(s)))
+      .join(', ');
+    parts.push(`Previously approved style: ${styleDesc}`);
+  }
+
+  return parts.join('\n');
+}
+
+// ── Keep/Change instruction builder ──────────────────────────────────────────
+
+function buildKeepChangeInstruction(
+  keepElements: string[],
+  changeRequest: string,
+): string {
+  const parts: string[] = [];
+  if (keepElements.length > 0) {
+    parts.push(`KEEP EXACTLY: ${keepElements.join(', ')}.`);
+  }
+  if (changeRequest) {
+    parts.push(`CHANGE ONLY: ${changeRequest}.`);
+  }
+  if (keepElements.length > 0) {
+    parts.push('DO NOT modify anything else.');
+  }
+  return parts.join(' ');
+}
+
+// ── Scale credits logic ───────────────────────────────────────────────────────
+
+function currentCreditsPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Returns true if credit was consumed (free), false if should charge
+async function consumeScaleCredit(
+  tenantId: string,
+  creditType: 'video' | 'image',
+): Promise<boolean> {
+  const { data: billing } = await db
+    .from('billing_customers')
+    .select('plan, scale_video_credits_used, scale_image_credits_used, scale_post_credits_used, credits_period, downgrade_requested_at')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (!billing || (billing as any).plan !== 'pro') return false;
+
+  // Downgrade requested — no new credits
+  if ((billing as any).downgrade_requested_at) return false;
+
+  const currentPeriod = currentCreditsPeriod();
+  const storedPeriod = (billing as any).credits_period ?? '';
+
+  // Determine current usage (reset if new period)
+  let videoUsed = (billing as any).scale_video_credits_used ?? 0;
+  let imageUsed = (billing as any).scale_image_credits_used ?? 0;
+
+  if (storedPeriod !== currentPeriod) {
+    // New month — reset credits
+    videoUsed = 0;
+    imageUsed = 0;
+    await db
+      .from('billing_customers')
+      .update({
+        scale_video_credits_used: 0,
+        scale_image_credits_used: 0,
+        scale_post_credits_used: 0,
+        credits_period: currentPeriod,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId);
+  }
+
+  const VIDEO_LIMIT = 1;
+  const IMAGE_LIMIT = 3;
+
+  if (creditType === 'video') {
+    if (videoUsed >= VIDEO_LIMIT) return false; // no credits left, charge normally
+    await db
+      .from('billing_customers')
+      .update({
+        scale_video_credits_used: videoUsed + 1,
+        credits_period: currentPeriod,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId);
+    return true;
+  } else {
+    if (imageUsed >= IMAGE_LIMIT) return false;
+    await db
+      .from('billing_customers')
+      .update({
+        scale_image_credits_used: imageUsed + 1,
+        credits_period: currentPeriod,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId);
+    return true;
+  }
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export async function creativeRoutes(app: FastifyInstance) {
@@ -241,72 +487,100 @@ export async function creativeRoutes(app: FastifyInstance) {
   // POST /creatives/generate
   app.post('/creatives/generate', { preHandler: authenticate }, async (request, reply) => {
     const {
-      type,           // 'avatar' | 'cinematic' | 'animation'
-      brief,          // object with generation params (prompt/script/etc)
-      campaign_id,    // optional — attach creative to a campaign
-      platform,       // 'google' | 'meta' | 'tiktok'
-      parent_job_id,  // optional — if set, this is a revision of an existing job
+      type,
+      brief,
+      campaign_id,
+      platform,
+      parent_job_id,
+      keep_elements,
+      change_request,
     } = request.body as {
       type: CreativeType;
       brief: Record<string, any>;
       campaign_id?: string;
       platform?: string;
       parent_job_id?: string;
+      keep_elements?: string[];
+      change_request?: string;
     };
 
     if (!type || !brief) {
       return reply.code(400).send({ error: 'type and brief are required' });
     }
 
-    // Enrich the brief with brand context from client_settings
+    const validTypes: CreativeType[] = ['avatar', 'cinematic', 'animation', 'image'];
+    if (!validTypes.includes(type)) {
+      return reply.code(400).send({ error: `type must be one of: ${validTypes.join(', ')}` });
+    }
+
+    // Fetch brand DNA from client_settings
     const { data: clientSettings } = await db
       .from('client_settings')
-      .select('logo_url, website_url')
+      .select('logo_url, website_url, brand_colors, do_not_change_elements, approved_creative_styles')
       .eq('tenant_id', request.tenantId)
       .maybeSingle();
 
     const logoUrl: string | null = (clientSettings as any)?.logo_url ?? null;
     const websiteUrl: string | null = (clientSettings as any)?.website_url ?? null;
 
-    // Enrich avatar brief: inject logo + CTA into script
+    // Build Brand DNA string
+    const brandDNA = buildBrandDNA({
+      brand_colors: (clientSettings as any)?.brand_colors ?? null,
+      do_not_change_elements: (clientSettings as any)?.do_not_change_elements ?? null,
+      approved_creative_styles: (clientSettings as any)?.approved_creative_styles ?? null,
+    });
+
+    // Build Keep/Change instruction for revisions
+    const keepChangeInstruction = (keep_elements?.length || change_request)
+      ? buildKeepChangeInstruction(keep_elements ?? [], change_request ?? '')
+      : '';
+
+    // Enrich the brief
     const enrichedBrief = { ...brief };
+
     if (type === 'avatar' && typeof enrichedBrief.script === 'string') {
-      if (logoUrl) {
-        enrichedBrief.script = `${enrichedBrief.script}`;
-        // Logo reference for avatar: pass as background hint
-        if (!enrichedBrief.background) {
-          enrichedBrief._logo_url = logoUrl;
-        }
+      if (logoUrl && !enrichedBrief.background) {
+        enrichedBrief._logo_url = logoUrl;
       }
-      // Append CTA to script if not already ending with website/contact
       if (websiteUrl && !enrichedBrief.script.includes(websiteUrl)) {
         enrichedBrief.script = `${enrichedBrief.script} Visit us at ${websiteUrl}.`;
       }
+      if (brandDNA) {
+        enrichedBrief._brand_dna = brandDNA;
+      }
+      if (keepChangeInstruction) {
+        enrichedBrief.script = `${keepChangeInstruction} ${enrichedBrief.script}`;
+      }
     }
 
-    // Enrich cinematic/animation brief: inject logo and CTA into prompt
     if ((type === 'cinematic' || type === 'animation') && typeof enrichedBrief.prompt === 'string') {
       const additions: string[] = [];
-      if (logoUrl) {
-        additions.push(`Incorporate the brand identity and logo style from ${logoUrl}.`);
-      }
-      if (websiteUrl) {
-        additions.push(`End with a call-to-action: visit ${websiteUrl} or contact the business.`);
-      }
+      if (brandDNA) additions.push(brandDNA);
+      if (keepChangeInstruction) additions.push(keepChangeInstruction);
+      if (logoUrl) additions.push(`Incorporate the brand identity and logo style from ${logoUrl}.`);
+      if (websiteUrl) additions.push(`End with a call-to-action: visit ${websiteUrl}.`);
       if (additions.length > 0) {
         enrichedBrief.prompt = `${enrichedBrief.prompt} ${additions.join(' ')}`;
       }
     }
 
-    const providerReady = isProviderReady(type);
+    if (type === 'image' && typeof enrichedBrief.prompt === 'string') {
+      const additions: string[] = [];
+      if (brandDNA) additions.push(brandDNA);
+      if (keepChangeInstruction) additions.push(keepChangeInstruction);
+      if (additions.length > 0) {
+        enrichedBrief.prompt = `${enrichedBrief.prompt} ${additions.join(' ')}`;
+      }
+    }
 
-    // Revision tracking — count existing revisions for this parent job
+    // Revision tracking
     let revisionNumber = 0;
+    let parentOutputUrl: string | null = null;
+
     if (parent_job_id) {
-      // Verify parent belongs to this tenant
       const { data: parentJob } = await db
         .from('creative_jobs')
-        .select('id, tenant_id')
+        .select('id, tenant_id, output_url')
         .eq('id', parent_job_id)
         .eq('tenant_id', request.tenantId)
         .maybeSingle();
@@ -315,7 +589,8 @@ export async function creativeRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: 'Parent job not found' });
       }
 
-      // Count all existing revisions (jobs with this parent)
+      parentOutputUrl = (parentJob as any).output_url ?? null;
+
       const { count: siblingCount } = await db
         .from('creative_jobs')
         .select('id', { count: 'exact', head: true })
@@ -324,16 +599,24 @@ export async function creativeRoutes(app: FastifyInstance) {
 
       revisionNumber = (siblingCount ?? 0) + 1;
 
-      // Enforce max 5 revisions
       if (revisionNumber > 5) {
-        return reply.code(400).send({ error: 'Maximum 5 revisions reached for this creative' });
+        return reply.code(400).send({ error: 'Maximum 5 revisions reached for this creative. Please start a new creative.' });
       }
     }
 
-    // revision 1 is the first free revision; revision 2+ is charged
-    const isFreeRevision = revisionNumber <= 1;
+    // Check Scale credits for revision 0 (first generation)
+    // Scale gets 1 video / 3 image credits per month
+    let creditConsumed = false;
+    if (revisionNumber === 0) {
+      const creditType = (type === 'image') ? 'image' : 'video';
+      if (['avatar', 'cinematic', 'animation', 'image'].includes(type)) {
+        creditConsumed = await consumeScaleCredit(request.tenantId, creditType as 'video' | 'image');
+      }
+    }
 
-    // Insert job record (store the enriched brief so future polling can reconstruct context)
+    const providerReady = isProviderReady(type);
+
+    // Insert job record
     const { data: job, error: insertErr } = await db
       .from('creative_jobs')
       .insert({
@@ -347,6 +630,9 @@ export async function creativeRoutes(app: FastifyInstance) {
         output_url: null,
         parent_job_id: parent_job_id ?? null,
         revision_number: revisionNumber,
+        keep_elements: keep_elements ?? [],
+        change_request: change_request ?? null,
+        credit_consumed: creditConsumed,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -358,20 +644,90 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
 
     if (!providerReady) {
-      const providerName = type === 'avatar' ? 'HeyGen' : 'Replicate';
-      const envVar = type === 'avatar' ? 'HEYGEN_API_KEY' : 'REPLICATE_API_TOKEN';
+      const providerName = type === 'avatar' ? 'HeyGen' : type === 'image' ? 'DALL-E' : 'Replicate';
+      const envVar = type === 'avatar' ? 'HEYGEN_API_KEY' : type === 'image' ? 'OPENAI_API_KEY' : 'REPLICATE_API_TOKEN';
       return reply.code(202).send({
         job_id: job.id,
         status: 'pending_setup',
-        message: `${providerName} API key (${envVar}) not yet configured in Railway. Your brief has been saved and will be processed once the integration is active.`,
+        message: `${providerName} (${envVar}) not configured. Brief saved.`,
         type,
         revision_number: revisionNumber,
-        is_free_revision: isFreeRevision,
-        estimated_cost_usd: isFreeRevision ? 0 : (type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8),
+        credit_consumed: creditConsumed,
       });
     }
 
-    // Submit to provider using enriched brief
+    // ── DALL-E image: synchronous generation with best-of-3 ──────────────────
+    if (type === 'image') {
+      try {
+        const imagePrompt = typeof enrichedBrief.prompt === 'string'
+          ? enrichedBrief.prompt
+          : JSON.stringify(enrichedBrief);
+
+        let finalUrl: string;
+        let criticScore: number | null = null;
+        let allUrls: string[] = [];
+
+        // Best-of-3
+        const bestOf3 = await generateBestOfThreeImages(imagePrompt, enrichedBrief.style);
+        finalUrl = bestOf3.url;
+        allUrls = bestOf3.allUrls;
+
+        // AI Critic for revisions (compare against parent)
+        if (parent_job_id && parentOutputUrl) {
+          let retryCount = 0;
+          let criticResult = await critiqueCreative(parentOutputUrl, finalUrl).catch(() => null);
+          criticScore = criticResult?.score ?? null;
+
+          while (criticResult && !criticResult.pass && retryCount < 2) {
+            retryCount++;
+            // Regenerate silently
+            const retry = await generateBestOfThreeImages(imagePrompt, enrichedBrief.style);
+            finalUrl = retry.url;
+            allUrls = [...allUrls, ...retry.allUrls];
+            criticResult = await critiqueCreative(parentOutputUrl, finalUrl).catch(() => null);
+            criticScore = criticResult?.score ?? criticScore;
+          }
+        }
+
+        // Store to Supabase Storage
+        const storedUrl = await uploadImageToStorage(finalUrl, job.id, request.tenantId);
+        const outputUrl = storedUrl ?? finalUrl;
+
+        // Store all candidate URLs in brief metadata
+        enrichedBrief._all_candidate_urls = allUrls;
+
+        await db
+          .from('creative_jobs')
+          .update({
+            status: 'completed',
+            output_url: outputUrl,
+            provider_job_id: `dalle-${Date.now()}`,
+            critic_score: criticScore,
+            brief: { ...enrichedBrief, _all_candidate_urls: allUrls },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', job.id);
+
+        return reply.code(201).send({
+          job_id: job.id,
+          status: 'completed',
+          type,
+          output_url: outputUrl,
+          revision_number: revisionNumber,
+          credit_consumed: creditConsumed,
+          critic_score: criticScore,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Image generation failed';
+        await db
+          .from('creative_jobs')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', job.id);
+        return reply.code(500).send({ error: message, job_id: job.id });
+      }
+    }
+
+    // ── Video: async generation with provider polling ─────────────────────────
     try {
       let providerJobId: string;
 
@@ -391,14 +747,16 @@ export async function creativeRoutes(app: FastifyInstance) {
         .update({ provider_job_id: providerJobId, status: 'processing', updated_at: new Date().toISOString() })
         .eq('id', job.id);
 
+      const estimatedCostUsd = type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8;
+
       return reply.code(202).send({
         job_id: job.id,
         provider_job_id: providerJobId,
         status: 'processing',
         type,
         revision_number: revisionNumber,
-        is_free_revision: isFreeRevision,
-        estimated_cost_usd: isFreeRevision ? 0 : (type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8),
+        credit_consumed: creditConsumed,
+        estimated_cost_usd: creditConsumed ? 0 : estimatedCostUsd,
         estimated_minutes: type === 'avatar' ? 3 : type === 'cinematic' ? 5 : 4,
       });
     } catch (err) {
@@ -425,17 +783,16 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     if (error || !job) return reply.code(404).send({ error: 'Job not found' });
 
-    // Already done
     if (job.status === 'completed' || job.status === 'failed' || job.status === 'pending_setup') {
       return reply.send({
         job_id: job.id,
         status: job.status,
         type: job.type,
         output_url: job.output_url ?? null,
+        critic_score: (job as any).critic_score ?? null,
       });
     }
 
-    // Poll the provider
     if (!job.provider_job_id) {
       return reply.send({ job_id: job.id, status: job.status, type: job.type });
     }
@@ -446,14 +803,12 @@ export async function creativeRoutes(app: FastifyInstance) {
       if (job.type === 'avatar') {
         result = await checkHeyGenStatus(job.provider_job_id);
       } else {
-        // cinematic + animation both use Replicate
         result = await checkReplicateStatus(job.provider_job_id);
       }
 
       if (result.status === 'completed' && result.url) {
-        // Upload to Supabase Storage for permanent CDN delivery
         const storedUrl = await uploadVideoToStorage(result.url, job.id, job.tenant_id);
-        const finalUrl = storedUrl ?? result.url; // fall back to provider URL if Storage fails
+        const finalUrl = storedUrl ?? result.url;
 
         await db
           .from('creative_jobs')
@@ -485,7 +840,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /creatives/avatars — list available HeyGen avatars for tenant to pick from
+  // GET /creatives/avatars — list available HeyGen avatars
   app.get('/creatives/avatars', { preHandler: authenticate }, async (_request, reply) => {
     if (!process.env.HEYGEN_API_KEY) {
       return reply.send({ avatars: [], available: false });
@@ -542,14 +897,14 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
   });
 
-  // GET /creatives — list all jobs for tenant
+  // GET /creatives — list all jobs for tenant (with chain/history info)
   app.get('/creatives', { preHandler: authenticate }, async (request, reply) => {
     const { data: jobs } = await db
       .from('creative_jobs')
-      .select('id, type, platform, status, output_url, brief, campaign_id, created_at')
+      .select('id, type, platform, status, output_url, brief, campaign_id, created_at, revision_number, parent_job_id, approved_at, keep_elements, change_request, critic_score, credit_consumed')
       .eq('tenant_id', request.tenantId)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     return reply.send({ jobs: jobs ?? [] });
   });
@@ -578,7 +933,9 @@ export async function creativeRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /creatives/:id/approve — approve a completed creative (free for rev 0-1, paid for rev 2+)
+  // POST /creatives/:id/approve — approve a completed creative
+  // revision 0-2: free (set approved_at immediately)
+  // revision 3-5: charge 50% of original price
   app.post('/creatives/:id/approve', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -595,8 +952,8 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     const revisionNumber = job.revision_number ?? 0;
 
-    // First two deliveries (original + first revision) are free to approve
-    if (revisionNumber <= 1) {
+    // Revisions 0-2: free
+    if (revisionNumber <= 2) {
       await db
         .from('creative_jobs')
         .update({ approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -606,14 +963,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.send({ success: true, charged: false });
     }
 
-    // Revision 2+: charge before approving
-    const APPROVAL_PRICES: Record<string, number> = {
-      avatar: 1500,
-      cinematic: 1200,
-      animation: 800,
-      image: 500,
-    };
-    const amountCents = APPROVAL_PRICES[job.type] ?? 1500;
+    // Revisions 3-5: charge 50% of original price
+    const amountCents = REVISION_PRICES_CENTS[job.type] ?? 750;
 
     const { data: tenant } = await db
       .from('tenants')
@@ -630,15 +981,15 @@ export async function creativeRoutes(app: FastifyInstance) {
       request.tenantId,
       job.id,
       amountCents,
-      `Creative approval — ${job.type} revision ${revisionNumber}`,
-      `${WEB_URL}/creatives?approved=${job.id}`,
-      `${WEB_URL}/creatives?canceled=${job.id}`,
+      `Creative revision approval — ${job.type} revision ${revisionNumber} (50% rate)`,
+      `${WEB_URL}/studio?approved=${job.id}`,
+      `${WEB_URL}/studio?canceled=${job.id}`,
     );
 
     return reply.code(402).send({ success: false, charged: true, checkout_url: checkoutUrl });
   });
 
-  // POST /creatives/:id/reject — mark a job as rejected (user doesn't want it → no charge)
+  // POST /creatives/:id/reject — discard without charge
   app.post('/creatives/:id/reject', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { data: job, error: fetchErr } = await db
@@ -655,6 +1006,30 @@ export async function creativeRoutes(app: FastifyInstance) {
       .from('creative_jobs')
       .update({ status: 'rejected', updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('tenant_id', request.tenantId);
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ success: true });
+  });
+
+  // PATCH /settings/brand — update Brand DNA
+  app.patch('/settings/brand', { preHandler: authenticate }, async (request, reply) => {
+    const { brand_colors, brand_fonts, do_not_change_elements, approved_creative_styles } = request.body as {
+      brand_colors?: string[];
+      brand_fonts?: string[];
+      do_not_change_elements?: string[];
+      approved_creative_styles?: any[];
+    };
+
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (brand_colors !== undefined) updates.brand_colors = brand_colors;
+    if (brand_fonts !== undefined) updates.brand_fonts = brand_fonts;
+    if (do_not_change_elements !== undefined) updates.do_not_change_elements = do_not_change_elements;
+    if (approved_creative_styles !== undefined) updates.approved_creative_styles = approved_creative_styles;
+
+    const { error } = await db
+      .from('client_settings')
+      .update(updates)
       .eq('tenant_id', request.tenantId);
 
     if (error) return reply.code(500).send({ error: error.message });

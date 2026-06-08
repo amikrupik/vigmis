@@ -194,6 +194,7 @@ export default function DashboardClient() {
                   </span>
                 )}
               </button>
+              <a href="/studio" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Creative Studio</a>
               <a href="/settings/general" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Settings</a>
               <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Billing</a>
               <LanguageSelector />
@@ -1159,7 +1160,7 @@ type CreativeJob = {
   id: string;
   type: VideoType;
   platform: string | null;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup';
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup' | 'rejected';
   output_url: string | null;
   brief: Record<string, any>;
   created_at: string;

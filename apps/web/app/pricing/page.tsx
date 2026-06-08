@@ -110,7 +110,7 @@ export default function PricingPage() {
                 <li className="flex items-start gap-2">{CHECK}<span><strong>300 AI reply drafts</strong> included / month</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span>Advanced AI Optimization</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>Daily</strong> performance briefing (WhatsApp / email)</span></li>
-                <li className="flex items-start gap-2">{CHECK}<span><strong>1 video</strong> + <strong>3 image creatives</strong> included / month</span></li>
+                <li className="flex items-start gap-2">{CHECK}<span><strong>1 video credit</strong> + <strong>3 image credits</strong> + <strong>5 post credits</strong> / month (use it or lose it)</span></li>
                 <li className="flex items-start gap-2">{CHECK}<span><strong>Up to 3 users</strong> per workspace</span></li>
               </ul>
 
@@ -203,18 +203,18 @@ export default function PricingPage() {
                 <tr>
                   <td className="px-6 py-3 text-slate-700">
                     Videos included / month
-                    <p className="text-xs text-slate-400 mt-0.5">Any type — animation, cinematic, or avatar. Publishing to FB / IG / TikTok included.</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Any type — animation, cinematic, or avatar. Use it or lose it — credits reset on the 1st.</p>
                   </td>
                   <td className="px-6 py-3 text-center">{DASH}</td>
-                  <td className="px-6 py-3 text-center font-medium text-indigo-700">1 (any type)</td>
+                  <td className="px-6 py-3 text-center font-medium text-indigo-700">1 credit/month</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-3 text-slate-700">
                     Image Creatives included / month
-                    <p className="text-xs text-slate-400 mt-0.5">Standalone ad images, not tied to a post</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Standalone ad images. Use it or lose it — credits reset on the 1st.</p>
                   </td>
                   <td className="px-6 py-3 text-center">{DASH}</td>
-                  <td className="px-6 py-3 text-center font-medium text-indigo-700">3</td>
+                  <td className="px-6 py-3 text-center font-medium text-indigo-700">3 credits/month</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-3 text-slate-700">Users per workspace</td>
@@ -301,6 +301,16 @@ export default function PricingPage() {
               <div>
                 <p className="font-semibold text-slate-900 mb-1">Add-on usage</p>
                 <p>Social posts, AI reply drafts above your bundle, image creatives, and videos are charged per use at the rates listed above. These are tallied throughout the month and added to your monthly invoice. You can see a running total in your billing dashboard at any time.</p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-slate-900 mb-1">Creative revisions</p>
+                <p>The first generation and first two revisions (revisions 0–2) are included at no extra charge. Revisions 3, 4, and 5 are charged at 50% of the original generation price: Avatar $7.50, Cinematic $6.00, Animation $4.00, Image $2.50. After 5 revisions, a new creative must be started. Once a creative is approved, it is locked — any further modification requires a new creative job.</p>
+              </div>
+
+              <div>
+                <p className="font-semibold text-slate-900 mb-1">Scale credits — break-even</p>
+                <p>Scale becomes cheaper than Grow in total management fees once your ad spend exceeds approximately $4,900/month. Below that threshold, the included credits (1 video, 3 images, 5 posts per month) offset the $49 subscription cost for businesses that regularly produce creative content.</p>
               </div>
 
               <div>

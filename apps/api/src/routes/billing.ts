@@ -158,27 +158,37 @@ export async function billingRoutes(app: FastifyInstance) {
           .eq('subscription_id', obj.id)
           .maybeSingle();
 
+        const isCanceled = obj.status === 'canceled';
+        const plan = obj.status === 'active' ? 'pro' : 'free';
+
         if (billing) {
-          const plan = obj.status === 'active' ? 'pro' : 'free';
+          const updatePayload: Record<string, any> = {
+            plan,
+            subscription_status: obj.status,
+            updated_at: new Date().toISOString(),
+          };
+          if (isCanceled) {
+            updatePayload.downgrade_requested_at = new Date().toISOString();
+          }
           await db.from('billing_customers')
-            .update({ plan, subscription_status: obj.status, updated_at: new Date().toISOString() })
+            .update(updatePayload)
             .eq('tenant_id', billing.tenant_id);
         } else {
           // Fallback: match by stripe_customer_id
           const tenantId = obj.metadata?.tenantId;
           if (tenantId) {
-            const plan = obj.status === 'active' ? 'pro' : 'free';
-            await db.from('billing_customers').upsert(
-              {
-                tenant_id: tenantId,
-                stripe_customer_id: obj.customer,
-                plan,
-                subscription_id: obj.id,
-                subscription_status: obj.status,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'tenant_id' },
-            );
+            const upsertPayload: Record<string, any> = {
+              tenant_id: tenantId,
+              stripe_customer_id: obj.customer,
+              plan,
+              subscription_id: obj.id,
+              subscription_status: obj.status,
+              updated_at: new Date().toISOString(),
+            };
+            if (isCanceled) {
+              upsertPayload.downgrade_requested_at = new Date().toISOString();
+            }
+            await db.from('billing_customers').upsert(upsertPayload, { onConflict: 'tenant_id' });
           }
         }
         break;
@@ -193,7 +203,12 @@ export async function billingRoutes(app: FastifyInstance) {
 
         if (billing) {
           await db.from('billing_customers')
-            .update({ plan: 'free', subscription_status: 'canceled', updated_at: new Date().toISOString() })
+            .update({
+              plan: 'free',
+              subscription_status: 'canceled',
+              downgrade_requested_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
             .eq('tenant_id', billing.tenant_id);
         }
         break;
