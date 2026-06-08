@@ -154,7 +154,7 @@ export default function BillingClient() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Scale</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">6% of ad spend + $29/mo</p>
+                  <p className="text-xs text-slate-400 mt-0.5">6% of ad spend + $49/mo</p>
                 </div>
                 {status?.plan === 'pro' && (
                   <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Current</span>

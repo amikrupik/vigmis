@@ -2,7 +2,7 @@
 // add-on prices, and the per-customer AI-cost guardrail.
 //
 // Decided 2026-05-30. Updated 2026-06-03: plan names Grow/Scale (DB values
-// remain 'free'/'pro' for backwards compat), subscription $0/$29, floors $29/$29,
+// remain 'free'/'pro' for backwards compat), subscription $0/$49, floors $29/$49,
 // Image Creative replaces banner, free reply bundles 100/300, no customer-facing
 // campaign limit (internal API rate-limit guardrail only), 3 Image Creatives/mo Scale.
 // Customer-facing version lives in docs/VIGMIS_FEATURES_HE.
@@ -24,7 +24,7 @@ export const PLAN_PRICING: Record<Plan, {
   maxUsers: number;              // seats per account
 }> = {
   free: { ratePct: 7, subscriptionUsd: 0,  floorUsd: 29, breakerFreezePct: 30, includedCampaigns: 999, includedReplies: 100, includedVideos: 0, includedImageCreatives: 0, includedSocialPosts: 0, maxUsers: 1 },
-  pro:  { ratePct: 6, subscriptionUsd: 29, floorUsd: 29, breakerFreezePct: 40, includedCampaigns: 999, includedReplies: 300, includedVideos: 1, includedImageCreatives: 3, includedSocialPosts: 5, maxUsers: 3 },
+  pro:  { ratePct: 6, subscriptionUsd: 49, floorUsd: 49, breakerFreezePct: 40, includedCampaigns: 999, includedReplies: 300, includedVideos: 1, includedImageCreatives: 3, includedSocialPosts: 5, maxUsers: 3 },
 };
 
 // A chat "conversation" is one session, soft-capped at this many messages.

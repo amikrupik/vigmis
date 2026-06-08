@@ -95,14 +95,14 @@ export default function PricingPage() {
                   <span className="text-5xl font-extrabold text-slate-900">6%</span>
                   <span className="text-slate-500 text-sm mb-2">of ad spend / month</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">+ $29 monthly subscription · $29 minimum commission</p>
+                <p className="text-xs text-slate-500 mt-1">+ $49/mo subscription · no commission minimum</p>
               </div>
 
               <p className="text-sm font-semibold text-slate-700 mb-1 mt-5">
-                Starts at <span className="text-slate-900">$58 / month</span>
-                <span className="text-xs font-normal text-slate-400 ml-2">($29 sub + $29 min commission)</span>
+                From <span className="text-slate-900">$49 / month</span>
+                <span className="text-xs font-normal text-slate-400 ml-2">(subscription only)</span>
               </p>
-              <p className="text-xs text-slate-400 mb-6">Scale beats Grow in total cost once ad spend exceeds ~$500 / month</p>
+              <p className="text-xs text-slate-400 mb-6">Scale saves on commission once ad spend exceeds ~$4,900/month — included features offset the subscription cost at lower budgets</p>
 
               <ul className="space-y-3 text-sm text-slate-700 flex-1 mb-8">
                 <li className="flex items-start gap-2">{CHECK}<span>Everything in Grow</span></li>
@@ -148,12 +148,12 @@ export default function PricingPage() {
                 <tr>
                   <td className="px-6 py-3 text-slate-700">Monthly subscription</td>
                   <td className="px-6 py-3 text-center text-slate-400">None</td>
-                  <td className="px-6 py-3 text-center font-medium text-indigo-700">$29</td>
+                  <td className="px-6 py-3 text-center font-medium text-indigo-700">$49</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-3 text-slate-700">Minimum monthly charge</td>
                   <td className="px-6 py-3 text-center">$29</td>
-                  <td className="px-6 py-3 text-center text-indigo-700">$58 ($29 + $29)</td>
+                  <td className="px-6 py-3 text-center text-indigo-700">$49</td>
                 </tr>
 
                 <tr className="bg-slate-50/50">
@@ -295,7 +295,7 @@ export default function PricingPage() {
 
               <div>
                 <p className="font-semibold text-slate-900 mb-1">Minimum charge</p>
-                <p>If your management fee for the month is below the minimum ($29), you are charged the minimum instead. On Scale, the $29 subscription is always charged separately — so the minimum total on Scale is $58/month even with zero ad spend.</p>
+                <p>If your management fee for the month is below the minimum ($29), you are charged the minimum instead. On Scale, the $49 subscription is always charged — so the minimum total on Scale is $49/month even with zero ad spend.</p>
               </div>
 
               <div>
@@ -366,7 +366,7 @@ export default function PricingPage() {
               },
               {
                 q: 'When will I be charged more than the minimum?',
-                a: 'On Grow: once your ad spend exceeds $414/month (7% of $414 = $29). On Scale: your commission exceeds $29 once ad spend passes $483/month — but the $29 subscription is always charged on top.',
+                a: 'On Grow: once your ad spend exceeds $414/month (7% × $414 = $29). On Scale: the commission never has a floor — you pay $49/month subscription plus 6% of whatever you spend. Scale becomes cheaper than Grow in total fees once your ad spend exceeds ~$4,900/month.',
               },
             ].map(item => (
               <div key={item.q} className="border-b border-slate-100 pb-6">
