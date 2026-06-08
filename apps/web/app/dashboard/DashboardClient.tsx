@@ -3565,11 +3565,25 @@ function SettingsTab({ settings, connected }: any) {
             </button>
           </div>
 
+            {/* Cancel subscription */}
+          <div className="flex items-center justify-between gap-4 py-3 border-b border-slate-100">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Cancel subscription</p>
+              <p className="text-xs text-slate-500">Manage or cancel your billing plan. Your account and data stay intact.</p>
+            </div>
+            <a
+              href="/billing"
+              className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 transition-colors"
+            >
+              Manage Billing
+            </a>
+          </div>
+
           {/* Delete */}
           <div className="flex items-start justify-between gap-4 py-3">
             <div>
               <p className="text-sm font-semibold text-red-700">Delete my account</p>
-              <p className="text-xs text-slate-500">All campaigns will be paused. Your data will be permanently deleted within 30 days. This cannot be undone.</p>
+              <p className="text-xs text-slate-500">All campaigns are paused and your account is permanently deleted immediately. This cannot be undone.</p>
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}
@@ -3585,9 +3599,15 @@ function SettingsTab({ settings, connected }: any) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
               <h3 className="font-bold text-slate-900 text-lg mb-2">Delete your account?</h3>
-              <p className="text-sm text-slate-600 mb-4">
-                This will pause all campaigns and schedule permanent deletion of all your data within 30 days. This action <strong>cannot be undone</strong>.
+              <p className="text-sm text-slate-600 mb-3">
+                All campaigns will be paused immediately. Your account data will be permanently and irreversibly deleted. This action <strong>cannot be undone</strong>.
               </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2">
+                <span className="text-amber-500 font-bold text-sm mt-0.5">↓</span>
+                <p className="text-xs text-amber-800">
+                  Consider <button onClick={async () => { setExporting(true); try { const { url, token } = await getExportUrl(); const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vigmis-export-${new Date().toISOString().slice(0, 10)}.json`; a.click(); } finally { setExporting(false); } }} className="font-semibold underline underline-offset-2 cursor-pointer">{exporting ? 'downloading...' : 'downloading your data'}</button> before deleting — campaigns, settings, and history as JSON.
+                </p>
+              </div>
               <p className="text-xs text-slate-500 mb-2">Type <strong>DELETE</strong> to confirm:</p>
               <input
                 type="text"

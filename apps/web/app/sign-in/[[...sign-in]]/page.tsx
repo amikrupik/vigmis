@@ -3,6 +3,20 @@
 import { SignIn } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function DeletedBanner() {
+  const params = useSearchParams();
+  if (params.get('deleted') !== '1') return null;
+  return (
+    <div className="max-w-sm w-full bg-slate-100 border border-slate-200 rounded-2xl px-5 py-4 text-center">
+      <p className="text-sm font-semibold text-slate-700">Your account has been deleted</p>
+      <p className="text-xs text-slate-500 mt-1">All campaigns have been paused and your data has been removed. Vigmis has been disconnected from your ad platforms.</p>
+      <p className="text-xs text-slate-400 mt-2">If you&apos;d like to come back, you can sign up again at any time.</p>
+    </div>
+  );
+}
 
 export default function SignInPage() {
   return (
@@ -11,6 +25,9 @@ export default function SignInPage() {
         <Link href="/">
           <Image src="/logo.png" alt="Vigmis" width={120} height={44} priority />
         </Link>
+        <Suspense>
+          <DeletedBanner />
+        </Suspense>
         <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" />
       </div>
       <footer className="border-t border-slate-200 px-6 py-5">

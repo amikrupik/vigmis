@@ -178,13 +178,22 @@ export default function BillingClient() {
                 ))}
               </ul>
               {status?.plan === 'free' ? (
-                <button
-                  onClick={handleUpgrade}
-                  disabled={isPending}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
-                >
-                  {isPending ? 'Loading...' : 'Upgrade to Pro →'}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={isPending}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
+                  >
+                    {isPending ? 'Loading...' : 'Upgrade to Pro →'}
+                  </button>
+                  <button
+                    onClick={handlePortal}
+                    disabled={isPending}
+                    className="w-full border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm py-2 rounded-xl transition-colors"
+                  >
+                    {isPending ? 'Loading...' : 'Manage Billing / Payment Method'}
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={handlePortal}
