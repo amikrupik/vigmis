@@ -215,13 +215,18 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">15. Video Creative Policy</h2>
-            <ul className="list-disc list-inside space-y-2">
-              <li>AI-generated videos are charged per generation, regardless of whether you publish them</li>
-              <li>Delivery takes approximately 3–8 minutes from submission; exact timing depends on provider availability</li>
-              <li>Videos are stored for 12 months; you are responsible for downloading and backing up assets you wish to retain</li>
-              <li>You may not use generated videos for illegal, misleading, or harmful advertising</li>
-              <li>Vigmis is not responsible if a video generation provider (HeyGen, Replicate, or similar) is unavailable, changes pricing, or modifies its service</li>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">15. Creative Production Policy (Video, Image, Post)</h2>
+            <p className="mb-3">The following policy applies to all AI-generated creative content produced by Vigmis, including videos (HeyGen, Kling, Pika), images (DALL-E/OpenAI), and AI-generated social posts.</p>
+            <ul className="list-disc list-inside space-y-2 mb-3">
+              <li><strong>You are charged only upon approval.</strong> Clicking "Approve &amp; Pay" constitutes your authorisation to charge the generation fee. You are not charged for any generation you have not approved.</li>
+              <li><strong>First generation and first revision are free.</strong> If you are not satisfied with the first result, one free revision is included. Further revisions are charged per generation.</li>
+              <li><strong>Maximum 5 revisions per brief.</strong> After 5 attempts on a single brief, Vigmis may require starting from a new concept. Vigmis is not obligated to continue generating on a brief indefinitely.</li>
+              <li><strong>Discard at any time before approval.</strong> If you click "Discard — no charge" before approving, you will not be charged. Any completed creative not approved within 7 days is automatically discarded at no charge.</li>
+              <li><strong>Once approved, non-refundable.</strong> Third-party provider costs are incurred immediately upon generation. Approved generations are non-refundable. If generation fails after approval due to a technical error on our side, you receive a full retry credit.</li>
+              <li><strong>Delivery time:</strong> Approximately 3–8 minutes for videos; seconds for images. Exact timing depends on third-party provider availability.</li>
+              <li><strong>Storage:</strong> Creative assets stored for 12 months. You are responsible for downloading and backing up assets you wish to retain beyond 12 months.</li>
+              <li><strong>Provider disclaimers:</strong> Vigmis is not responsible if a creative provider (HeyGen, Kling, Pika, OpenAI, or similar) is unavailable, changes pricing, modifies its service, or produces output that does not meet your expectations.</li>
+              <li>You may not use generated creatives for illegal, misleading, or harmful advertising. All creatives are subject to the Acceptable Use Policy.</li>
             </ul>
           </section>
 

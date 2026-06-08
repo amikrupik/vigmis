@@ -69,8 +69,23 @@ export default function RefundPage() {
 
           {/* ── Creative production ───────────────────── */}
           <section>
-            <h2 className="text-xl font-bold text-slate-900 mb-3">Creative production fees</h2>
-            <p>Video creative fees (AI-generated videos via HeyGen, Kling, or Pika) are non-refundable once generation has started, as we incur third-party AI costs immediately. If a video fails to generate due to a technical error on our side, you will receive a full credit for a retry.</p>
+            <h2 className="text-xl font-bold text-slate-900 mb-3">Creative production fees — videos, images, posts</h2>
+
+            <p className="mb-3 font-semibold text-slate-800">When you are charged:</p>
+            <ul className="list-disc list-inside space-y-1.5 text-sm mb-4">
+              <li>You are charged only when you click <strong>"Approve &amp; Pay"</strong> on a completed creative. Not before.</li>
+              <li>Your <strong>first generation attempt is free</strong> — no charge until you approve.</li>
+              <li>Your <strong>first revision</strong> (regeneration of the same brief) is also free.</li>
+              <li>Second revision onward: charged per generation at the standard rate.</li>
+              <li>If you click <strong>"Discard — no charge"</strong> at any point before approving, you are not charged for that generation.</li>
+              <li>Any completed creative not approved within <strong>7 days</strong> is automatically discarded at no charge.</li>
+            </ul>
+
+            <p className="mb-2 font-semibold text-slate-800">Maximum revisions:</p>
+            <p className="text-sm mb-4">Up to 5 revision attempts per brief. After 5, Vigmis will offer to restart from a fresh concept. Vigmis is not obligated to continue generating indefinitely on a single brief.</p>
+
+            <p className="mb-2 font-semibold text-slate-800">Non-refundable once approved:</p>
+            <p className="text-sm">Once you approve a creative and confirm the charge, the fee is non-refundable — third-party provider costs (HeyGen, Kling, Pika, DALL-E/OpenAI) are incurred immediately upon generation. If generation fails after approval due to a technical error on our side, you receive a full credit for a retry.</p>
           </section>
 
           {/* ── Exceptions ───────────────────────────── */}
