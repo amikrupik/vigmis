@@ -11,6 +11,7 @@
 
 import { db } from '@vigmis/db';
 import { sendEmail } from './notify.js';
+import { buildBriefingNarrative } from './optimization-narrative.js';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 const BRIEFING_LOOKBACK_DAYS = 7;  // weekly default; daily uses 1
@@ -57,6 +58,7 @@ export interface BriefingSections {
   decision: string[];
   automated: string[];
   metrics: Record<string, unknown>;
+  narrativeSummary?: string;  // AI-generated 1-2 sentence executive overview
 }
 
 /**
@@ -166,10 +168,29 @@ export async function buildBriefing(tenantId: string, cadence: 'daily' | 'weekly
     automated.push(`Caught ${blockedDecisions.count} risky claim(s) in generated content before they reached a platform`);
   }
 
+  // Fetch business goal for context
+  const { data: clientSettings } = await db.from('client_settings')
+    .select('goal').eq('tenant_id', tenantId).maybeSingle();
+
+  const narrativeSummary = await buildBriefingNarrative({
+    lookbackDays,
+    activeCampaigns: campaignsRes.data?.length ?? 0,
+    totalSessions,
+    totalRevenue,
+    scaleUps,
+    scaleDowns,
+    pauses,
+    pendingDecisions: decision.length,
+    businessGoal: (clientSettings as any)?.goal,
+    topCampaignName: campaignsRes.data?.[0]?.name,
+    topCampaignPlatform: campaignsRes.data?.[0]?.platform,
+  }).catch(() => '');
+
   return {
     working,
     decision,
     automated,
+    narrativeSummary: narrativeSummary || undefined,
     metrics: {
       lookback_days: lookbackDays,
       total_revenue: totalRevenue,
@@ -193,8 +214,9 @@ function formatWhatsApp(sections: BriefingSections, lang: Lang): string {
   const block = (label: string, items: string[]) =>
     items.length > 0 ? `\n*${label}:*\n${items.map((i) => `• ${i}`).join('\n')}` : '';
 
+  const narrative = sections.narrativeSummary ? `\n\n${sections.narrativeSummary}` : '';
   const body = `${block(L.working, sections.working)}${block(L.decision, sections.decision)}${block(L.automated, sections.automated)}`;
-  return `*${LANG_LABELS[lang].title}*${body || `\n${L.nothing}`}\n\n${L.open_dashboard}: ${WEB_URL}/dashboard`;
+  return `*${LANG_LABELS[lang].title}*${narrative}${body || `\n${L.nothing}`}\n\n${L.open_dashboard}: ${WEB_URL}/dashboard`;
 }
 
 function formatEmail(sections: BriefingSections, lang: Lang): string {
@@ -205,10 +227,14 @@ function formatEmail(sections: BriefingSections, lang: Lang): string {
     items.length > 0
       ? `<div style="margin-bottom:18px"><p style="font-weight:700;margin:0 0 6px;color:#0f172a">${label}</p><ul style="margin:0;padding-${isRtl ? 'right' : 'left'}:18px;color:#374151;font-size:14px">${items.map((i) => `<li style="margin-bottom:4px"><bdi>${i}</bdi></li>`).join('')}</ul></div>`
       : '';
+  const narrativeHtml = sections.narrativeSummary
+    ? `<p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;padding:14px 16px;background:#f8fafc;border-radius:8px;border-left:3px solid #4f46e5"><bdi>${sections.narrativeSummary}</bdi></p>`
+    : '';
   return `
 <div dir="${dir}" style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
   <img src="https://vigmis.com/logo.png" alt="Vigmis" width="100" style="margin-bottom:24px"/>
   <h2 style="margin:0 0 16px;color:#0f172a">${L.title}</h2>
+  ${narrativeHtml}
   ${block(L.working, sections.working)}
   ${block(L.decision, sections.decision)}
   ${block(L.automated, sections.automated)}

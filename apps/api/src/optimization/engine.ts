@@ -21,6 +21,7 @@ import {
 import { sendTenantNotification } from '../services/notify.js';
 import { createProtocol } from '../routes/protocols.js';
 import type { CampaignMetrics } from './rules.js';
+import { buildOptimizationNarrative } from '../services/optimization-narrative.js';
 
 export interface OptimizationRun {
   tenantId: string;
@@ -435,7 +436,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
 
   const { data: settings } = await db
     .from('client_settings')
-    .select('risk_level, management_percentage, has_parallel_campaigns, strategy_plan')
+    .select('risk_level, management_percentage, has_parallel_campaigns, strategy_plan, goal')
     .eq('tenant_id', tenantId)
     .single();
 
@@ -670,7 +671,7 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         action.type === 'pause' ||
         action.type === 'resume'
       )) {
-        // Conservative mode → create Decision Protocol for client approval
+        // Conservative mode → create Decision Protocol with AI-generated narrative
         const protocolConfig = {
           scale_up: {
             type: 'campaign_scale' as const,
@@ -694,15 +695,39 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
           },
         }[action.type];
 
-        const budgetNote = newBudget
-          ? `\n\nCurrent daily budget: $${campaign.daily_budget_usd}. Proposed: $${newBudget}.`
-          : '';
+        const strategyPlan = (settings as any)?.strategy_plan;
+        const richRecommendation = await buildOptimizationNarrative({
+          campaignName: campaign.name,
+          platform: campaign.platform,
+          campaignType: campaign.campaign_type ?? 'default',
+          actionType: action.type,
+          ruleReason: action.reason,
+          metrics: {
+            clicks: metrics.clicks,
+            impressions: metrics.impressions,
+            ctr,
+            spend: metrics.spend,
+            dailyBudgetUsd: campaign.daily_budget_usd,
+            daysRunning,
+            conversions: metrics.conversions,
+            revenue: metrics.revenue,
+            attributionSource: campaignMetrics.attributionSource,
+          },
+          proposedChange: newBudget ? `$${campaign.daily_budget_usd}/day → $${newBudget}/day` : undefined,
+          businessGoal: (settings as any)?.goal,
+          strategyNarrative: typeof strategyPlan?.strategy_narrative === 'string'
+            ? strategyPlan.strategy_narrative.slice(0, 400)
+            : undefined,
+          targetAudience: typeof strategyPlan?.target_audience === 'string'
+            ? strategyPlan.target_audience
+            : undefined,
+        });
 
         await createProtocol({
           tenantId,
           type: protocolConfig.type,
           title: protocolConfig.title,
-          recommendation: action.reason + budgetNote,
+          recommendation: richRecommendation,
           approvalText: protocolConfig.approvalText,
           approvalSummary: protocolConfig.title,
           actionPayload: {
@@ -777,13 +802,24 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       }
 
       if (action.type === 'needs_targeting_review') {
+        const strategyPlan = (settings as any)?.strategy_plan;
+        const targetingNarrative = await buildOptimizationNarrative({
+          campaignName: campaign.name,
+          platform: campaign.platform,
+          campaignType: campaign.campaign_type ?? 'default',
+          actionType: 'needs_targeting_review',
+          ruleReason: action.reason,
+          metrics: { clicks: metrics.clicks, impressions: metrics.impressions, ctr, spend: metrics.spend, dailyBudgetUsd: campaign.daily_budget_usd, daysRunning },
+          businessGoal: (settings as any)?.goal,
+          strategyNarrative: typeof strategyPlan?.strategy_narrative === 'string' ? strategyPlan.strategy_narrative.slice(0, 400) : undefined,
+          targetAudience: typeof strategyPlan?.target_audience === 'string' ? strategyPlan.target_audience : undefined,
+        });
         await createProtocol({
           tenantId,
           type: 'targeting_review',
           title: `Targeting review needed: "${campaign.name}"`,
-          recommendation: action.reason +
-            '\n\nVigmis will analyze your current targeting and suggest specific improvements. You can discuss this here before approving any changes.',
-          approvalText: `I approve Vigmis reviewing and recommending targeting changes for "${campaign.name}" on ${campaign.platform}.`,
+          recommendation: targetingNarrative,
+          approvalText: `I approve reviewing and recommending targeting changes for "${campaign.name}" on ${campaign.platform}.`,
           approvalSummary: 'Targeting review approved',
           campaignId: campaign.id,
           platform: campaign.platform,
@@ -807,12 +843,29 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
       }
 
       if (action.type === 'needs_creative') {
+        const strategyPlan = (settings as any)?.strategy_plan;
+        const creativeNarrative = await buildOptimizationNarrative({
+          campaignName: campaign.name,
+          platform: campaign.platform,
+          campaignType: campaign.campaign_type ?? 'default',
+          actionType: 'needs_creative',
+          ruleReason: action.reason,
+          metrics: {
+            clicks: metrics.clicks, impressions: metrics.impressions, ctr, spend: metrics.spend,
+            dailyBudgetUsd: campaign.daily_budget_usd, daysRunning,
+            conversions: metrics.conversions, revenue: metrics.revenue,
+            attributionSource: campaignMetrics.attributionSource,
+          },
+          proposedChange: 'creative refresh — generate new variation',
+          businessGoal: (settings as any)?.goal,
+          strategyNarrative: typeof strategyPlan?.strategy_narrative === 'string' ? strategyPlan.strategy_narrative.slice(0, 400) : undefined,
+          targetAudience: typeof strategyPlan?.target_audience === 'string' ? strategyPlan.target_audience : undefined,
+        });
         await createProtocol({
           tenantId,
           type: 'creative_refresh',
           title: `Creative refresh needed: "${campaign.name}"`,
-          recommendation: action.reason +
-            '\n\nVigmis can generate a new creative variation to address performance fatigue. Review and approve to proceed.',
+          recommendation: creativeNarrative,
           approvalText: `I approve generating a new creative variation for "${campaign.name}" on ${campaign.platform}.`,
           approvalSummary: 'Creative refresh approved',
           campaignId: campaign.id,
