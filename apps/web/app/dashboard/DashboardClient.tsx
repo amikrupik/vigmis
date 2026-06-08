@@ -4379,7 +4379,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   }
 
   // Google Ads account selector state
-  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string }[] | null>(null);
+  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string; status?: string }[] | null>(null);
   const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountError, setGoogleAccountError] = useState<string | null>(null);
@@ -5295,22 +5295,30 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       No Google Ads accounts found. Make sure you have access to at least one account at ads.google.com.
                     </p>
                   )}
-                  {googleAccounts?.map(a => {
-                    const isSelected = a.id === googleAccountSelected;
-                    return (
-                      <button
-                        key={a.id}
-                        onClick={() => handleSelectGoogleAccount(a.id)}
-                        disabled={googleAccountSaving}
-                        className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
-                          isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-slate-900">{a.name}</p>
-                        {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
-                      </button>
-                    );
-                  })}
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                    {googleAccounts?.map(a => {
+                      const isSelected = a.id === googleAccountSelected;
+                      const isInactive = a.status && a.status !== 'ENABLED' && a.status !== 'UNKNOWN';
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => handleSelectGoogleAccount(a.id)}
+                          disabled={googleAccountSaving}
+                          className={`w-full text-left border rounded-xl px-4 py-3 transition-all ${
+                            isSelected ? 'border-emerald-300 bg-emerald-50' : isInactive ? 'border-amber-200 bg-amber-50 hover:border-amber-300' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-slate-900">{a.name}</p>
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                          {isInactive && (
+                            <p className="text-xs text-amber-700 mt-1">
+                              Account status: {a.status?.toLowerCase()} — activate it in Google Ads before using with Vigmis.
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

@@ -121,10 +121,35 @@ export async function connectorRoutes(app: FastifyInstance) {
       }
 
       const json = await res.json() as { resourceNames: string[] };
-      const accounts = (json.resourceNames ?? []).map((r: string) => {
-        const id = r.split('/')[1];
-        return { id, name: `Google Ads — ${id}` };
-      });
+      const ids = (json.resourceNames ?? []).map((r: string) => r.split('/')[1]);
+
+      // Fetch name + status for each account in parallel (best-effort; fall back to ID if it fails).
+      const accounts = await Promise.all(ids.map(async (id) => {
+        try {
+          const detailRes = await fetch(
+            `https://googleads.googleapis.com/v20/customers/${id}/googleAds:search`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'developer-token': devToken,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ query: 'SELECT customer.id, customer.descriptive_name, customer.status FROM customer LIMIT 1' }),
+            },
+          );
+          if (!detailRes.ok) return { id, name: `Google Ads — ${id}`, status: 'UNKNOWN' };
+          const detail = await detailRes.json() as { results?: Array<{ customer: { descriptiveName?: string; status?: string } }> };
+          const customer = detail.results?.[0]?.customer ?? {};
+          return {
+            id,
+            name: customer.descriptiveName || `Google Ads — ${id}`,
+            status: customer.status ?? 'UNKNOWN',
+          };
+        } catch {
+          return { id, name: `Google Ads — ${id}`, status: 'UNKNOWN' };
+        }
+      }));
 
       return reply.send({ accounts, selected: tokenRow.account_id ?? null });
     } catch (err) {

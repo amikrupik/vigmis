@@ -283,7 +283,7 @@ async function executeActions(
   return results;
 }
 
-const SYSTEM_PROMPT = `You are VIGMIS — an expert AI marketing manager with direct control over this client's ad campaigns AND social media.
+const SYSTEM_PROMPT = `You are VIGMIS — a Senior Performance Marketing Manager, Creative Strategist, and Media Buyer. You have direct control over this client's ad campaigns and social media. You know this business inside and out.
 
 ## What you can do
 Execute real actions by embedding these tags anywhere in your response. They run immediately.
@@ -316,7 +316,11 @@ Social actions (pipe syntax — text may contain colons):
 8. If the user describes a post idea in free text, decide: was it the literal copy (use write_post) or a brief (use create_post)? When in doubt, ask one short clarifying question first.
 9. Reply in the same language the client uses (Hebrew or English).
 10. If the user asks which ad account Vigmis is publishing into — check Selected Ad Account below. If it's blank or wrong, ask them to open Dashboard → Social → Connect → Meta Ad Account and pick one. If they give you an "act_..." ID directly, use select_ad_account.
-11. Be direct and professional. This is a business tool.`;
+11. Be direct and professional. This is a business tool.
+12. You CAN and MUST write creative ideas, ad copy, CTAs, banner text, headlines, ad descriptions, post captions, and any other marketing content. This is a core part of your job. Never say "I can't write" or "I can't help with creative" — just do it.
+13. Never refuse a marketing request with "I can't". Either help directly, or ask ONE targeted clarifying question (e.g. "Which product?", "Meta or Google?", "Organic post or paid ad?").
+14. When asked for creative ideas or copy: deliver them immediately using the business context available. Use the Brand Assets, Strategy, and business info below. Don't wait for extra context to provide value.
+15. Use the Brand Assets listed below when writing creative content. Reference uploaded logos, images, and brand guidelines.`;
 
 export async function chatRoutes(app: FastifyInstance) {
 
@@ -356,13 +360,14 @@ export async function chatRoutes(app: FastifyInstance) {
         return reply.send({ message: intent.user_facing_response, executedActions: [] });
       }
 
-      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes] = await Promise.all([
+      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes] = await Promise.all([
         db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(12),
         db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type').eq('tenant_id', tenantId).limit(30),
-        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level').eq('tenant_id', tenantId).maybeSingle(),
+        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct').eq('tenant_id', tenantId).maybeSingle(),
         db.from('social_posts').select('id, platform, pillar, status, content, scheduled_for').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(20),
         db.from('social_settings').select('enabled, platforms, approval_mode, content_pillars, facebook_page_id, instagram_user_id').eq('tenant_id', tenantId).maybeSingle(),
         db.from('platform_tokens').select('account_id').eq('tenant_id', tenantId).eq('platform', 'meta').maybeSingle(),
+        db.from('brand_assets').select('filename, public_url, kind').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
       ]);
 
       const pastMessages = (historyRes.data ?? []).reverse();
@@ -371,6 +376,7 @@ export async function chatRoutes(app: FastifyInstance) {
       const posts = postsRes.data ?? [];
       const socialSettings = socialSettingsRes.data;
       const selectedAdAccount = metaTokenRes.data?.account_id ?? null;
+      const brandAssets = assetsRes.data ?? [];
 
       const active = campaigns.filter(c => c.status === 'active');
       const paused = campaigns.filter(c => c.status === 'paused');
@@ -387,10 +393,14 @@ export async function chatRoutes(app: FastifyInstance) {
         ? `Enabled: yes | Approval mode: ${socialSettings.approval_mode} | Platforms: ${(socialSettings.platforms as any[] ?? []).map((p: any) => p.platform).join(', ') || '(none)'} | Pillars: ${(socialSettings.content_pillars ?? []).join(', ')}`
         : 'Social media management is disabled for this tenant.';
 
+      const assetLines = brandAssets.length
+        ? brandAssets.map(a => `  [${a.kind ?? 'asset'}] ${a.filename} — ${a.public_url}`).join('\n')
+        : '  (none uploaded yet)';
+
       const clientContext = [
         '## Client',
         settings
-          ? `Goal: ${settings.goal} | Budget: ILS ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}`
+          ? `Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ILS ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
           : 'No settings yet',
         '',
         `## Campaigns (${campaigns.length} total — ${active.length} active, ${paused.length} paused)`,
@@ -410,6 +420,10 @@ export async function chatRoutes(app: FastifyInstance) {
         `## Social Posts (most recent ${posts.length})`,
         `Format: [POST_ID] platform | pillar | status | scheduled_for | "content preview"`,
         postLines,
+        '',
+        '## Brand Assets',
+        `Format: [kind] filename — URL`,
+        assetLines,
         pageContext ? `\n## Page Context\n${neutralizeActionTags(pageContext).slice(0, 400)}` : '',
       ].join('\n');
 
