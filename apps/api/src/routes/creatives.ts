@@ -244,11 +244,13 @@ export async function creativeRoutes(app: FastifyInstance) {
       brief,          // object with generation params (prompt/script/etc)
       campaign_id,    // optional — attach creative to a campaign
       platform,       // 'google' | 'meta' | 'tiktok'
+      parent_job_id,  // optional — if set, this is a revision of an existing job
     } = request.body as {
       type: CreativeType;
       brief: Record<string, any>;
       campaign_id?: string;
       platform?: string;
+      parent_job_id?: string;
     };
 
     if (!type || !brief) {
@@ -297,6 +299,39 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     const providerReady = isProviderReady(type);
 
+    // Revision tracking — count existing revisions for this parent job
+    let revisionNumber = 0;
+    if (parent_job_id) {
+      // Verify parent belongs to this tenant
+      const { data: parentJob } = await db
+        .from('creative_jobs')
+        .select('id, tenant_id')
+        .eq('id', parent_job_id)
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle();
+
+      if (!parentJob) {
+        return reply.code(404).send({ error: 'Parent job not found' });
+      }
+
+      // Count all existing revisions (jobs with this parent)
+      const { count: siblingCount } = await db
+        .from('creative_jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('parent_job_id', parent_job_id)
+        .eq('tenant_id', request.tenantId);
+
+      revisionNumber = (siblingCount ?? 0) + 1;
+
+      // Enforce max 5 revisions
+      if (revisionNumber > 5) {
+        return reply.code(400).send({ error: 'Maximum 5 revisions reached for this creative' });
+      }
+    }
+
+    // revision 1 is the first free revision; revision 2+ is charged
+    const isFreeRevision = revisionNumber <= 1;
+
     // Insert job record (store the enriched brief so future polling can reconstruct context)
     const { data: job, error: insertErr } = await db
       .from('creative_jobs')
@@ -309,6 +344,8 @@ export async function creativeRoutes(app: FastifyInstance) {
         status: providerReady ? 'queued' : 'pending_setup',
         provider_job_id: null,
         output_url: null,
+        parent_job_id: parent_job_id ?? null,
+        revision_number: revisionNumber,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -327,7 +364,9 @@ export async function creativeRoutes(app: FastifyInstance) {
         status: 'pending_setup',
         message: `${providerName} API key (${envVar}) not yet configured in Railway. Your brief has been saved and will be processed once the integration is active.`,
         type,
-        estimated_cost_usd: type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8,
+        revision_number: revisionNumber,
+        is_free_revision: isFreeRevision,
+        estimated_cost_usd: isFreeRevision ? 0 : (type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8),
       });
     }
 
@@ -356,7 +395,9 @@ export async function creativeRoutes(app: FastifyInstance) {
         provider_job_id: providerJobId,
         status: 'processing',
         type,
-        estimated_cost_usd: type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8,
+        revision_number: revisionNumber,
+        is_free_revision: isFreeRevision,
+        estimated_cost_usd: isFreeRevision ? 0 : (type === 'avatar' ? 15 : type === 'cinematic' ? 12 : 8),
         estimated_minutes: type === 'avatar' ? 3 : type === 'cinematic' ? 5 : 4,
       });
     } catch (err) {

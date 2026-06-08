@@ -1735,3 +1735,55 @@ HTML מעוצב עם 5 סעיפים:
 
 ### ראו: docs/BUSINESS_PLAN_2026.md
 
+---
+
+## 44. Revision Counter — מעקב גרסאות קריאטיב ✅ נבנה (2026-06-08)
+
+### 44.1 לוגיקת חיוב גרסאות
+- **גרסה 0 (מקורית):** תמיד חינם
+- **גרסה 1 (תיקון ראשון):** חינם
+- **גרסה 2 ומעלה:** מחויבת
+- **מקסימום:** 5 גרסאות למקור. מעבר ל-5 — שגיאה 400
+
+### 44.2 יישום טכני
+- שדה `parent_job_id` ב-request ל-`POST /creatives/generate`
+- שדה `revision_number` נשמר ב-`creative_jobs`
+- ה-API מחזיר `is_free_revision: boolean` ו-`estimated_cost_usd: 0` לגרסאות חינם
+- ה-API ספר אחים (sibling count) — כל ה-jobs עם `parent_job_id = X`
+- אם `parent_job_id` לא שייך ל-tenant → שגיאה 404
+
+---
+
+## 45. Ghost User Cleanup — ניקוי חשבונות רדומים ✅ נבנה (2026-06-08)
+
+### 45.1 הגדרת "ghost user"
+לקוח שנרשם אך מעולם לא יצר קמפיין כלשהו.
+
+### 45.2 תהליך
+- **יום 30:** מייל עידוד — "Your account is ready, launch your first campaign"
+- **יום 60:** מייל אזהרה סופי — "Accounts with no activity may be reviewed for removal"
+- אין מחיקה אוטומטית — רק התראה. מחיקה דורשת פעולה ידנית.
+- Cron: כל יום ב-09:00 UTC (`0 9 * * *`)
+
+### 45.3 נקודות טכניות
+- קורא `notification_email` מ-`client_settings`
+- אם אין email → מדלג
+- Route: `POST /ops/cron/ghost-cleanup`
+
+---
+
+## 46. Auto-Discard Creatives — דחייה אוטומטית לקריאטיב לא מאושר ✅ נבנה (2026-06-08)
+
+### 46.1 הכלל
+job בסטטוס `completed` שלא אושר (`approved_at IS NULL`) תוך 7 ימים מסומן אוטומטית כ-`rejected`.
+
+### 46.2 חשיבות
+- לא מחייבים לקוח על קריאטיב שהוא לא אישר ולא השתמש בו
+- מנקה את dashboard מ-jobs תלויים ישנים
+- Cron: כל יום ב-02:00 UTC (`0 2 * * *`)
+
+### 46.3 נקודות טכניות
+- Route: `POST /ops/cron/creative-discard`
+- קריטריון: `status = 'completed' AND approved_at IS NULL AND updated_at < NOW() - 7 days`
+- UPDATE ל-`status = 'rejected'`
+
