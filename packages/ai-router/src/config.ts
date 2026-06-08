@@ -5,7 +5,7 @@ import type { TaskType } from "./types.js";
 export const AI_ROUTING: Record<TaskType, string> = {
   copywriting:           "openai/gpt-4o",
   analysis:              "anthropic/claude-sonnet-4-6",
-  market_research:       "google/gemini-2.5-flash",
+  market_research:       "anthropic/claude-sonnet-4-6",
   image_generation:      "openai/dall-e-3",
   seo_content:           "anthropic/claude-sonnet-4-6",
   optimization_decision: "anthropic/claude-sonnet-4-6",

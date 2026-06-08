@@ -367,22 +367,27 @@ export async function onboardingRoutes(app: FastifyInstance) {
             : '';
           const analysis = await route({
             task: 'analysis',
-            prompt: `Analyze this website content and extract:
-1. What they sell / service they offer — be SPECIFIC. Name the actual products if visible.
-2. Target audience
-3. Unique selling proposition
-4. Tone and brand voice
-5. Key products / services
-
-IMPORTANT: if the content does not clearly describe what the business sells, say so explicitly. Do NOT guess from generic words. Do NOT make up products. Only describe what is actually in the content below.
+            prompt: `You are a senior marketing analyst doing a deep pre-campaign audit of a website. Extract everything relevant to building a high-performance ad campaign.
 
 Site URL: ${scrapedSite.url}
 Pages crawled: ${scrapedSite.pagesCrawled.join(', ')}${productSummary}
 
 Website content:
-${scrapedSite.text.slice(0, 8000)}`,
-            systemPrompt: 'You are a marketing analyst. Be precise and literal — never invent products or claims. If the site is unclear, say so.',
-            options: { maxTokens: 700 },
+${scrapedSite.text.slice(0, 10000)}
+
+Analyze and provide:
+1. WHAT THEY SELL — specific products/services, pricing if visible, product range
+2. TARGET CUSTOMER — who are they selling to? (demographics, lifestyle, needs)
+3. POSITIONING & USP — what makes them different? what claims do they make? what's the value proposition?
+4. BRAND VOICE — tone (professional/casual/luxurious/urgent?), personality, trust signals present (reviews, certifications, guarantees?)
+5. CONVERSION ARCHITECTURE — what is the primary CTA? what's the funnel? is there an offer, discount, or lead magnet?
+6. STRENGTHS — what works well on this site as a foundation for ads?
+7. WEAKNESSES / RISKS — what's missing that could hurt ad performance? (no pricing, weak CTA, generic copy, no social proof?)
+8. AD HOOKS — 3 specific message angles visible in the website content that could become strong ad hooks
+
+CRITICAL: Only describe what is actually in the content. Do NOT invent products or claims not present.`,
+            systemPrompt: 'You are a senior marketing analyst. Be precise, specific, and commercially sharp. Your analysis feeds directly into campaign strategy.',
+            options: { maxTokens: 1500 },
           });
           return analysis.output;
         } catch (err) {
@@ -426,39 +431,82 @@ ${scrapedSite.text.slice(0, 8000)}`,
       ? `CONNECTED PLATFORMS (use ONLY these for budget allocation): ${activePlatforms.join(', ')}${preferredPlatforms ? `\nCLIENT PREFERENCE: The client explicitly asked to focus on ${activePlatforms.join(', ')} only. Do NOT include other platforms even if connected.` : '\nIMPORTANT: Only recommend budget allocation for platforms that are connected. If a platform is NOT in the list above, briefly mention it as an opportunity.'}`
       : `CONNECTED PLATFORMS: none yet\nIMPORTANT: The client has not connected any ad platforms yet. Do not include any platform in the budget breakdown. Focus on which platform to connect first and why.`;
 
-    // Phase 2: Market research
+    // Phase 2: Market research — deep strategic intelligence
     const managedBudget = Math.round(
       (settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100),
     );
     const research = await route({
       task: 'market_research',
-      prompt: `Do focused market research for a business with these parameters:
-- Goal: ${settings.goal}
-- Target geography: ${(settings.geo_include ?? []).join(', ')}
-- Exclude: ${(settings.geo_exclude ?? []).join(', ')}
-- Budget: ~$${managedBudget}/month
-- Business context: ${websiteAnalysis.slice(0, 800)}
-${historicalContext ? `\nCLIENT'S HISTORICAL AD PERFORMANCE:\n${historicalContext}` : ''}
-${competitorAds ? `\nCOMPETITOR ADS RUNNING RIGHT NOW (Facebook Ad Library):\n${competitorAds}` : ''}
+      prompt: `You are a senior strategic planner at a world-class digital agency. You are doing deep pre-campaign research for a new client. Your research directly feeds the campaign strategy — be specific, sharp, and commercially honest.
 
-Provide: 1) Estimated CPC range 2) What competitors are doing and how to differentiate 3) Best ad formats for this goal 4) Key audience insights based on history and market 5) What worked vs what didn't in past campaigns. Be specific and actionable.`,
-      systemPrompt: 'You are a digital marketing strategist. Be data-driven and specific.',
-      options: { maxTokens: 900 },
+## BUSINESS PROFILE
+${websiteAnalysis}
+
+## PARAMETERS
+- Advertising goal: ${settings.goal}
+- Target geography: ${(settings.geo_include ?? []).join(', ') || 'not specified'}
+- Monthly ad budget: ~$${managedBudget}/month
+- Business type: ${settings.business_type ?? 'not specified'}
+${settings.margin_pct ? `- Gross margin: ${settings.margin_pct}%` : ''}
+${settings.exclusions ? `- Client constraints: ${settings.exclusions}` : ''}
+${historicalContext ? `\n## CLIENT'S HISTORICAL AD PERFORMANCE\n${historicalContext}` : ''}
+${competitorAds ? `\n## COMPETITOR ADS RUNNING RIGHT NOW (Meta Ad Library)\n${competitorAds}` : ''}
+
+## YOUR RESEARCH MUST COVER ALL OF THE FOLLOWING:
+
+### 1. COMPETITIVE LANDSCAPE
+- Who are the main competitors in this space in ${(settings.geo_include ?? []).join(', ') || 'this market'}?
+- What positioning strategies do they use? (price leader / quality / speed / lifestyle / niche?)
+- What messaging angles are dominant in competitor ads right now?
+- Where is there a positioning gap this business could own?
+- What creative formats dominate this category?
+
+### 2. CUSTOMER INTELLIGENCE
+- Precise ideal customer profile: demographics AND psychographics (lifestyle, values, status signals, media consumption)
+- Purchase trigger: what changes in the customer's life before they start looking for this product/service?
+- Top 3 objections BEFORE purchase — be specific to this business, not generic
+- What social proof format matters most to them? (number reviews, before/after, specific credentials, peer testimonials?)
+- Awareness stage: are they problem-aware, solution-aware, or product-aware? This determines the right ad angle.
+- Where do they spend time online and what do they trust?
+
+### 3. MARKET DYNAMICS
+- Estimated CPC range for this goal/geography combination (be specific — e.g. "$1.20–$2.80 for Meta lead gen in Israel")
+- Competitive intensity assessment: low/medium/high — and what that means for creative aggressiveness
+- Is this a search-intent market (active demand) or discovery market (latent demand)? This determines platform weight.
+- Realistic conversion rate benchmark for this industry and goal
+- Seasonal patterns or timing considerations
+- Estimated addressable audience size: is this a mass market or niche? Does it affect budget ceiling?
+
+### 4. HISTORICAL PERFORMANCE ANALYSIS (if data available)
+- What worked in past campaigns? Specific patterns.
+- What clearly failed? Root cause — was it creative, targeting, landing page, or budget?
+- What budget level delivered the best efficiency ratio?
+- What should NOT be repeated?
+
+### 5. STRATEGIC INTELLIGENCE
+- The single most powerful angle this business should lead with in ads
+- Their unfair advantage vs. competitors (if any) — what can they credibly claim that others cannot?
+- The biggest risk that would cause this campaign to fail (be honest and specific)
+- 3 specific creative concepts that would win in this market, based on what you know about this audience
+
+Be sharp, specific, and commercially honest. Avoid generic marketing clichés.`,
+      systemPrompt: 'You are a senior strategic planner at a world-class digital agency. Your research must be specific, sharp, and commercially grounded. Generic output is unacceptable.',
+      options: { maxTokens: 2500 },
     });
     const marketResearch = research.output;
 
     // Phase 3: Strategy generation
     const strategyRes = await route({
       task: 'analysis',
-      prompt: `You are a senior media planner and honest business advisor at a world-class agency. A new client has come to you. Based on the data below, produce a COMPLETE strategic plan — not just budget numbers, but the full strategic thinking a professional agency would deliver: why, who, how, with what creative, and what's missing.
+      prompt: `You are a senior media planner and Chief Strategy Officer at a world-class agency. A new client has come to you. Based on the deep research below, produce a COMPLETE, SPECIFIC strategic plan — not generic frameworks, but the real strategic thinking a $50M agency would deliver: the WHY behind every decision, the WHO with psychological precision, the HOW with specific execution steps, and what's at stake.
 
-BUSINESS:
-${websiteAnalysis.slice(0, 600)}
+## BUSINESS ANALYSIS
+${websiteAnalysis}
 
-MARKET RESEARCH & COMPETITOR INSIGHTS:
-${marketResearch.slice(0, 700)}
+## MARKET RESEARCH & COMPETITIVE INTELLIGENCE
+${marketResearch}
 
-${historicalContext ? `CLIENT'S HISTORICAL AD PERFORMANCE (learn from it):\n${historicalContext.slice(0, 500)}\n` : ''}
+${historicalContext ? `## CLIENT'S HISTORICAL AD PERFORMANCE\n${historicalContext}\n` : ''}
 
 PARAMETERS:
 - Goal: ${settings.goal}
@@ -492,11 +540,21 @@ For each platform the client will use, set minCtr (underperforming threshold), g
 SOCIAL MEDIA ORGANIC POSTING — Vigmis can also post organic content (Facebook Page, Instagram, TikTok) on behalf of the client. $1/post (FB/IG) or $3/post (TikTok, includes AI video). Once weekly per platform.
 Assess whether this client would benefit, which platforms, and which content pillars.
 
-STRATEGIC NARRATIVE — write the full agency-level strategy:
-- strategy_narrative: 3 paragraphs explaining the STRATEGIC LOGIC: (1) what problem we're solving / why this approach, (2) exactly who we're targeting and their psychographic profile, (3) how we'll execute and why this sequence makes sense for THIS business right now. Be specific, not generic.
-- funnel_strategy: describe what we do at each funnel stage for THIS business (awareness / consideration / conversion). Include specific ad formats and messages for each stage.
-- creative_brief: for EACH platform we're using — what creatives to produce: formats (video_15s, image_carousel, single_image, story), how many images/videos, 3 specific message hooks (angles the ads will use), and the CTA. Be specific to this business, not generic.
-- missing_platforms: if there are platforms NOT connected that would significantly help this specific business (e.g. TikTok for youth fashion, YouTube for high-ticket products, Google for high search-intent products), list them with the specific reason and estimated uplift. Do NOT list platforms that aren't relevant.
+STRATEGIC DELIVERABLES — write with the depth and specificity of a world-class agency brief:
+
+strategy_narrative: 3 precise paragraphs — (1) the strategic insight and why THIS approach for THIS business, not a generic approach; (2) the exact customer psychographic profile and what moves them to buy; (3) the execution logic and sequencing rationale for THIS market right now. No filler.
+
+competitive_advantage: What can this business credibly claim that competitors cannot? If nothing, say so honestly and explain the implications for creative strategy.
+
+funnel_strategy: What we run at each funnel stage for THIS business. Specific ad formats, messages, audience layers, and the connection between stages.
+
+creative_brief: For EACH platform — specific formats, number of assets needed, 3 message hooks based on the research (name the specific angle: pain point / social proof / transformation / fear of missing out / etc.), CTA, and what makes this creative direction right for THIS audience.
+
+first_30_days: Week-by-week launch plan. What we test first, what signals we look for, what triggers moving to scale.
+
+message_testing_matrix: 4 distinct creative angles to A/B test in the first month. For each: the hypothesis, the hook, the expected audience segment it will resonate with, and what a "win" looks like.
+
+missing_platforms: Platforms NOT connected that would significantly help THIS business — with specific reasoning tied to the research.
 
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 
@@ -505,17 +563,18 @@ Return ONLY valid JSON (no extra text):
   "platforms": [
     { "name": "google", "campaign_types": ["search"], "budget_percentage": 60, "reasoning": "Specific reason based on this business and market data" }
   ],
-  "market_insights": "2-3 sentences including what competitors are doing and market dynamics",
-  "target_audience": "Specific audience description based on analysis",
+  "market_insights": "2-3 sharp sentences: what the market looks like, what competitors do, what the real opportunity is",
+  "target_audience": "Precise audience: demographics + psychographics + what triggers their purchase",
   "estimated_cpc": "$X.XX - $X.XX",
-  "recommendations": "Top 3 actionable recommendations based on history and market",
+  "recommendations": "Top 3 specific, actionable recommendations based on research — not generic",
   "past_performance_notes": "Key learnings from client historical campaigns, or null",
-  "organic_recommendations": "2-3 specific organic growth actions to complement and reduce ad dependency",
-  "strategy_narrative": "Paragraph 1: the strategic logic and why this approach. Paragraph 2: who exactly we are targeting and their psychographic profile. Paragraph 3: how we execute and the sequencing rationale.",
+  "organic_recommendations": "2-3 specific organic growth actions tied to this business's strengths",
+  "competitive_advantage": "What this business can credibly own vs. competitors — or honest assessment if none exists",
+  "strategy_narrative": "Paragraph 1: strategic insight and why this approach. Paragraph 2: exact customer psychographic and purchase trigger. Paragraph 3: execution logic and sequencing rationale.",
   "funnel_strategy": {
-    "awareness": "What we run at top of funnel, to whom, with what message and format",
-    "consideration": "What we run at mid funnel, retargeting whom, with what offer",
-    "conversion": "Bottom funnel — hot audiences, specific offer, urgency mechanic"
+    "awareness": "Top of funnel: audience, message, format, and what we're trying to do",
+    "consideration": "Mid funnel: retargeting who, with what offer, format",
+    "conversion": "Bottom funnel: hot audiences, specific offer, urgency mechanic"
   },
   "creative_brief": [
     {
@@ -523,12 +582,28 @@ Return ONLY valid JSON (no extra text):
       "formats": ["video_15s", "single_image"],
       "quantity_images": 3,
       "quantity_videos": 1,
-      "hooks": ["Pain point angle: ...", "Social proof angle: ...", "Benefit angle: ..."],
-      "cta": "Shop Now"
+      "hooks": ["Pain point angle: specific hook text", "Social proof angle: specific hook text", "Transformation angle: specific hook text"],
+      "cta": "Shop Now",
+      "creative_direction": "What visually and tonally makes this creative right for this specific audience"
+    }
+  ],
+  "first_30_days": {
+    "week_1": "What we launch, what budget, what we're testing",
+    "week_2": "What signals we look for, what we adjust",
+    "week_3": "Scale decisions — what threshold triggers scaling vs. pausing",
+    "week_4": "Assessment: what's confirmed, what next phase looks like"
+  },
+  "message_testing_matrix": [
+    {
+      "angle": "Pain point",
+      "hook": "Specific headline/hook text for this business",
+      "hypothesis": "This will resonate with X type of customer because Y",
+      "target_segment": "Who specifically sees this",
+      "win_signal": "CTR > X% or CPA < $Y"
     }
   ],
   "missing_platforms": [
-    { "platform": "tiktok", "reason": "Your target demographic 18-28 spends 3+ hours/day on TikTok. Competitors are not yet active there — first-mover advantage.", "potential_uplift": "~35% more reach at lower CPM than Meta" }
+    { "platform": "tiktok", "reason": "Specific reason tied to THIS business and market research", "potential_uplift": "Specific estimate" }
   ],
   "budget_analysis": {
     "verdict": "sufficient",
@@ -541,10 +616,10 @@ Return ONLY valid JSON (no extra text):
     "projected_leads_monthly": 15,
     "break_even_conversions": 4,
     "warnings": [
-      "Landing page conversion rate is the key variable — a weak page will waste budget"
+      "Specific warning tied to this business's situation"
     ],
     "platform_exclusions": [
-      { "platform": "tiktok", "reason": "Target audience is 45+ — TikTok reach in this demographic is minimal" }
+      { "platform": "tiktok", "reason": "Specific reason tied to audience demographics" }
     ]
   },
   "custom_benchmarks": {
@@ -555,23 +630,23 @@ Return ONLY valid JSON (no extra text):
       "maxCpa": 65.00,
       "learningDays": 10,
       "minDataClicks": 30,
-      "rationale": "B2B professional services in Israel. Small addressable audience means lower raw CTR is acceptable."
+      "rationale": "Specific rationale for these thresholds based on vertical/market/goal"
     }
   },
   "social_plan": {
     "recommended": true,
-    "rationale": "This business has a visual product well-suited to Instagram.",
+    "rationale": "Specific reason this business benefits from organic social",
     "platforms": [
-      { "platform": "facebook", "rationale": "Local reach and community trust", "cost_usd": 1 },
-      { "platform": "instagram", "rationale": "Visual product showcase, 25-40 demographic", "cost_usd": 1 }
+      { "platform": "facebook", "rationale": "Specific rationale", "cost_usd": 1 },
+      { "platform": "instagram", "rationale": "Specific rationale", "cost_usd": 1 }
     ],
     "content_pillars": ["educational", "promotional", "social_proof"],
-    "synergy_with_ads": "Organic posts warm up cold audiences so paid retargeting converts at lower CPA.",
+    "synergy_with_ads": "How organic posts specifically help paid performance for this business",
     "estimated_monthly_cost_usd": 8
   }
 }`,
-      systemPrompt: 'You are a senior media planner and honest business advisor. Return only valid JSON, no extra text.',
-      options: { maxTokens: 2200, temperature: 0.3 },
+      systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
+      options: { maxTokens: 4000, temperature: 0.3 },
     });
 
     let strategy: object;
