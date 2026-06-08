@@ -299,8 +299,21 @@ export async function resumeAllCampaigns() {
 
 // ── Account ───────────────────────────────────────────────────────────────────
 
-export async function deleteAccount() {
-  return apiCall('/account', 'DELETE');
+export async function deleteAccount(): Promise<{
+  success?: boolean;
+  payment_required?: boolean;
+  amount_usd?: number;
+  checkout_url?: string;
+} | null> {
+  const { getToken } = await auth();
+  const token = await getToken();
+  const res = await fetch(`${API_URL}/account`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (res.status === 402 || res.ok) return res.json();
+  return null;
 }
 
 export async function getExportUrl() {

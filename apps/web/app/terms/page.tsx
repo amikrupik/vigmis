@@ -219,7 +219,8 @@ export default function TermsPage() {
             <p className="mb-3">The following policy applies to all AI-generated creative content produced by Vigmis, including videos (HeyGen, Kling, Pika), images (DALL-E/OpenAI), and AI-generated social posts.</p>
             <ul className="list-disc list-inside space-y-2 mb-3">
               <li><strong>You are charged only upon approval.</strong> Clicking "Approve &amp; Pay" constitutes your authorisation to charge the generation fee. You are not charged for any generation you have not approved.</li>
-              <li><strong>First generation and first revision are free.</strong> If you are not satisfied with the first result, one free revision is included. Further revisions are charged per generation.</li>
+              <li><strong>First generation and first revision are free.</strong> One free revision is included per creative. Revision 2 and above are charged at the same rate as a new generation of that type.</li>
+              <li><strong>Per-type pricing (revision 2+):</strong> Avatar video (HeyGen) — $15; Cinematic video (Replicate) — $12; Animation (Replicate) — $8; Standalone image creative — $5. Text-only social posts and post copy are not subject to revision charges.</li>
               <li><strong>Maximum 5 revisions per brief.</strong> After 5 attempts on a single brief, Vigmis may require starting from a new concept. Vigmis is not obligated to continue generating on a brief indefinitely.</li>
               <li><strong>Discard at any time before approval.</strong> If you click "Discard — no charge" before approving, you will not be charged. Any completed creative not approved within 7 days is automatically discarded at no charge.</li>
               <li><strong>Once approved, non-refundable.</strong> Third-party provider costs are incurred immediately upon generation. Approved generations are non-refundable. If generation fails after approval due to a technical error on our side, you receive a full retry credit.</li>
@@ -239,19 +240,19 @@ export default function TermsPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-4 space-y-3 text-sm">
               <div>
                 <p className="font-semibold text-slate-800 mb-1">Path A — Cancel subscription (Scale plan only)</p>
-                <p className="text-slate-600">Access: Dashboard → Billing → Manage Subscription → Cancel.<br />
-                Effect: Your Scale subscription is cancelled. You retain full access to your account and all campaign data until the end of the current billing period, after which your plan reverts to Grow. Campaigns continue running under the Grow plan terms. No data is deleted.</p>
+                <p className="text-slate-600">Access: Dashboard → Billing → Manage Subscription → Cancel via Stripe billing portal.<br />
+                Effect: Your Scale subscription is cancelled and will not renew. You retain full access until the end of the current billing period, after which your plan reverts to Grow. Campaigns continue running under the Grow plan terms. No data is deleted.</p>
               </div>
               <div className="border-t border-slate-200 pt-3">
                 <p className="font-semibold text-slate-800 mb-1">Path B — Delete account (all users)</p>
                 <p className="text-slate-600">Access: Dashboard → Settings → Danger Zone → Delete Account.<br />
-                Effect: Immediate and permanent. All active campaigns are paused immediately. Vigmis is disconnected from your Meta, Google, and TikTok accounts (OAuth tokens are revoked). Your Vigmis account, all campaign data, strategy, settings, and history are permanently deleted. This action is irreversible.</p>
+                Effect: Permanent. Before deletion, the system automatically: (1) cancels any active Stripe subscription, (2) calculates your final balance for the current month, (3) if a balance is owed, presents a payment screen — account deletion proceeds only after payment is completed. After deletion: all campaigns are paused, Vigmis is disconnected from your Meta, Google, and TikTok accounts, and all campaign data, strategy, and settings are permanently removed. Billing invoices and audit records are retained as required by law.</p>
               </div>
             </div>
 
             <p className="mb-3 font-semibold text-slate-800">16.2 — Billing obligations on exit</p>
-            <p className="mb-3"><strong>Grow plan:</strong> You are obligated to pay the management fee on all ad spend that occurred from the first day of the current calendar month up to and including the date of account deletion. This obligation exists regardless of when the monthly invoice is generated. If you delete your account before the end-of-month invoice run, you may be contacted by our billing team at billing@vigmis.com to settle the outstanding amount.</p>
-            <p className="mb-3"><strong>Scale plan:</strong> The subscription fee charged at the start of the current billing period is non-refundable. You remain liable for the management fee on all ad spend accrued up to the cancellation or deletion date. If you cancel the subscription (Path A), you are not charged for the next period. If you delete your account mid-period (Path B), the subscription fee for the current period is not refunded.</p>
+            <p className="mb-3"><strong>Grow plan:</strong> You are obligated to pay the management fee on all ad spend from the first day of the current calendar month to the date of deletion. The system calculates this automatically. If a balance is owed, you will be asked to pay via Stripe before the account is deleted.</p>
+            <p className="mb-3"><strong>Scale plan:</strong> The subscription fee for the current billing period is non-refundable. If you delete your account, the system cancels your subscription automatically (no further renewals) and then calculates any remaining management fee on ad spend for the current month. If a balance is owed, payment is required via Stripe before deletion completes.</p>
 
             <p className="mb-3 font-semibold text-slate-800">16.3 — Data export</p>
             <p className="mb-3">Before deleting your account, you may download all your data (campaigns, settings, audit history) as a JSON file from Dashboard → Settings → Export Data. This export is available until the moment of deletion.</p>

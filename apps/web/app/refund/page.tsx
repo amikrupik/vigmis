@@ -28,8 +28,8 @@ export default function RefundPage() {
               </div>
               <div className="border border-slate-200 rounded-xl p-5 bg-slate-50">
                 <p className="font-semibold text-slate-800 mb-1">Option 2 — Delete account (all plans)</p>
-                <p className="text-sm mb-2">Dashboard → Settings → Danger Zone → "Delete Account" → type DELETE to confirm.</p>
-                <p className="text-sm text-slate-600"><strong>Immediate and permanent.</strong> All active campaigns are paused, Vigmis is disconnected from your Meta / Google / TikTok accounts, and all your data is deleted. This cannot be undone. We recommend <Link href="/dashboard" className="text-indigo-600 hover:underline">exporting your data</Link> first.</p>
+                <p className="text-sm mb-2">Dashboard → Settings → Danger Zone → "Delete Account".</p>
+                <p className="text-sm text-slate-600">The system automatically handles everything: cancels your subscription (if Scale), calculates your final balance, and if a balance is owed — presents a Stripe payment screen. After payment, or if no balance is owed, your account and all campaign data are permanently deleted. Vigmis is disconnected from Meta, Google, and TikTok. We recommend <Link href="/dashboard" className="text-indigo-600 hover:underline">exporting your data</Link> first.</p>
               </div>
             </div>
           </section>
@@ -40,11 +40,11 @@ export default function RefundPage() {
             <div className="space-y-4">
               <div>
                 <p className="font-semibold text-slate-900 mb-1">Grow plan (7% of ad spend)</p>
-                <p className="text-sm">You owe the management fee on all ad spend that occurred from the 1st of the current calendar month up to and including the date you cancel or delete. If you delete your account before the end-of-month invoice is generated, our billing team may contact you at your registered email address to collect the outstanding amount.</p>
+                <p className="text-sm">You owe the management fee on all ad spend from the 1st of the current calendar month up to the date of deletion. The system calculates this automatically and collects payment via Stripe before completing the deletion.</p>
               </div>
               <div>
                 <p className="font-semibold text-slate-900 mb-1">Scale plan ($49/month + 6%)</p>
-                <p className="text-sm">The $49 subscription fee already charged for the current billing period is <strong>non-refundable</strong>. You also owe the 6% management fee on all ad spend accrued up to the cancellation or deletion date. If you cancel the subscription (Option 1), no further subscription fees are charged from the next period onward.</p>
+                <p className="text-sm">The $49 subscription fee for the current billing period is <strong>non-refundable</strong>. If you delete your account, the system cancels your Stripe subscription automatically (no further renewals) and collects any remaining management fee via Stripe before completing the deletion. If you only cancel the subscription (Option 1), no further subscription fees are charged from the next period onward, and your account remains active.</p>
               </div>
             </div>
           </section>

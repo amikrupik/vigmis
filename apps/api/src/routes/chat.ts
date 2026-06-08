@@ -438,7 +438,9 @@ export async function chatRoutes(app: FastifyInstance) {
         { role: 'user' as const, content: neutralizeActionTags(message) },
       ];
 
-      const response = await route({ task: 'chat', messages, systemPrompt: systemWithContext });
+      // Degraded mode: route to cheap model (gpt-4o-mini) instead of Sonnet
+      const chatTask = quota.degrade ? 'cheap_task' : 'chat';
+      const response = await route({ task: chatTask, messages, systemPrompt: systemWithContext });
       const rawOutput = response.output;
 
       // Meter this message against the monthly allowance + cost breaker.

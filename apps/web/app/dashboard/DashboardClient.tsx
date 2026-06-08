@@ -3630,12 +3630,16 @@ function SettingsTab({ settings, connected }: any) {
                   disabled={deleteConfirmText !== 'DELETE' || deleting}
                   onClick={async () => {
                     setDeleting(true);
-                    await deleteAccount();
-                    router.push('/sign-in?deleted=1');
+                    const result = await deleteAccount();
+                    if (result?.payment_required && result.checkout_url) {
+                      window.location.href = result.checkout_url;
+                    } else {
+                      router.push('/sign-in?deleted=1');
+                    }
                   }}
                   className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                 >
-                  {deleting ? 'Deleting...' : 'Yes, delete my account'}
+                  {deleting ? 'Processing...' : 'Yes, delete my account'}
                 </button>
               </div>
             </div>

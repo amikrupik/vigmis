@@ -1,59 +1,15 @@
-// DELETE /account           — delete tenant data + schedule Clerk user deletion
+// DELETE /account           — delete tenant: if balance>0 → Stripe payment first
+// GET    /account/balance    — returns current accrued balance before deletion
 // GET    /account/export     — export all tenant data as JSON
 // POST   /account/contact    — contact form → send email to support
 // POST   /account/unsubscribe — unsubscribe from alert emails (token-based, no auth)
 
 import type { FastifyInstance } from 'fastify';
-import { db, decryptToken } from '@vigmis/db';
-import { createClerkClient } from '@clerk/backend';
+import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
-
-const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
-
-// Best-effort OAuth revocation across platforms.
-// We don't fail the deletion if a platform returns an error — the token will be wiped
-// from our DB anyway, and the user can manually remove the app from their account.
-async function revokePlatformTokens(tenantId: string, log: (msg: string, err?: unknown) => void): Promise<void> {
-  const { data: tokens } = await db
-    .from('platform_tokens')
-    .select('platform, access_token, refresh_token')
-    .eq('tenant_id', tenantId);
-
-  if (!tokens?.length) return;
-
-  for (const t of tokens) {
-    if (!t.access_token) continue;
-    let access: string;
-    try { access = decryptToken(t.access_token); } catch { continue; }
-
-    try {
-      if (t.platform === 'meta') {
-        // Removes Vigmis from facebook.com/settings/apps_and_websites for this user.
-        await fetch(`https://graph.facebook.com/v19.0/me/permissions?access_token=${encodeURIComponent(access)}`, { method: 'DELETE' });
-      } else if (t.platform === 'google') {
-        // Revokes both Ads + Analytics scopes in one call.
-        const tokenToRevoke = t.refresh_token ? decryptToken(t.refresh_token) : access;
-        await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        });
-      } else if (t.platform === 'tiktok') {
-        const clientKey = process.env.TIKTOK_CLIENT_KEY;
-        const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-        if (clientKey && clientSecret) {
-          await fetch('https://open.tiktokapis.com/v2/oauth/revoke/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_key: clientKey, client_secret: clientSecret, token: access }),
-          });
-        }
-      }
-    } catch (err) {
-      log(`revoke failed for ${t.platform}`, err);
-    }
-  }
-}
+import { getStripe } from '../billing/stripe.js';
+import { executeAccountDeletion } from '../services/account-deletion.js';
 
 async function sendEmail(to: string, subject: string, html: string, from = 'hello@vigmis.com', fromName = 'Vigmis'): Promise<void> {
   const { SENDGRID_API_KEY } = process.env;
@@ -72,95 +28,112 @@ async function sendEmail(to: string, subject: string, html: string, from = 'hell
 
 export async function accountRoutes(app: FastifyInstance) {
 
+  // ── Final balance (before deletion) ───────────────────────────────────────
+  app.get('/account/balance', { preHandler: authenticate }, async (request, reply) => {
+    const fee = await calculateFee(request.tenantId, currentMonth());
+    return reply.send({ balance_usd: fee.totalUsd, breakdown: fee });
+  });
+
   // ── Delete account ─────────────────────────────────────────────────────────
-  // Full self-service GDPR/Meta-compliant deletion. Order matters:
-  //   1. Pause active campaigns so we don't keep spending after the user is gone.
-  //   2. Revoke OAuth at each platform (removes Vigmis from their FB/Google settings).
-  //   3. Delete the Clerk user (best effort — keeps going if it fails).
-  //   4. DELETE FROM tenants — every per-tenant table has ON DELETE CASCADE.
+  // Full automated deletion flow:
+  //   1. If Scale plan → cancel Stripe subscription via API (no more renewals)
+  //   2. Calculate accrued balance for current month
+  //   3. If balance > 0 → create Stripe Checkout (one-time payment) → return 402
+  //      The actual deletion fires from the Stripe webhook (checkout.session.completed)
+  //   4. If balance = 0 → delete immediately
   app.delete('/account', { preHandler: authenticate }, async (request, reply) => {
     const tenantId = request.tenantId;
     const clerkUserId = request.clerkUserId;
-    const errors: string[] = [];
-    const log = (msg: string, err?: unknown) => {
-      request.log.warn({ err }, msg);
-      errors.push(msg + (err instanceof Error ? `: ${err.message}` : ''));
-    };
+    const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+    const stripe = getStripe();
 
-    // 1. Pause campaigns so spending stops even if a platform revoke fails.
+    // 1. Cancel Stripe subscription so it doesn't renew.
     try {
-      await db.from('campaigns').update({ status: 'paused' }).eq('tenant_id', tenantId);
-    } catch (err) { log('campaign pause failed', err); }
+      const { data: billing } = await db
+        .from('billing_customers')
+        .select('subscription_id, plan')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-    // 1b. Calculate current-month accrued fee BEFORE the cascade wipes the data.
-    // The month-end invoice cron won't find deleted tenants, so we notify billing now.
-    try {
-      const period = currentMonth();
-      const fee = await calculateFee(tenantId, period);
-      if (fee.totalUsd > 0) {
-        const { data: settings } = await db
-          .from('client_settings')
-          .select('business_name, content_language')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        const name = (settings as any)?.business_name ?? tenantId.slice(0, 8);
-        await sendEmail(
-          'billing@vigmis.com',
-          `[Billing Action Required] Account deleted mid-month — ${name}`,
-          `<div style="font-family:sans-serif;max-width:600px">
-            <h2 style="color:#1e293b">Account Deleted — Final Charge Required</h2>
-            <p>Tenant <strong>${name}</strong> (${tenantId}) deleted their account on ${new Date().toISOString().slice(0, 10)}.</p>
-            <p>Accrued fee for ${period.start.toISOString().slice(0, 7)}:</p>
-            <ul>
-              <li>Managed spend (estimate): <strong>$${fee.managedSpendUsd.toFixed(2)}</strong></li>
-              <li>Fee (${fee.feePercentage}%): <strong>$${fee.percentageFeeUsd.toFixed(2)}</strong></li>
-              <li>Subscription: <strong>$${fee.subscriptionUsd.toFixed(2)}</strong></li>
-              <li>Total owed: <strong>$${fee.totalUsd.toFixed(2)}</strong></li>
-            </ul>
-            <p style="color:#ef4444">This tenant has been deleted. Collect manually via Stripe or mark as uncollectable.</p>
-          </div>`,
-          'billing@vigmis.com',
-          'Vigmis Billing',
-        );
+      if (billing?.subscription_id && billing.plan === 'pro') {
+        await stripe.subscriptions.cancel(billing.subscription_id);
       }
-    } catch (err) { log('final fee notification failed', err); }
-
-    // 2. Revoke OAuth across all connected platforms — Meta, Google, TikTok.
-    await revokePlatformTokens(tenantId, log);
-
-    // 3. Drop Clerk user (so a fresh signup with the same email starts clean).
-    try {
-      const clerkSecret = process.env.CLERK_SECRET_KEY;
-      if (clerkSecret && clerkUserId) {
-        const clerk = createClerkClient({ secretKey: clerkSecret });
-        await clerk.users.deleteUser(clerkUserId);
-      }
-    } catch (err) { log('clerk delete failed', err); }
-
-    // 4. Mark deletion in audit_log BEFORE the cascade wipes it (so it's at least in our logs).
-    try {
-      await db.from('audit_log').insert({
-        tenant_id: tenantId,
-        action: 'account.deleted',
-        actor: 'user',
-        payload: { at: new Date().toISOString(), errors },
-      });
-    } catch { /* not critical */ }
-
-    // 5. Hard delete: every per-tenant table is ON DELETE CASCADE from tenants(id).
-    try {
-      const { error } = await db.from('tenants').delete().eq('id', tenantId);
-      if (error) throw error;
     } catch (err) {
-      log('tenant delete failed', err);
-      return reply.code(500).send({ error: 'Deletion partially failed', details: errors });
+      request.log.warn({ err }, 'subscription cancel failed — continuing with deletion');
     }
 
-    return reply.send({
-      success: true,
-      message: 'Your account has been deleted. Vigmis has been disconnected from Facebook, Google, and TikTok. All campaign data has been removed.',
-      revocation_warnings: errors.length ? errors : undefined,
-    });
+    // 2. Calculate accrued balance.
+    const fee = await calculateFee(tenantId, currentMonth());
+
+    if (fee.totalUsd <= 0) {
+      // No balance owed → delete immediately.
+      const result = await executeAccountDeletion(tenantId, clerkUserId ?? null);
+      if (!result.success) {
+        return reply.code(500).send({ error: 'Deletion partially failed', details: result.errors });
+      }
+      return reply.send({
+        success: true,
+        message: 'Your account has been deleted. All campaign data has been removed.',
+        warnings: result.errors.length ? result.errors : undefined,
+      });
+    }
+
+    // 3. Balance > 0 → require Stripe payment before deletion.
+    // Create a one-time Stripe Checkout session for the owed amount.
+    try {
+      // Ensure the user has a Stripe customer record.
+      const { data: billing } = await db
+        .from('billing_customers')
+        .select('stripe_customer_id')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      let customerId = (billing as any)?.stripe_customer_id as string | undefined;
+      if (!customerId) {
+        const { data: tenant } = await db.from('tenants').select('email').eq('id', tenantId).single();
+        const email = tenant?.email ?? `tenant+${tenantId}@vigmis.com`;
+        const customer = await stripe.customers.create({ email, metadata: { tenantId } });
+        customerId = customer.id;
+        await db.from('billing_customers').upsert(
+          { tenant_id: tenantId, stripe_customer_id: customerId, plan: 'free', updated_at: new Date().toISOString() },
+          { onConflict: 'tenant_id' },
+        );
+      }
+
+      const amountCents = Math.ceil(fee.totalUsd * 100);
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            unit_amount: amountCents,
+            product_data: {
+              name: 'Vigmis — Final balance on account closure',
+              description: `Management fee for ${new Date().toISOString().slice(0, 7)} (ad spend + services)`,
+            },
+          },
+          quantity: 1,
+        }],
+        success_url: `${WEB_URL}/sign-in?deleted=1`,
+        cancel_url: `${WEB_URL}/dashboard/settings?cancel_deletion=1`,
+        metadata: {
+          action: 'account_deletion',
+          tenantId,
+          clerkUserId: clerkUserId ?? '',
+        },
+      });
+
+      return reply.code(402).send({
+        payment_required: true,
+        amount_usd: fee.totalUsd,
+        breakdown: fee,
+        checkout_url: session.url,
+      });
+    } catch (err) {
+      request.log.error({ err }, 'failed to create final-payment checkout');
+      return reply.code(500).send({ error: 'Could not initiate final payment. Please contact billing@vigmis.com.' });
+    }
   });
 
   // ── Export data ────────────────────────────────────────────────────────────
