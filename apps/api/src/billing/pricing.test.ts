@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { monthlyFee, breakerState, PLAN_PRICING } from './pricing.js';
 
 test('monthlyFee applies the floor on low spend', () => {
-  assert.equal(monthlyFee('free', 100), 29); // max(7, 29)
-  assert.equal(monthlyFee('pro', 0), 29); // max(29, 29)
+  assert.equal(monthlyFee('free', 100), 29); // max(7, 29) — Grow floor $29
+  assert.equal(monthlyFee('pro', 0), 49);   // Scale subscription $49 (floor met by sub)
 });
 
 test('monthlyFee = subscription + rate% of spend above the floor', () => {
-  assert.equal(monthlyFee('free', 1000), 70); // 0 + 1000*7%
-  assert.equal(monthlyFee('pro', 1000), 89); // 29 + 1000*6%
+  assert.equal(monthlyFee('free', 1000), 70);  // 0 + 1000*7%
+  assert.equal(monthlyFee('pro', 1000), 109);  // 49 + 1000*6%
 });
 
 // Guards QA-1 BUG-2: free must freeze at 30% of fee, pro at 40%.
