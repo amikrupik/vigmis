@@ -18,7 +18,7 @@ export default function PublicNav() {
   return (
     <nav className="px-6 py-4 flex items-center justify-between border-b border-slate-100 sticky top-0 bg-white/90 backdrop-blur z-20">
       <Link href="/" onClick={() => setOpen(false)}>
-        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority />
+        <Image src="/logo_nav.png" alt="Vigmis" width={200} height={44} priority className="w-32 sm:w-[200px]" />
       </Link>
 
       {/* Desktop links */}
@@ -63,7 +63,10 @@ export default function PublicNav() {
               <Link key={l.href} href={l.href} className="text-sm text-slate-700 font-medium hover:text-indigo-600" onClick={() => setOpen(false)}>{l.label}</Link>
             ))}
             <hr className="border-slate-100" />
-            <Link href="/sign-in" className="text-sm text-slate-700 font-semibold hover:text-indigo-600" onClick={() => setOpen(false)}>Sign in</Link>
+            <div className="flex items-center justify-between">
+              <Link href="/sign-in" className="text-sm text-slate-700 font-semibold hover:text-indigo-600" onClick={() => setOpen(false)}>Sign in</Link>
+              <LanguageSelector />
+            </div>
           </div>
         </div>
       )}
