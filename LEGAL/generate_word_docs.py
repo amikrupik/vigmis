@@ -180,7 +180,7 @@ def build_hebrew_doc():
     sub.runs[0].italic = True
     make_rtl(sub)
 
-    meta = doc.add_paragraph('תאריך עריכה: יוני 2026   |   מוכן על ידי: אמיחי קרופיק, מייסד   |   סטטוס: טיוטת עבודה')
+    meta = doc.add_paragraph('תאריך עריכה: יוני 2026   |   מוכן על ידי: עמיחי קרופיק, מייסד   |   סטטוס: טיוטת עבודה')
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     meta.runs[0].font.size = Pt(9)
     meta.runs[0].font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
@@ -209,7 +209,7 @@ def build_hebrew_doc():
         ('מספר חברה', '514565118'),
         ('מדינה', 'ישראל'),
         ('כתובת', 'מובשוביץ בנימין 25, הרצליה 4640525'),
-        ('בעלות', '100% — אמיחי קרופיק'),
+        ('בעלות', '100% — עמיחי קרופיק'),
         ('תפקיד', 'חברת אם, בעלת IP'),
     ]:
         he_table_row(t1, r, bold_first=True)
@@ -223,7 +223,7 @@ def build_hebrew_doc():
         ('שם', 'VIGMIS US LLC'),
         ('מדינה', 'ארצות הברית — Wyoming'),
         ('בעלות', '100% — Taurus Management and Investments Ltd.'),
-        ('UBO', 'אמיחי קרופיק'),
+        ('UBO', 'עמיחי קרופיק'),
         ('תפקיד', 'חברת מכירות, גבייה ושיווק'),
     ]:
         he_table_row(t2, r, bold_first=True)
@@ -235,7 +235,7 @@ def build_hebrew_doc():
     _set_para_rtl_props(tree, align_right=False)
     tree.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = tree.add_run(
-        'אמיחי קרופיק (פרט)\n'
+        'עמיחי קרופיק (פרט)\n'
         '          |\n'
         '          | 100%\n'
         '          v\n'
