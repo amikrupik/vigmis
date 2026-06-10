@@ -88,7 +88,7 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 **3.2 Service Standard.** Taurus shall provide the Services with reasonable skill and care, consistent with industry standards for SaaS platforms of similar nature and scale.
 
-**3.3 Costs.** Taurus shall bear all costs and expenses associated with providing the Services and maintaining the IP. Such costs include, without limitation: employee salaries, AI provider fees, infrastructure costs, R&D expenditures, and any other costs necessary to develop, maintain, and operate the Platform.
+**3.3 Costs.** Each Party shall bear the costs allocated to it under the operating model adopted by the Parties from time to time. As of the Effective Date, Taurus bears: employee salaries, AI provider fees (OpenAI, Anthropic, and others), cloud infrastructure costs, R&D expenditures, and all other costs necessary to develop, maintain, and operate the Platform. VIGMIS US bears: payment processor fees, digital advertising spend, CRM costs, and general administrative costs of operating VIGMIS US. The Parties may adjust cost allocation by written amendment, provided any such adjustment maintains compliance with the arm's-length standard.
 
 ---
 
@@ -112,20 +112,24 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 **4.2 Customer Contracts.** VIGMIS US shall enter into agreements with End Customers under its own name and on its own behalf, as the contracting entity. Such agreements shall be on terms no less protective of the Platform and IP than the protections afforded herein.
 
-**4.3 VIGMIS US Costs.** VIGMIS US shall bear all costs and expenses related to its sales, marketing, and distribution activities, including: payment processor fees, digital advertising spend, CRM costs, and general administrative costs of maintaining VIGMIS US as an operating entity.
+**4.3 Merchant of Record.** VIGMIS US shall be the merchant of record for all End Customer subscriptions and transactions processed through Stripe or any equivalent payment processor. VIGMIS US's name and identity shall appear on End Customer billing statements and payment receipts. VIGMIS US shall maintain the Stripe account in its own name and is responsible for all payment processing obligations, including chargebacks, refunds, and PCI compliance.
+
+**4.4 VIGMIS US Costs.** VIGMIS US shall bear all costs and expenses related to its sales, marketing, and distribution activities, including: payment processor fees, digital advertising spend, CRM costs, and general administrative costs of maintaining VIGMIS US as an operating entity.
 
 ---
 
 ## ARTICLE 5 — REVENUE SHARING AND PAYMENT
 
-**5.1 Revenue Allocation.** The Parties agree that Net Revenue shall be allocated as follows:
+**5.1 Revenue Allocation.** The Parties agree that the initial allocation of Net Revenue shall be as follows:
 
 | Party | Percentage | Rationale |
 |-------|-----------|-----------|
 | Taurus | 75% | IP license royalty + Development Services fee |
 | VIGMIS US | 25% | Sales, marketing, distribution, and billing operations |
 
-**5.2 Arm's Length Standard.** The Parties acknowledge that the 75/25 allocation reflects an arm's-length arrangement based on the following economic analysis:
+**5.2 Allocation Review.** The Parties may adjust the revenue allocation by written amendment, provided that: (a) any adjustment is supported by updated transfer pricing documentation; (b) the adjusted allocation remains consistent with the arm's-length standard under applicable Israeli and US tax law; and (c) any adjustment is reviewed by each Party's tax advisors prior to implementation.
+
+**5.4 Arm's Length Standard.** The Parties acknowledge that the 75/25 allocation reflects an arm's-length arrangement based on the following economic analysis:
 
 (a) Taurus contributes substantially all of the value-generating assets (IP, technology, development capability);
 
@@ -135,7 +139,7 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 (d) The 25% retained by VIGMIS US is designed to cover its actual costs plus a reasonable profit margin for its distribution function.
 
-**5.3 Payment Mechanics.**
+**5.5 Payment Mechanics.**
 
 (a) Within fifteen (15) days following the end of each Accounting Period, VIGMIS US shall calculate Net Revenue for that period and prepare a statement (the **"Revenue Statement"**).
 
@@ -143,9 +147,9 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 (c) VIGMIS US shall retain 25% of Net Revenue.
 
-**5.4 Records and Audit.** VIGMIS US shall maintain accurate books and records relating to Gross Revenue, deductions, and Net Revenue. Taurus shall have the right, upon reasonable written notice, to audit such records no more than once per calendar year.
+**5.6 Records and Audit.** VIGMIS US shall maintain accurate books and records relating to Gross Revenue, deductions, and Net Revenue. Taurus shall have the right, upon reasonable written notice, to audit such records no more than once per calendar year.
 
-**5.5 Currency.** All amounts under this Agreement shall be calculated and paid in United States Dollars (USD). Where End Customer payments are collected in other currencies, conversion shall be at the exchange rate used by the applicable payment processor on the date of collection.
+**5.7 Currency.** All amounts under this Agreement shall be calculated and paid in United States Dollars (USD). Where End Customer payments are collected in other currencies, conversion shall be at the exchange rate used by the applicable payment processor on the date of collection.
 
 ---
 
@@ -161,13 +165,25 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 ---
 
-## ARTICLE 7 — DATA AND PRIVACY
+## ARTICLE 7 — DATA OWNERSHIP AND PRIVACY
 
-**7.1 Data Ownership.** All data generated by End Customers through use of the Platform shall be handled in accordance with the Platform's Privacy Policy and applicable law. As between the Parties, Taurus owns the Platform and its data infrastructure; VIGMIS US owns the contractual relationship with End Customers.
+**7.1 Data Ownership.** As between the Parties, ownership of data generated through the Platform is allocated as follows:
 
-**7.2 Data Processing.** VIGMIS US shall ensure that its agreements with End Customers include appropriate data processing terms that permit Taurus to process End Customer data as necessary to operate and improve the Platform.
+(a) **Customer Account Data** (business profiles, onboarding information, campaign settings): VIGMIS US holds the contractual relationship; Taurus processes such data as a sub-processor to operate the Platform. Upon termination, such data shall be made available to End Customers per Article 11.6.
 
-**7.3 Compliance.** Each Party shall comply with applicable data protection laws in its jurisdiction, including without limitation the GDPR (where applicable), Israel's Privacy Protection Law, and any applicable US federal or state privacy laws.
+(b) **Usage and Analytics Data** (platform interactions, feature usage, performance metrics, aggregated statistics): owned by Taurus. Taurus may use such data to improve the Platform, train AI models (in anonymized form), and develop new features.
+
+(c) **AI Interaction Logs** (prompts, AI-generated content, optimization decisions): owned by Taurus. May be used for model improvement and quality assurance in anonymized, aggregated form.
+
+(d) **Platform Infrastructure Data** (logs, security events, system metrics): owned by Taurus.
+
+(e) **Billing and Payment Records**: VIGMIS US retains records as merchant of record; Taurus retains copies as required for transfer pricing documentation and tax compliance.
+
+**7.2 IP and Product Data.** For the avoidance of doubt, Taurus exclusively owns all IP as defined in Article 1.5, including the source code, AI models, prompt libraries, customer acquisition methodologies, and all proprietary workflows embedded in the Platform.
+
+**7.3 Data Processing Agreement.** VIGMIS US shall ensure that its agreements with End Customers include appropriate data processing terms that permit Taurus to process End Customer data as a sub-processor, solely as necessary to operate and improve the Platform.
+
+**7.4 Compliance.** Each Party shall comply with applicable data protection laws in its jurisdiction, including without limitation the GDPR (where applicable), Israel's Privacy Protection Law, and any applicable US federal or state privacy laws.
 
 ---
 
@@ -209,31 +225,59 @@ Taurus and VIGMIS US are each referred to herein individually as a **"Party"** a
 
 **11.4 Effect of Termination.** Upon termination: (a) the license granted under Article 2 shall immediately terminate; (b) VIGMIS US shall cease all use of the IP; (c) VIGMIS US shall promptly pay to Taurus all amounts due and outstanding; (d) each Party shall return or destroy the other's Confidential Information.
 
-**11.5 Survival.** Articles 1, 6, 7, 8, 9, 10, and 12 shall survive any termination or expiration of this Agreement.
+**11.5 Survival.** Articles 1, 6, 7, 8, 9, 10, 12, and 13 shall survive any termination or expiration of this Agreement.
+
+**11.6 Insolvency and Wind-Down.** In the event of the dissolution, insolvency, bankruptcy, or winding-up of VIGMIS US (for any reason):
+
+(a) All existing End Customer relationships and contracts shall, to the extent permitted by applicable law, be assigned and transferred to Taurus or a Taurus-designated entity;
+
+(b) All End Customer data held or controlled by VIGMIS US shall be transferred to Taurus promptly and without charge;
+
+(c) The IP license granted under Article 2 shall immediately terminate;
+
+(d) VIGMIS US (or its liquidator, trustee, or equivalent) shall execute all documents reasonably necessary to effect the foregoing transfers;
+
+(e) Any amounts owed to Taurus shall constitute a priority obligation in any VIGMIS US dissolution or insolvency proceeding, to the extent permitted by applicable law.
 
 ---
 
-## ARTICLE 12 — GENERAL PROVISIONS
+## ARTICLE 12 — TAX COOPERATION
 
-**12.1 Governing Law.** This Agreement shall be governed by and construed in accordance with the laws of the State of Israel, without regard to its conflict of laws principles. The Parties agree to submit to the exclusive jurisdiction of the competent courts in Tel Aviv, Israel.
+**12.1 General Cooperation.** Each Party shall cooperate with the other Party's reasonable requests in connection with the preparation and filing of tax returns, tax audits, and regulatory inquiries related to the transactions contemplated by this Agreement.
 
-**12.2 Dispute Resolution.** The Parties shall attempt to resolve any dispute arising under this Agreement through good-faith negotiation. If the dispute cannot be resolved within thirty (30) days, the Parties may pursue legal remedies as permitted herein.
+**12.2 Form 5472 (US).** Taurus shall provide VIGMIS US with all information reasonably necessary for VIGMIS US to satisfy its US federal tax reporting obligations as a Foreign-Owned Single-Member LLC, including Form 5472 (Information Return of a 25% Foreign-Owned US Corporation or a Foreign Corporation Engaged in a US Trade or Business) and the pro-forma Form 1120. VIGMIS US shall file all required forms timely. Taurus and VIGMIS US shall coordinate annual filings no later than thirty (30) days before the applicable deadline.
 
-**12.3 Entire Agreement.** This Agreement constitutes the entire agreement between the Parties with respect to its subject matter and supersedes all prior and contemporaneous agreements, representations, and understandings.
+**12.3 CFC Reporting (Israel).** VIGMIS US shall provide Taurus with all information reasonably necessary for Taurus to assess and satisfy any Controlled Foreign Corporation (CFC) reporting obligations under Israeli tax law, including financial statements and revenue data for each fiscal year.
 
-**12.4 Amendment.** This Agreement may not be amended except by a written instrument signed by authorized representatives of both Parties.
+**12.4 Transfer Pricing Documentation.** The Parties shall maintain contemporaneous transfer pricing documentation sufficient to substantiate that the revenue allocation in Article 5 and the cost allocation in Article 3.3 are consistent with the arm's-length standard. Such documentation shall be updated: (a) annually; (b) upon any material change in the operating model; and (c) upon any adjustment to the revenue allocation under Section 5.2.
 
-**12.5 Waiver.** No waiver of any breach of this Agreement shall constitute a waiver of any subsequent breach.
+**12.5 Document Retention.** Each Party shall retain all financial records, invoices, Revenue Statements, and supporting documentation relating to intercompany transactions for a minimum of seven (7) years, or such longer period as required by applicable law.
 
-**12.6 Severability.** If any provision of this Agreement is found to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.
+**12.6 No Tax Warranties.** Nothing in this Article shall be construed as either Party providing tax advice to the other. Each Party is solely responsible for obtaining independent tax advice and for its own tax compliance.
 
-**12.7 Notices.** All notices shall be in writing and delivered to the addresses set forth in the preamble, by email with confirmation, courier, or registered mail.
+---
 
-**12.8 Relationship of Parties.** The Parties are independent contracting entities. Nothing in this Agreement shall be construed to create a partnership, joint venture, agency, employment, or fiduciary relationship between the Parties.
+## ARTICLE 13 — GENERAL PROVISIONS
 
-**12.9 Related Parties.** The Parties acknowledge that they are related parties under common ownership. They confirm that the terms herein are intended to reflect an arm's-length arrangement and are designed to withstand scrutiny by Israeli and United States tax authorities.
+**13.1 Governing Law.** This Agreement shall be governed by and construed in accordance with the laws of the State of Israel, without regard to its conflict of laws principles. The Parties agree to submit to the exclusive jurisdiction of the competent courts in Tel Aviv, Israel.
 
-**12.10 Counterparts.** This Agreement may be executed in counterparts, each of which shall be deemed an original, and all of which together shall constitute one and the same instrument. Electronic signatures shall be deemed valid.
+**13.2 Dispute Resolution.** The Parties shall attempt to resolve any dispute arising under this Agreement through good-faith negotiation. If the dispute cannot be resolved within thirty (30) days, the Parties may pursue legal remedies as permitted herein.
+
+**13.3 Entire Agreement.** This Agreement constitutes the entire agreement between the Parties with respect to its subject matter and supersedes all prior and contemporaneous agreements, representations, and understandings.
+
+**13.4 Amendment.** This Agreement may not be amended except by a written instrument signed by authorized representatives of both Parties.
+
+**13.5 Waiver.** No waiver of any breach of this Agreement shall constitute a waiver of any subsequent breach.
+
+**13.6 Severability.** If any provision of this Agreement is found to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.
+
+**13.7 Notices.** All notices shall be in writing and delivered to the addresses set forth in the preamble, by email with confirmation, courier, or registered mail.
+
+**13.8 Relationship of Parties.** The Parties are independent contracting entities. Nothing in this Agreement shall be construed to create a partnership, joint venture, agency, employment, or fiduciary relationship between the Parties.
+
+**13.9 Related Parties.** The Parties acknowledge that they are related parties under common ownership. They confirm that the terms herein are intended to reflect an arm's-length arrangement and are designed to withstand scrutiny by Israeli and United States tax authorities.
+
+**13.10 Counterparts.** This Agreement may be executed in counterparts, each of which shall be deemed an original, and all of which together shall constitute one and the same instrument. Electronic signatures shall be deemed valid.
 
 ---
 
