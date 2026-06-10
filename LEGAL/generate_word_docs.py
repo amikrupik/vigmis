@@ -314,6 +314,37 @@ def build_hebrew_doc():
         he_table_row(t4, r, bold_first=True)
     doc.add_paragraph()
 
+    # ── 5.3 הבסיס הטכנולוגי ──
+    he_heading(doc, '5.3 הבסיס הטכנולוגי — כולו בטאורוס', level=2)
+    he_para(doc,
+        'האתר vigmis.com — הדומיין, התוכן, הקוד, ועיצוב הממשק — שייכים לטאורוס. '
+        'VIGMIS US LLC אינה בעלת האתר. VIGMIS US מורשית להשתמש בשם ובמותג לצורכי '
+        'שיווק ומכירות בלבד (ראה הסכם בין-חברתי).')
+
+    he_para(doc, 'כל המנועים הטכנולוגיים פועלים בתשתית טאורוס:')
+
+    t_tech = doc.add_table(rows=1, cols=3)
+    t_tech.style = 'Table Grid'
+    he_table_header(t_tech, ['רכיב', 'מיקום', 'בעלות'])
+    for r in [
+        ('קוד המוצר', 'Railway (שרתים)', 'טאורוס'),
+        ('מסד נתונים (Supabase)', 'ענן EU/US', 'טאורוס'),
+        ('אחסון קבצים (Cloudflare R2)', 'ענן גלובלי', 'טאורוס'),
+        ('מנועי AI (OpenAI, Anthropic)', 'ספקי צד שלישי — חוזה עם טאורוס', 'טאורוס'),
+        ('Brand DNA Engine, Prompts', 'קניין רוחני טאורוס', 'טאורוס'),
+        ('Google Ads API, Meta API', 'API calls מתשתית טאורוס', 'טאורוס'),
+        ('אימות משתמשים (Clerk)', 'שירות צד שלישי — חוזה עם טאורוס', 'טאורוס'),
+        ('WhatsApp alerts (Twilio)', 'שירות צד שלישי — חוזה עם טאורוס', 'טאורוס'),
+    ]:
+        he_table_row(t_tech, r, bold_first=True)
+    doc.add_paragraph()
+
+    he_para(doc,
+        'המשמעות המשפטית: VIGMIS US LLC היא ישות שיווקית וגבייה בלבד. היא אינה מפעילה שרתים, '
+        'אינה מחזיקה מסדי נתונים, ואינה בעלת כל טכנולוגיה. כל ה"מוצר" — מנוע הבינה המלאכותית, '
+        'הממשק, והדאטה — פועלים תחת תשתית טאורוס ובבעלותה המלאה.',
+        bold=False)
+
     doc.add_page_break()
 
     # ── 6. מודל הכנסות ──
@@ -367,6 +398,37 @@ def build_hebrew_doc():
         'Transfer Pricing: ה-75/25 חייב להיות מתועד כ-Arm\'s Length. ראה הסכם בין-חברתי.',
     ]:
         he_bullet(doc, item)
+
+    he_heading(doc, '7.3 מע"מ ומסי עקיפין (VAT / GST)', level=2)
+    he_para(doc,
+        'VIGMIS US LLC, כ-Merchant of Record, אחראית על גביית מע"מ מהלקוחות בהתאם לדין החל. '
+        'הניהול מתבצע דרך Stripe Tax — חישוב, גביה, ודיווח אוטומטיים.')
+
+    t_vat = doc.add_table(rows=1, cols=3)
+    t_vat.style = 'Table Grid'
+    he_table_header(t_vat, ['מדינה / אזור', 'מנגנון', 'הערה'])
+    for r in [
+        ('ישראל', 'מע"מ 18%', 'לקוחות B2C ישראלים'),
+        ('האיחוד האירופי', 'EU VAT OSS', 'חובה מהלקוח הראשון — אין סף'),
+        ('בריטניה', 'UK VAT 20%', 'חובה עם לקוח ראשון'),
+        ('ארה"ב', 'Sales Tax', 'Nexus-based, Stripe Tax אוטומטי'),
+        ('קנדה', 'GST/HST', 'בהתאם לסף'),
+        ('אוסטרליה', 'GST 10%', 'בהתאם לסף'),
+    ]:
+        he_table_row(t_vat, r, bold_first=True)
+    doc.add_paragraph()
+
+    he_para(doc,
+        'EU VAT OSS — חובה מיידית: כחברה שאינה EU, חובה להירשם ל-VAT OSS '
+        'לפני קבלת הלקוח האירופאי הראשון (מומלץ דרך אירלנד).')
+    he_para(doc,
+        'הפרדת אחריות: VIGMIS US אחראית על הגשת דוחות מע"מ; Stripe מחשב וגובה אוטומטית; '
+        'טאורוס אינה מחויבת במע"מ כלפי לקוחות קצה (מוכרת שירות B2B ל-VIGMIS US בלבד).')
+
+    he_heading(doc, '7.4 Transfer Pricing', level=2)
+    he_para(doc,
+        'כל עסקה בין-חברתית חייבת להיות בתנאי שוק (Arm\'s Length). '
+        'מסמך זה מהווה תיעוד ראשוני. עם גדילת ההכנסות, יש להכין Transfer Pricing Study מקצועי.')
 
     # ── 8. משימות ──
     he_heading(doc, '8. רשימת משימות פתוחות', level=1)
