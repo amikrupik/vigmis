@@ -283,19 +283,37 @@ async function executeActions(
   return results;
 }
 
-const SYSTEM_PROMPT = `You are VIGMIS — a Senior Performance Marketing Manager, Creative Strategist, and Media Buyer. You have direct control over this client's ad campaigns and social media. You know this business inside and out.
+const SYSTEM_PROMPT = `You are VIGMIS — the client's Senior Campaign Manager, Performance Strategist, and Media Buyer. You have full visibility into their account: campaigns, real spend, real ROAS, pending decisions, recent AI actions, and external context (weather, news, calendar). You act like the head of their ad agency who reads the data before every meeting.
 
-## What you can do
-Execute real actions by embedding these tags anywhere in your response. They run immediately.
+## How you think and respond
 
-Campaign actions (legacy colon syntax):
+**You are opinionated. Give your view first, then explain why.**
+- DO: "I'd pause that campaign — ROAS dropped 40% this week and spend is still running. Want me to do it?"
+- DON'T: "There are several approaches to consider..."
+
+**You connect dots. If multiple signals point the same direction, say so.**
+- Example: "Your ROAS dropped + there's industry news about a competitor launching + it's high season — the problem isn't the ads, it's probably the landing page. Here's why..."
+
+**You use the data you already have. Never ask for information that's in the context below.**
+- The account data, KPIs, campaign statuses, and alerts are all injected below. Use them.
+
+**If you're missing ONE critical piece of info: ask exactly one question.**
+- "Which campaign are you referring to — Meta Retargeting or Google Search?"
+- NOT a list of clarifying questions.
+
+**When you CAN execute: offer to. When you DO execute: explain what you did and why.**
+
+## What you can execute
+Embed action tags anywhere in your response. They run immediately.
+
+Campaign actions:
 - Pause a campaign:    [ACTION:pause_campaign:CAMPAIGN_ID]
 - Resume a campaign:   [ACTION:resume_campaign:CAMPAIGN_ID]
 - Change daily budget: [ACTION:update_budget:CAMPAIGN_ID:AMOUNT_IN_USD]
 - Pause ALL campaigns: [ACTION:pause_all]
 - Resume ALL campaigns: [ACTION:resume_all]
 
-Social actions (pipe syntax — text may contain colons):
+Social actions:
 - Generate AI post:    [ACTION:create_post|PLATFORM|PILLAR]    (PLATFORM: facebook|instagram|tiktok ; PILLAR: educational|promotional|social_proof|behind_the_scenes|trending)
 - Write a manual post: [ACTION:write_post|PLATFORM|PILLAR|FULL POST TEXT]
 - Edit a post's text:  [ACTION:edit_post|POST_ID|NEW FULL TEXT]
@@ -303,24 +321,22 @@ Social actions (pipe syntax — text may contain colons):
 - Approve a post:      [ACTION:approve_post|POST_ID]
 - Reject a post:       [ACTION:reject_post|POST_ID|optional reason]
 - Reschedule a post:   [ACTION:schedule_post|POST_ID|ISO_DATETIME]
-- Set Meta Ad Account: [ACTION:select_ad_account|act_NUMERIC_ID]    (format: "act_" + digits)
+- Set Meta Ad Account: [ACTION:select_ad_account|act_NUMERIC_ID]
 
-## Rules
-1. Only take action when the client explicitly asks. Never proactively change things.
-2. Always explain what you're doing and why BEFORE the action tag.
-3. For budget changes: state the old amount and new amount.
-4. For pause_all: acknowledge it stops all advertising.
-5. Never invent numbers, IDs, or URLs — only use values from the context below.
-6. For edits/approvals/rejects, use the exact POST_ID from the Social Posts list.
-7. If the user wants to upload an image, ask them to paste the public image URL (the action only accepts URLs, not files).
-8. If the user describes a post idea in free text, decide: was it the literal copy (use write_post) or a brief (use create_post)? When in doubt, ask one short clarifying question first.
-9. Reply in the same language the client uses (Hebrew or English).
-10. If the user asks which ad account Vigmis is publishing into — check Selected Ad Account below. If it's blank or wrong, ask them to open Dashboard → Social → Connect → Meta Ad Account and pick one. If they give you an "act_..." ID directly, use select_ad_account.
-11. Be direct and professional. This is a business tool.
-12. You CAN and MUST write creative ideas, ad copy, CTAs, banner text, headlines, ad descriptions, post captions, and any other marketing content. This is a core part of your job. Never say "I can't write" or "I can't help with creative" — just do it.
-13. Never refuse a marketing request with "I can't". Either help directly, or ask ONE targeted clarifying question (e.g. "Which product?", "Meta or Google?", "Organic post or paid ad?").
-14. When asked for creative ideas or copy: deliver them immediately using the business context available. Use the Brand Assets, Strategy, and business info below. Don't wait for extra context to provide value.
-15. Use the Brand Assets listed below when writing creative content. Reference uploaded logos, images, and brand guidelines.`;
+## Hard rules
+1. Only execute actions when the client explicitly asks. Never change things proactively.
+2. Always state the OLD value and NEW value before a budget change.
+3. Never invent numbers, IDs, or URLs — only use values from the context below.
+4. For edits/approvals/rejects: use the exact POST_ID from the Social Posts list.
+5. If asked for an image upload: ask them to paste a public URL (action only accepts URLs).
+6. Reply in the same language the client uses (Hebrew or English).
+7. Write creative — ad copy, headlines, post captions, CTAs — immediately. Never say "I can't help with creative." Use the brand context below.
+8. If the Meta Ad Account is blank: tell them to open Dashboard → Social → Connect → Meta Ad Account.
+
+## Platform rules (hard knowledge — do not rely on general training data)
+**Meta:** Prohibited: health claims, before/after weight loss images, financial guarantees, shocking content, adult content unless age-gated. Frequency > 3 in prospecting = creative fatigue. CTR benchmark: 0.9-1.5% feed, 1.5-3% stories. Learning phase = 50 conversions per ad set.
+**Google:** Quality Score drives CPC. Broad match keywords need conversion data before using. ROAS bidding needs ≥30 conversions/month. Search partners often lower quality — exclude if CPA is high.
+**TikTok:** Hook must land in first 2 seconds. Completion rate > 25% = good. Native-looking videos outperform polished ads. Audience skews 18-34. Not suited for B2B, medical, or 50+ audiences.`;
 
 export async function chatRoutes(app: FastifyInstance) {
 
@@ -360,14 +376,19 @@ export async function chatRoutes(app: FastifyInstance) {
         return reply.send({ message: intent.user_facing_response, executedActions: [] });
       }
 
-      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes] = await Promise.all([
-        db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(12),
+      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes, ga4Res, protocolsRes, auditRes, newsRes] = await Promise.all([
+        db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
         db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type').eq('tenant_id', tenantId).limit(30),
         db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct').eq('tenant_id', tenantId).maybeSingle(),
         db.from('social_posts').select('id, platform, pillar, status, content, scheduled_for').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(20),
         db.from('social_settings').select('enabled, platforms, approval_mode, content_pillars, facebook_page_id, instagram_user_id').eq('tenant_id', tenantId).maybeSingle(),
         db.from('platform_tokens').select('account_id').eq('tenant_id', tenantId).eq('platform', 'meta').maybeSingle(),
         db.from('brand_assets').select('filename, public_url, kind').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
+        // Phase 2: real-time account intelligence
+        db.from('ga4_daily_metrics').select('date, sessions, conversions, revenue_usd, source, medium').eq('tenant_id', tenantId).order('date', { ascending: false }).limit(14),
+        db.from('decision_protocols').select('id, type, title, status, created_at').eq('tenant_id', tenantId).eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
+        db.from('audit_log').select('action, actor, payload, created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(10),
+        db.from('news_alerts').select('title, why_relevant, suggested_action, relevance_score').eq('tenant_id', tenantId).neq('status', 'dismissed').order('relevance_score', { ascending: false }).limit(3),
       ]);
 
       const pastMessages = (historyRes.data ?? []).reverse();
@@ -377,6 +398,10 @@ export async function chatRoutes(app: FastifyInstance) {
       const socialSettings = socialSettingsRes.data;
       const selectedAdAccount = metaTokenRes.data?.account_id ?? null;
       const brandAssets = assetsRes.data ?? [];
+      const ga4Metrics = ga4Res.data ?? [];
+      const pendingProtocols = protocolsRes.data ?? [];
+      const recentActions = auditRes.data ?? [];
+      const activeNews = newsRes.data ?? [];
 
       const active = campaigns.filter(c => c.status === 'active');
       const paused = campaigns.filter(c => c.status === 'paused');
@@ -397,15 +422,48 @@ export async function chatRoutes(app: FastifyInstance) {
         ? brandAssets.map(a => `  [${a.kind ?? 'asset'}] ${a.filename} — ${a.public_url}`).join('\n')
         : '  (none uploaded yet)';
 
+      // GA4: last 7 days summary
+      const ga4Last7 = ga4Metrics.slice(0, 7);
+      const ga4TotalSessions = ga4Last7.reduce((s, r) => s + (r.sessions ?? 0), 0);
+      const ga4TotalConversions = ga4Last7.reduce((s, r) => s + (r.conversions ?? 0), 0);
+      const ga4TotalRevenue = ga4Last7.reduce((s, r) => s + (r.revenue_usd ?? 0), 0);
+      const ga4Line = ga4Last7.length > 0
+        ? `Last 7 days (GA4 ground truth): ${ga4TotalSessions} sessions | ${ga4TotalConversions} conversions | $${ga4TotalRevenue.toFixed(0)} revenue | Conv. rate: ${ga4TotalSessions > 0 ? ((ga4TotalConversions / ga4TotalSessions) * 100).toFixed(2) : '0'}%`
+        : '(no GA4 data yet)';
+
+      const protocolLines = pendingProtocols.length > 0
+        ? pendingProtocols.map(p => `  [${p.id}] ${p.type}: "${p.title}" — awaiting approval`).join('\n')
+        : '  (none pending)';
+
+      const auditLines = recentActions.length > 0
+        ? recentActions.slice(0, 5).map(a => `  ${a.actor === 'system' ? 'AI' : 'User'}: ${a.action}${a.payload ? ` (${JSON.stringify(a.payload).slice(0, 80)})` : ''}`).join('\n')
+        : '  (no recent actions)';
+
+      const newsLines = activeNews.length > 0
+        ? activeNews.map(n => `  • ${n.title} [score: ${n.relevance_score}] — ${n.why_relevant}`).join('\n')
+        : '  (none)';
+
       const clientContext = [
         '## Client',
         settings
           ? `Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ILS ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
           : 'No settings yet',
         '',
+        '## Performance — Last 7 Days (GA4 ground truth, not platform self-reported)',
+        ga4Line,
+        '',
         `## Campaigns (${campaigns.length} total — ${active.length} active, ${paused.length} paused)`,
         `Format: [ID] Name | platform | status | daily budget`,
         campaignLines,
+        '',
+        `## Pending Approvals (${pendingProtocols.length})`,
+        protocolLines,
+        '',
+        '## Recent AI Actions (last 5)',
+        auditLines,
+        '',
+        '## Active Industry News',
+        newsLines,
         '',
         '## Social Media',
         socialLine,

@@ -14,6 +14,8 @@ import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
 import { refreshBrandVoiceForTenant } from '../services/brand-voice.js';
 import { extractCreativeBrief, saveCreativeBrief } from '../services/creative-brief.js';
 import { auditConversionReadiness } from '../services/conversion-readiness.js';
+import { getIndustryBenchmarks } from '../services/benchmark-aggregator.js';
+import { getWinningThemes } from '../services/creative-performance.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -435,6 +437,48 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
     const managedBudget = Math.round(
       (settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100),
     );
+
+    // Fetch industry benchmarks + winning creative themes in parallel with web research
+    const countryCode = ((settings.geo_include ?? [])[0] ?? 'IL').toUpperCase().slice(0, 2);
+    const [metaBenchmarks, googleBenchmarks, winningThemes] = await Promise.all([
+      getIndustryBenchmarks({ industry: settings.business_type ?? 'ecommerce', platform: 'meta', countryCode, goal: settings.goal ?? 'purchases' }),
+      getIndustryBenchmarks({ industry: settings.business_type ?? 'ecommerce', platform: 'google', countryCode, goal: settings.goal ?? 'purchases' }),
+      getWinningThemes(request.tenantId),
+    ]);
+
+    const benchmarkContext = [metaBenchmarks, googleBenchmarks].filter(Boolean).join('\n');
+
+    // Phase 2a: Perplexity web research — real-time competitive intelligence
+    // Runs BEFORE Claude analysis so Claude has live market data, not just training knowledge
+    const geoStr = (settings.geo_include ?? []).join(', ') || 'global';
+    let webIntelligence = '';
+    try {
+      const webRes = await route({
+        task: 'web_research',
+        prompt: `Research the advertising landscape for ${settings.business_type ?? 'a business'} targeting ${geoStr}. I need:
+1. Who are the main competitors advertising online in this space right now?
+2. What ad messaging angles dominate in this category? (specific examples if possible)
+3. Realistic CPC and CPM benchmarks for this industry/geography on Meta and Google (2025-2026)
+4. What are the top customer pain points and purchase triggers for this product/service category?
+5. Any recent market trends, seasonal patterns, or shifts in consumer behavior?
+
+Business context: ${websiteAnalysis.slice(0, 400)}
+Goal: ${settings.goal} | Budget: ~$${managedBudget}/month`,
+        options: { maxTokens: 1200 },
+      });
+      webIntelligence = webRes.output;
+
+      // Save research with timestamp for audit trail and future refresh logic
+      await db.from('market_research_snapshots').insert({
+        tenant_id: request.tenantId,
+        query_type: 'strategy_research',
+        query: `${settings.business_type ?? 'business'} in ${geoStr}`,
+        raw_findings: webRes.output,
+      });
+    } catch {
+      // Perplexity failure is non-blocking — Claude proceeds with training knowledge
+    }
+
     const research = await route({
       task: 'market_research',
       prompt: `You are a senior strategic planner at a world-class digital agency. You are doing deep pre-campaign research for a new client. Your research directly feeds the campaign strategy — be specific, sharp, and commercially honest.
@@ -449,6 +493,9 @@ ${websiteAnalysis}
 - Business type: ${settings.business_type ?? 'not specified'}
 ${settings.margin_pct ? `- Gross margin: ${settings.margin_pct}%` : ''}
 ${settings.exclusions ? `- Client constraints: ${settings.exclusions}` : ''}
+${webIntelligence ? `\n## REAL-TIME WEB INTELLIGENCE (from live web search — use this as ground truth for market data)\n${webIntelligence}\n` : ''}
+${benchmarkContext ? `\n## INDUSTRY BENCHMARKS (use these as realistic targets, not generic guesses)\n${benchmarkContext}\n` : ''}
+${winningThemes ? `\n## ${winningThemes}\n` : ''}
 ${historicalContext ? `\n## CLIENT'S HISTORICAL AD PERFORMANCE\n${historicalContext}` : ''}
 ${competitorAds ? `\n## COMPETITOR ADS RUNNING RIGHT NOW (Meta Ad Library)\n${competitorAds}` : ''}
 
