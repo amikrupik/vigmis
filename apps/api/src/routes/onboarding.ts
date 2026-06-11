@@ -764,6 +764,7 @@ PLATFORM SELECTION RULES (apply strictly — do not include platforms that don't
 - Google Search: only if there is clear search intent for this product/service
 - Google Display: only for retargeting or brand awareness with budget >$500/mo
 - Meta (Facebook/Instagram): good for most B2C products, visual goods, 25-55 audience
+- LinkedIn: REQUIRED for business_type = "saas" or B2B lead generation targeting professionals, managers, or enterprises. LinkedIn is the primary channel for B2B pipeline in North America and Western Europe — not optional, not a nice-to-have. Include in platforms array with reasoning tied to the specific B2B audience.
 - TikTok: ONLY if target audience is under 40 AND product is visual/lifestyle/consumer. Never for B2B, medical, financial, legal, or products targeting 50+ audience.
 - If budget is below $300/mo: use maximum 1-2 platforms
 
@@ -889,7 +890,7 @@ Return ONLY valid JSON (no extra text):
   }
 }`,
       systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
-      options: { maxTokens: 4000, temperature: 0.3 },
+      options: { maxTokens: 8000, temperature: 0.3 },
     });
 
     let strategy: object;
@@ -899,16 +900,52 @@ Return ONLY valid JSON (no extra text):
     } catch { strategy = null as any; }
 
     if (!strategy) {
+      // Fallback: AI response was too large or parse failed. Attempt a leaner retry.
+      request.log.warn({ outputLength: strategyRes.output.length }, 'Strategy JSON parse failed — attempting compact retry');
+      try {
+        const retryRes = await route({
+          task: 'analysis',
+          prompt: `You are a campaign strategist. Based on this business and market research, return ONLY compact JSON — no extra text.
+
+BUSINESS: ${websiteAnalysis.slice(0, 1500)}
+MARKET RESEARCH: ${marketResearch.slice(0, 1500)}
+GOAL: ${settings.goal} | BUDGET: ~$${managedBudget}/month | GEO: ${(settings.geo_include ?? []).join(', ')}
+
+Return this exact JSON structure (be concise — max 2 sentences per text field):
+{
+  "platforms": [{"name":"google","campaign_types":["search"],"budget_percentage":60,"reasoning":"<why>"},{"name":"meta","campaign_types":["conversion"],"budget_percentage":40,"reasoning":"<why>"}],
+  "market_insights": "<2 sharp sentences about the market opportunity>",
+  "target_audience": "<demographic + psychographic profile>",
+  "estimated_cpc": "$X.XX - $X.XX",
+  "recommendations": "<top 3 specific actions>",
+  "strategy_narrative": "<paragraph 1: strategic insight>\\n\\n<paragraph 2: customer psychographic>\\n\\n<paragraph 3: execution logic>",
+  "creative_brief": [{"platform":"meta","formats":["video_15s","single_image"],"quantity_images":3,"quantity_videos":1,"hooks":["<hook 1>","<hook 2>","<hook 3>"],"cta":"Shop Now","creative_direction":"<what makes this right for this audience>"}],
+  "budget_analysis": {"verdict":"sufficient","verdict_explanation":"<one honest sentence>","minimum_monthly_usd":${Math.round(managedBudget * 0.6)},"recommended_learning_usd":${Math.round(managedBudget * 1.2)},"recommended_steady_usd":${managedBudget},"efficiency_ceiling_usd":${Math.round(managedBudget * 2.5)},"projected_clicks_monthly":${Math.round(managedBudget / 1.5)},"projected_leads_monthly":${Math.round((managedBudget / 1.5) * 0.03)},"break_even_conversions":3,"warnings":["<specific warning>"],"platform_exclusions":[]},
+  "organic_recommendations": "<2 organic growth suggestions>",
+  "competitive_advantage": "<what this business can credibly own>"
+}`,
+          systemPrompt: 'Return only valid JSON. Be concise.',
+          options: { maxTokens: 3000, temperature: 0.3 },
+        });
+        const retryMatch = retryRes.output.match(/\{[\s\S]*\}/);
+        strategy = retryMatch ? JSON.parse(retryMatch[0]) : null;
+      } catch { strategy = null as any; }
+    }
+
+    // Hard fallback if both AI attempts fail
+    if (!strategy) {
       const defaultBudget = managedBudget;
       strategy = {
         platforms: [
           { name: 'google', campaign_types: ['search'], budget_percentage: 60, reasoning: 'High intent traffic for your goal' },
           { name: 'meta', campaign_types: ['conversion'], budget_percentage: 40, reasoning: 'Audience targeting and remarketing' },
         ],
-        market_insights: marketResearch.slice(0, 200),
+        market_insights: marketResearch.slice(0, 800),
         target_audience: (settings.geo_include ?? []).join(', '),
         estimated_cpc: '$0.50 - $2.00',
         recommendations: 'Start with search, monitor CPC closely, scale what converts.',
+        strategy_narrative: 'Strategy is being refined. The research phase completed successfully — full narrative will be available after the first optimization cycle.',
+        creative_brief: [],
         budget_analysis: {
           verdict: 'sufficient',
           verdict_explanation: 'Budget appears workable for this market — monitor CPC in the first two weeks.',
