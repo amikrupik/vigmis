@@ -19,32 +19,95 @@ import { getWinningThemes } from '../services/creative-performance.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
-const ONBOARDING_SYSTEM_PROMPT = `You are the Vigmis onboarding assistant — an AI marketing manager conducting a friendly intake interview.
+// Content policy — categories blocked at MVP. Refusal is final, no exceptions.
+const CONTENT_POLICY_BLOCKED = [
+  {
+    category: 'firearms',
+    keywords: ['firearm', ' gun ', 'guns', 'weapon', 'ammunition', 'ammo', 'rifle', 'pistol', 'handgun', 'shotgun', 'bump stock', 'ghost gun', 'suppressor', 'silencer', 'holster', 'nra', 'gun shop', 'gun store', 'firearms safety', 'gun accessories', 'נשק', 'אקדח', 'רובה', 'תחמושת', 'נשק חם', 'ירי', 'כלי ירייה'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום הנשק, האביזרים, התחמושת, או הדרכות ירי — גם אם העסק חוקי לחלוטין. פלטפורמות הפרסום הגדולות (Meta, Google) אוסרות קמפיינים בקטגוריה זו, מה שמונע מאיתנו לספק שירות אפקטיבי. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out to Vigmis. Unfortunately, we're unable to work with firearms, weapons, ammunition, or related businesses — even when fully legal. Major advertising platforms (Meta, Google) have categorical restrictions on this category that make it impossible for us to run effective campaigns. We wish you the best.",
+  },
+  {
+    category: 'illegal_drugs',
+    keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, לא נוכל לעבוד עם עסקים בתחום סמים לא חוקיים. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out. Vigmis doesn't work with businesses in the illegal drugs category. We wish you the best.",
+  },
+  {
+    category: 'unauthorized_pharma',
+    keywords: ['unlicensed pharmacy', 'fake medicine', 'unregistered medication', 'unapproved drug', 'cures cancer', 'guaranteed cure', 'miracle cure', 'reverses diabetes', 'eliminate disease', 'תרופה ללא רישוי', 'תרופת פלא', 'מרפא סרטן', 'ריפוי מובטח', 'בית מרקחת לא מורשה'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים שמוכרים תרופות ללא רישיון רגולטורי, או שעושים טענות ריפוי לא מוכחות. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out. Vigmis doesn't work with unlicensed pharmaceutical businesses or products making unverified medical cure claims. We wish you the best.",
+  },
+  {
+    category: 'pyramid_scheme',
+    keywords: ['pyramid scheme', 'ponzi', 'multi-level marketing', 'mlm recruitment', 'get rich quick', 'make money fast', 'guaranteed passive income', 'recruit members', 'downline', 'פירמידה', 'שיווק רב-שלבי', 'להתעשר מהר', 'הכנסה פסיבית מובטחת', 'גיוס חברים'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים בתחום פירמידות מכירה, שיווק רב-שלבי עם דגש על גיוס, או הבטחות להתעשרות מהירה. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out. Vigmis doesn't work with pyramid schemes, recruitment-focused MLM businesses, or get-rich-quick programs. We wish you the best.",
+  },
+  {
+    category: 'gambling',
+    keywords: ['online casino', 'sports betting', 'poker site', 'gambling site', 'casino online', 'bet365', 'betway', 'hizna', 'קזינו אונליין', 'הימורים', 'ספורט בט', 'ניחושי ספורט'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם אתרי הימורים, קזינו, או הגרלות בשלב זה — קטגוריה זו דורשת רישיון רגולטורי שאין ברשותנו. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out. Vigmis is currently unable to work with gambling, online casinos, or sports betting sites — this category requires regulatory licensing we don't currently hold. We wish you the best.",
+  },
+  {
+    category: 'hate_incitement',
+    keywords: ['hate group', 'white supremacist', 'neo-nazi', 'extremist group', 'terrorist', 'incitement to violence', 'anti-semitic', 'racism promotion', 'הסתה', 'גזענות', 'לאומנות קיצונית', 'קנאות דתית אלימה'],
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם תוכן זה. מאחלים לך הצלחה.',
+    refusal_en: "Thank you for reaching out. We're unable to work with this type of content. We wish you the best.",
+  },
+] as const;
+
+function detectContentPolicy(allMessages: string[]): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
+  const combined = allMessages.join(' ').toLowerCase();
+  for (const policy of CONTENT_POLICY_BLOCKED) {
+    if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
+      return { blocked: true, category: policy.category, refusal_he: policy.refusal_he, refusal_en: policy.refusal_en };
+    }
+  }
+  return { blocked: false };
+}
+
+const ONBOARDING_SYSTEM_PROMPT_BASE = `You are the Vigmis onboarding assistant — an AI marketing manager conducting a friendly intake interview.
 
 Your job: gather the client's advertising needs through a natural conversation. Default language is English. If the client writes in Hebrew, switch to Hebrew and stay in Hebrew for the rest of the conversation.
 
-You MUST cover these 10 topics before concluding:
+## CONTENT POLICY — IMMEDIATE STOP (check FIRST before anything else)
+If the business falls into any blocked category, respond ONLY with the refusal below. Do NOT continue onboarding.
+Blocked categories: firearms / weapons / ammunition (even legal), illegal drugs, unlicensed medications with cure claims, pyramid schemes / MLM recruitment, online gambling/casinos, hate speech / incitement.
+Refusal format (Hebrew): "תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום [קטגוריה]. [סיבה]. מאחלים לך הצלחה."
+Refusal format (English): "Thank you for reaching out to Vigmis. Unfortunately, we don't work with businesses in [category]. [Reason]. We wish you the best."
+The refusal is FINAL — do not offer alternatives, exceptions, or reviews.
+
+## TOPICS TO COVER
+You MUST cover these topics before concluding:
 1. business_type — what type of business: "ecommerce" (online store with many products), "hero_product" (one flagship product drives most revenue), "lead_gen" (generates leads/inquiries), "saas" (software subscription), or "general_store" (brick & mortar / local service). Ask this FIRST.
-2. website — the client's website URL (e.g. https://example.com).
-3. budget — monthly advertising budget. When the user provides a number WITHOUT specifying a currency, ALWAYS ask: "Is that ILS (₪), USD ($), or another currency?" — never assume. Once confirmed, convert to ILS (1 USD ≈ 3.7 ILS) and confirm back: "Got it — $X = ~₪Y/month." If they already include a currency symbol or name (e.g. "$5,000" or "5000 dollars"), accept it directly without asking.
-4. management_percentage — what percentage of the budget should Vigmis manage. Accept any number between 1–100, not just preset options. Explain briefly: "Vigmis takes a fee only on the portion it manages."
+2. website — the client's website URL. If they have no website yet: say "No problem — describe your business in 2-3 sentences: what you sell and who your ideal customer is." Store that description in open_notes as "Business description (manual): [text]". Set website_url to null.
+3. budget — monthly advertising budget.
+   CURRENCY RULES:
+   - User says "₪X" or "X שקל/שקלים" → ILS, accept directly, confirm: "Got it — ₪X/month."
+   - User says "$X" or "X dollars" → USD, accept directly. Confirm in USD only (not ILS): "Got it — $X/month." Store as budget_monthly_ils = X * 3.7 internally.
+   - User provides a bare number with no currency symbol → ALWAYS ask: "Is that ILS (₪), USD ($), or another currency?" — never assume.
+   MINIMUM BUDGET WARNING: If budget_monthly_ils < 500 (≈ $135), warn ONCE: "Note: a budget under ₪500/month may produce limited results. We recommend at least ₪500 for any measurable ad performance. You can still continue if you wish." Then proceed.
+4. management_percentage — what percentage of the budget should Vigmis manage. Accept any number 1–100. Explain briefly: "Vigmis takes a fee only on the portion it manages."
 5. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
-6. margin_pct — ONLY if goal is "purchases" or business_type is "ecommerce" or "hero_product": ask "What is your gross margin percentage? (e.g. if you sell for $100 and product costs $40, margin is 60%)". This lets Vigmis calculate your actual profit, not just revenue.
-7. hero_product — ONLY if business_type is "hero_product": ask for the name of their flagship product and its specific margin if different from overall margin.
+6. margin_pct — ONLY if goal is "purchases" AND business_type is "ecommerce" or "hero_product": ask "What is your gross margin percentage?" Skip for lead_gen, saas, general_store, or non-purchase goals.
+7. hero_product — ONLY if business_type is "hero_product": ask for the flagship product name and its specific margin if different.
 8. geography — which cities/regions/countries to target AND which to exclude.
-9. exclusions — what the system must NEVER do: audiences to avoid, topics, tone, legal constraints.
-10. open_notes — any other important rules (business hours, seasonal pauses, dayparting, etc.).
-11. preferred_platforms — ONLY ask this if the client has multiple platforms connected. Ask: "Do you want to advertise on all connected platforms, or focus on just one for now?" Capture their answer. If they say only one platform (e.g. "just Meta", "only Google"), record it. If they're fine with all, leave it null.
+9. exclusions — what the system must NEVER do: audiences to avoid, topics, tone, legal constraints, ad scheduling rules.
+10. open_notes — any other important rules (business hours, seasonal pauses, product details, pricing, etc.).
 
-Rules:
+## RULES
 - Ask ONE question at a time. Keep it short and conversational.
-- Start by asking what type of business they are (topic 1).
-- Skip margin_pct if goal is "traffic" or "awareness" AND business_type is "lead_gen" or "saas" or "general_store".
+- Mirror the client's language exactly (Hebrew in → Hebrew out, English in → English out).
+- Skip margin_pct for goal="traffic" or "awareness", or business_type="lead_gen" or "saas" or "general_store".
 - Skip hero_product unless business_type is "hero_product".
-- If an answer is vague, ask a natural follow-up to clarify.
-- Mirror the client's language exactly.
-- When all required topics are clearly answered, output a SUMMARY block (exact format, always in English for parsing):
+- Do NOT re-ask about topics already confirmed (check the state tracker below).
+- Do NOT ask "any other rules?" repeatedly. One closing check is enough, then conclude.
+- When all required topics are confirmed, output the [SUMMARY] block immediately.
 
+## SUMMARY FORMAT (always in English for parsing, even if conversation is Hebrew)
 [SUMMARY]
 {
   "business_type": "ecommerce",
@@ -59,15 +122,11 @@ Rules:
   "geo_exclude": ["tourists", "under 25"],
   "exclusions": "Never mention prices. Avoid secular tone.",
   "open_notes": "Closed Friday 16:00 to Saturday night.",
-  "preferred_platforms": ["meta"],
+  "preferred_platforms": null,
   "risk_level": "balanced",
-  "dayparting_rules": [
-    { "day": 5, "start_hour": 16, "end_hour": 23 }
-  ]
+  "dayparting_rules": []
 }
-[/SUMMARY]
-
-Only output the SUMMARY block when all required topics are covered.`;
+[/SUMMARY]`;
 
 const TOPIC_KEYWORDS: Record<string, string[]> = {
   business_type:         ['business_type'],
@@ -88,13 +147,81 @@ function extractSummary(text: string): object | null {
   try { return JSON.parse(match[1].trim()); } catch { return null; }
 }
 
-function detectCoveredTopics(settings: any, existing: string[]): string[] {
+function detectCoveredTopicsFromSummary(settings: any, existing: string[]): string[] {
   if (!settings) return existing;
   const covered = new Set(existing);
   for (const [topic, keys] of Object.entries(TOPIC_KEYWORDS)) {
-    if (keys.some(k => k in settings && settings[k] !== undefined)) covered.add(topic);
+    if (keys.some(k => k in settings && settings[k] !== undefined && settings[k] !== null)) covered.add(topic);
   }
   return Array.from(covered);
+}
+
+// Incrementally detect covered topics from each AI turn — no SUMMARY needed.
+// Heuristic: look for confirmation phrases + data patterns in AI response + user message.
+function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string, existing: string[]): string[] {
+  const covered = new Set(existing);
+  const combined = (aiResponse + ' ' + userMessage);
+  const lc = combined.toLowerCase();
+
+  if (!covered.has('business_type') && /ecommerce|hero.?product|lead.?gen|saas|general.?store|local service|local business|חנות אונליין|מוצר מוביל|שירות מקומי|ליד.ג'ן|קליניקה|מרפאה/.test(lc)) {
+    covered.add('business_type');
+  }
+  if (!covered.has('website') && /https?:\/\/[^\s'"]{4,}/.test(combined)) {
+    covered.add('website');
+  }
+  if (!covered.has('budget') && (
+    /₪\s*\d[\d,]+/.test(combined) ||
+    /\$\s*\d[\d,]+\s*(\/month|per month|לחודש|a month)/.test(combined) ||
+    /budget.{0,30}₪|₪.{0,30}budget|תקציב.{0,20}₪|₪.{0,20}לחודש/.test(lc)
+  )) {
+    covered.add('budget');
+  }
+  if (!covered.has('management_percentage') && /vigmis.{0,20}manage.{0,20}\d+%|\d+%.{0,20}manage|vigmis.{0,10}ינהל|ינהל.{0,20}\d+%/.test(lc)) {
+    covered.add('management_percentage');
+  }
+  if (!covered.has('goal') && /goal.{0,20}(lead|purchase|traffic|awareness|sales|demo)|מטרה.{0,20}(לידים|מכירות|רכישות|תנועה|מודעות)|(lead|purchase|traffic|awareness).{0,10}(✅|confirmed|goal)/.test(lc)) {
+    covered.add('goal');
+  }
+  if (!covered.has('margin_pct') && existing.includes('goal') && /(\d+)%.{0,20}(margin|gross|מרג.ין|רווח גולמי)|(margin|gross|מרג.ין|רווח גולמי).{0,20}(\d+)%/.test(lc)) {
+    covered.add('margin_pct');
+  }
+  if (!covered.has('hero_product') && existing.includes('business_type') && /hero.?product.{0,30}name|flagship.{0,20}product|product.{0,20}name.{0,20}✅|מוצר מוביל.{0,20}שם/.test(lc)) {
+    covered.add('hero_product');
+  }
+  if (!covered.has('geography') && /(target|targeting|geo).{0,20}(israel|usa|uk|europe|canada|australia|ישראל|ארה.ב|אירופה|תל אביב|ירושלים|north america)|(israel|usa|uk|canada|ישראל|ארה.ב|תל אביב).{0,20}(target|only|✅|confirmed|בלבד)/.test(lc)) {
+    covered.add('geography');
+  }
+  if (!covered.has('exclusions') && /(never|don'?t|avoid|no\s+\w+|exclude|restriction|constraint|אסור|לא לטרגט|לעולם לא|להימנע).{0,40}(✅|confirmed|noted|רשמתי)|(✅|noted|רשמתי).{0,40}(never|don'?t|avoid|אסור|לא לטרגט)/.test(lc)) {
+    covered.add('exclusions');
+  }
+  if (!covered.has('open_notes') && /(hours?|schedule|pause|seasonal|שעות|לא לפרסם ב|daypart|חגים|חופשה|פסח|ראש השנה|christmas|holiday).{0,20}(✅|noted|confirmed|רשמתי)|(✅|noted|רשמתי).{0,40}(hours?|schedule|pause|שעות|חגים)/.test(lc)) {
+    covered.add('open_notes');
+  }
+
+  return Array.from(covered);
+}
+
+function detectCoveredTopics(settings: any, aiResponse: string, userMessage: string, existing: string[]): string[] {
+  // First: incremental detection from this turn's messages
+  const afterIncremental = detectCoveredTopicsIncremental(aiResponse, userMessage, existing);
+  // Then: if we have a complete SUMMARY, use it to fill in anything missed
+  return detectCoveredTopicsFromSummary(settings, afterIncremental);
+}
+
+// Build dynamic system prompt with current topics state injected
+function buildOnboardingSystemPrompt(coveredTopics: string[]): string {
+  const requiredBase = ['business_type', 'website', 'budget', 'management_percentage', 'goal', 'geography', 'exclusions', 'open_notes'];
+  const remaining = requiredBase.filter(t => !coveredTopics.includes(t));
+  const allDone = remaining.length === 0;
+
+  const stateBlock = coveredTopics.length === 0
+    ? '\n\n## CONVERSATION STATE\nNo topics confirmed yet. Start by asking about business_type.'
+    : `\n\n## CONVERSATION STATE (updated each turn — do NOT re-ask confirmed topics)
+Topics confirmed: ${coveredTopics.join(', ')}
+Topics still needed: ${allDone ? 'NONE — ALL COMPLETE ✅' : remaining.join(', ')}
+${allDone ? '\n⚡ ALL REQUIRED TOPICS ARE COVERED. Your NEXT response MUST output the [SUMMARY] JSON block, then a brief friendly closing line. Do NOT ask any more questions.' : ''}`;
+
+  return ONBOARDING_SYSTEM_PROMPT_BASE + stateBlock;
 }
 
 const DaypartingRuleSchema = z.object({
@@ -311,17 +438,40 @@ export async function onboardingRoutes(app: FastifyInstance) {
     const { history = [], message, coveredTopics = [] } = request.body as any;
     if (!message?.trim()) return reply.code(400).send({ error: 'message required' });
 
+    // Content policy pre-check: scan full conversation history + current message
+    const allUserMessages = [
+      ...(history as any[]).filter((m: any) => m.role === 'user').map((m: any) => m.content),
+      message,
+    ];
+    const policyCheck = detectContentPolicy(allUserMessages);
+    if (policyCheck.blocked) {
+      // Detect language from history: if any message contains Hebrew, use Hebrew refusal
+      const allText = allUserMessages.join(' ');
+      const isHebrew = /[֐-׿]/.test(allText);
+      const refusal = isHebrew ? policyCheck.refusal_he! : policyCheck.refusal_en!;
+      return reply.send({
+        message: refusal,
+        coveredTopics: [],
+        settings: null,
+        blocked: true,
+        blockedCategory: policyCheck.category,
+      });
+    }
+
     const messages = [
       ...(history as any[]).map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
       `Client: ${message}`,
     ].join('\n\n');
+
+    // Build dynamic system prompt with current topics state
+    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[]);
 
     let response;
     try {
       response = await route({
         task: 'analysis',
         prompt: messages,
-        systemPrompt: ONBOARDING_SYSTEM_PROMPT,
+        systemPrompt,
         options: { maxTokens: 800, temperature: 0.6 },
       });
     } catch (err) {
@@ -335,7 +485,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
 
     const aiMessage = response.output;
     const settings = extractSummary(aiMessage);
-    const newCoveredTopics = detectCoveredTopics(settings, coveredTopics);
+    const newCoveredTopics = detectCoveredTopics(settings, aiMessage, message as string, coveredTopics as string[]);
     const visibleMessage = aiMessage.replace(/\[SUMMARY\][\s\S]*?\[\/SUMMARY\]/g, '').trim();
 
     return reply.send({
@@ -406,13 +556,24 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
 
     websiteAnalysis = websiteResult;
 
-    // Surface scrape failure as a hard error to the client — don't pretend we built a strategy on nothing.
+    // If website couldn't be scraped, try to fall back to open_notes business description.
+    // Hard-fail only if we have nothing to work with.
     if (websiteAnalysis.startsWith('UNABLE_TO_READ_WEBSITE')) {
-      return reply.code(422).send({
-        error: 'website_unreadable',
-        message: 'Vigmis could not read enough content from the website to build a strategy. This usually means the site is JavaScript-rendered, behind a login, or blocking bots. Please describe what you sell in the chat so Vigmis can proceed.',
-        scraped_pages: (scrapedSite as ScrapedSiteResult)?.pagesCrawled ?? [],
-      });
+      const manualDesc = [settings.open_notes, settings.exclusions]
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+
+      if (manualDesc.length >= 30) {
+        // Use manual description as a substitute for website analysis
+        websiteAnalysis = `[MANUAL DESCRIPTION — website could not be scanned]\n\nBusiness type: ${settings.business_type ?? 'not specified'}\nGoal: ${settings.goal ?? 'not specified'}\n\nClient-provided description:\n${manualDesc}\n\n⚠️ Note: This strategy is based on the client's own description, not a live website scan. Quality depends on the completeness of the description. Treat all claims about the business as client-stated, not independently verified.`;
+      } else {
+        return reply.code(422).send({
+          error: 'website_unreadable',
+          message: 'Vigmis could not read enough content from the website to build a strategy. This usually means the site is JavaScript-rendered, behind a login, or blocking bots. Please describe what you sell in the chat so Vigmis can proceed.',
+          scraped_pages: (scrapedSite as ScrapedSiteResult)?.pagesCrawled ?? [],
+        });
+      }
     }
 
     // Fetch competitor ads using Meta Ad Library
