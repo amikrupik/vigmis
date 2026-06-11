@@ -23,15 +23,15 @@ const tiktok = new TikTokAdsConnector();
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 // Temporary in-memory store for OAuth state validation (use Redis in production)
-const pendingStates = new Map<string, { tenantId: string; platform: string; expiresAt: number; codeVerifier?: string }>();
+const pendingStates = new Map<string, { tenantId: string; platform: string; expiresAt: number; codeVerifier?: string; returnTo?: string }>();
 
-function generateState(tenantId: string, platform: string, codeVerifier?: string): string {
+function generateState(tenantId: string, platform: string, codeVerifier?: string, returnTo?: string): string {
   const state = crypto.randomBytes(16).toString('hex');
-  pendingStates.set(state, { tenantId, platform, expiresAt: Date.now() + 10 * 60 * 1000, codeVerifier });
+  pendingStates.set(state, { tenantId, platform, expiresAt: Date.now() + 10 * 60 * 1000, codeVerifier, returnTo });
   return state;
 }
 
-function consumeState(state: string): { tenantId: string; platform: string; codeVerifier?: string } | null {
+function consumeState(state: string): { tenantId: string; platform: string; codeVerifier?: string; returnTo?: string } | null {
   const entry = pendingStates.get(state);
   pendingStates.delete(state);
   if (!entry || entry.expiresAt < Date.now()) return null;
@@ -51,7 +51,8 @@ export async function connectorRoutes(app: FastifyInstance) {
   // ─── Google Ads ────────────────────────────────────────────────────────────
 
   app.get('/auth/google', { preHandler: authenticate }, async (request, reply) => {
-    const state = generateState(request.tenantId, 'google');
+    const { return: returnTo } = request.query as Record<string, string>;
+    const state = generateState(request.tenantId, 'google', undefined, returnTo);
     const url = google.getAuthUrl(request.tenantId, state, 'ads');
     return reply.redirect(url);
   });
@@ -68,6 +69,8 @@ export async function connectorRoutes(app: FastifyInstance) {
       return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
     }
 
+    const returnToDashboard = stateData.returnTo === 'dashboard';
+
     try {
       await google.handleCallback(code, stateData.tenantId);
 
@@ -81,12 +84,16 @@ export async function connectorRoutes(app: FastifyInstance) {
 
       fetchAndStoreHistoricalData(stateData.tenantId, 'google').catch(() => {});
 
-      // Redirect — new users go to onboarding, existing users to dashboard
-      // The ?connected=google param triggers the account selector in both places
-      return reply.redirect(`${WEB_URL}/onboarding?connected=google`);
+      const redirectTo = returnToDashboard
+        ? `${WEB_URL}/dashboard?connected=google`
+        : `${WEB_URL}/onboarding?connected=google`;
+      return reply.redirect(redirectTo);
     } catch (err) {
       app.log.error({ err }, 'Google OAuth callback failed');
-      return reply.redirect(`${WEB_URL}/onboarding?error=google_failed`);
+      const errorTo = returnToDashboard
+        ? `${WEB_URL}/dashboard?error=google_failed`
+        : `${WEB_URL}/onboarding?error=google_failed`;
+      return reply.redirect(errorTo);
     }
   });
 

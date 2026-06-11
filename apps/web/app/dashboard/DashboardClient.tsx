@@ -123,9 +123,10 @@ export default function DashboardClient() {
     load();
     getAlerts().then(r => setUnreadCount(r?.unread_count ?? 0));
     getProtocols('pending').then(r => setPendingProtocolCount(r?.protocols?.length ?? 0));
-    // Auto-navigate to Social/Connect tab after Google OAuth
+    // After Google OAuth from dashboard, refresh connection status and stay in Social tab
     if (searchParams?.get('connected') === 'google') {
       setTab('social');
+      load();
     }
   }, []);
 
@@ -225,7 +226,14 @@ export default function DashboardClient() {
               {p.name}
               {!p.connected && (
                 <button
-                  onClick={() => setTab('social')}
+                  onClick={async () => {
+                    if (p.key === 'tiktok') { setTab('social'); return; }
+                    try {
+                      const tok = await (window as any).Clerk?.session?.getToken();
+                      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+                      window.location.href = `${apiUrl}/auth/${p.key}?token=${encodeURIComponent(tok ?? '')}&return=dashboard`;
+                    } catch { setTab('social'); }
+                  }}
                   className="ml-0.5 underline underline-offset-2 hover:no-underline text-amber-600"
                 >
                   Connect

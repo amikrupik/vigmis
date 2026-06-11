@@ -29,6 +29,18 @@ async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: 'Missing authorization header' });
   }
 
+  // Internal test auth: "test:SECRET:TENANT_ID" — only active when VIGMIS_TEST_SECRET is set
+  const testSecret = process.env.VIGMIS_TEST_SECRET;
+  if (testSecret && token.startsWith('test:')) {
+    const parts = token.split(':');
+    if (parts.length === 3 && parts[1] === testSecret) {
+      request.tenantId = parts[2];
+      request.clerkUserId = `test_${parts[2]}`;
+      return;
+    }
+    return reply.code(401).send({ error: 'Invalid test token' });
+  }
+
   try {
     const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
     const clerkUserId = payload.sub;
