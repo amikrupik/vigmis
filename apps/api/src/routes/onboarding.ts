@@ -270,8 +270,15 @@ function detectCoveredTopics(settings: any, aiResponse: string, userMessage: str
   return detectCoveredTopicsFromSummary(settings, afterIncremental);
 }
 
+// Detect script family from text for server-side language injection
+function detectScriptLanguage(text: string): 'arabic' | 'hebrew' | 'other' {
+  if (/[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(text)) return 'arabic';
+  if (/[֐-׿יִ-ﭏ]/.test(text)) return 'hebrew';
+  return 'other';
+}
+
 // Build dynamic system prompt with current topics state injected
-function buildOnboardingSystemPrompt(coveredTopics: string[]): string {
+function buildOnboardingSystemPrompt(coveredTopics: string[], lastMessage?: string): string {
   const requiredBase = ['business_type', 'website', 'budget', 'management_percentage', 'goal', 'geography', 'exclusions', 'open_notes'];
   const remaining = requiredBase.filter(t => !coveredTopics.includes(t));
   const allDone = remaining.length === 0;
@@ -283,7 +290,15 @@ Topics confirmed: ${coveredTopics.join(', ')}
 Topics still needed: ${allDone ? 'NONE — ALL COMPLETE ✅' : remaining.join(', ')}
 ${allDone ? '\n⚡ ALL REQUIRED TOPICS ARE COVERED. Your NEXT response MUST output the [SUMMARY] JSON block, then a brief friendly closing line. Do NOT ask any more questions.' : ''}`;
 
-  return ONBOARDING_SYSTEM_PROMPT_BASE + stateBlock;
+  // Hard language override — more reliable than asking the LLM to detect script
+  let langOverride = '';
+  if (lastMessage) {
+    const lang = detectScriptLanguage(lastMessage);
+    if (lang === 'arabic') langOverride = '\n\n⚠️ MANDATORY: The client is writing in Arabic. Your ENTIRE response MUST be in Arabic. Do NOT use Hebrew or English.';
+    else if (lang === 'hebrew') langOverride = '\n\n⚠️ MANDATORY: The client is writing in Hebrew. Your ENTIRE response MUST be in Hebrew. Do NOT use English.';
+  }
+
+  return ONBOARDING_SYSTEM_PROMPT_BASE + stateBlock + langOverride;
 }
 
 const DaypartingRuleSchema = z.object({
@@ -525,8 +540,8 @@ export async function onboardingRoutes(app: FastifyInstance) {
       `Client: ${message}`,
     ].join('\n\n');
 
-    // Build dynamic system prompt with current topics state
-    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[]);
+    // Build dynamic system prompt with current topics state + language detection
+    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[], message);
 
     let response;
     try {
