@@ -31,7 +31,7 @@ const STEPS: { key: Step; tKey: string }[] = [
 ];
 
 const STEP_INDEX: Record<Step, number> = {
-  connect: 0, meta_assets: 1, chat: 2, analysis: 3, website_check: 3, strategy: 4, creative: 5, tracking: 6, saving: 7,
+  connect: 0, meta_assets: 1, chat: 2, analysis: 3, website_check: 3, website_describe: 3, strategy: 4, creative: 5, tracking: 6, saving: 7,
 };
 
 const ANALYSIS_STEP_KEYS = ['analysis.scanningWebsite', 'analysis.researchingMarket', 'analysis.buildingPlan'] as const;
