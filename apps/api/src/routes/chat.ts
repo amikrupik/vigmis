@@ -329,7 +329,7 @@ Social actions:
 3. Never invent numbers, IDs, or URLs — only use values from the context below.
 4. For edits/approvals/rejects: use the exact POST_ID from the Social Posts list.
 5. If asked for an image upload: ask them to paste a public URL (action only accepts URLs).
-6. Reply in the same language the client uses (Hebrew or English).
+6. Reply in the same language the client uses in their CURRENT message — not historical messages. If they write in English now, reply in English, even if past messages were in Hebrew.
 7. Write creative — ad copy, headlines, post captions, CTAs — immediately. Never say "I can't help with creative." Use the brand context below.
 8. If the Meta Ad Account is blank: tell them to open Dashboard → Social → Connect → Meta Ad Account.
 
@@ -485,7 +485,16 @@ export async function chatRoutes(app: FastifyInstance) {
         pageContext ? `\n## Page Context\n${neutralizeActionTags(pageContext).slice(0, 400)}` : '',
       ].join('\n');
 
-      const systemWithContext = SYSTEM_PROMPT + '\n\n' + clientContext;
+      // Hard language override: detect current message script server-side
+      const _isArabic = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(message);
+      const _isHebrew = /[֐-׿]/.test(message);
+      const langOverride = _isArabic
+        ? '\n\n⚠️ MANDATORY: The client is writing in Arabic. YOUR ENTIRE RESPONSE MUST BE IN ARABIC.'
+        : _isHebrew
+        ? '\n\n⚠️ MANDATORY: The client is writing in Hebrew. YOUR ENTIRE RESPONSE MUST BE IN HEBREW.'
+        : '\n\n⚠️ MANDATORY: The client is writing in English. YOUR ENTIRE RESPONSE MUST BE IN ENGLISH.';
+
+      const systemWithContext = SYSTEM_PROMPT + '\n\n' + clientContext + langOverride;
 
       const messages = [
         ...pastMessages.map(m => ({
