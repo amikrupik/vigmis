@@ -48,6 +48,13 @@ export interface AnalysisResult {
   strategy: StrategyPlan;
 }
 
+export interface AnalysisError {
+  error: string;
+  code: string;
+  message: string;
+  scraped_pages?: string[];
+}
+
 async function getToken(): Promise<string> {
   const { getToken } = await auth();
   const token = await getToken();
@@ -133,7 +140,7 @@ export async function checkWebsite(websiteUrl: string): Promise<WebsiteCheck> {
 
 // ── Full analysis pipeline — proxied through API ──────────────────────────────
 
-export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult> {
+export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult | AnalysisError> {
   const token = await getToken();
 
   const res = await fetch(`${API_URL}/onboarding/analyze`, {
@@ -143,8 +150,8 @@ export async function runAnalysis(settings: OnboardingSettings, feedback?: strin
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Analysis failed');
-    throw new Error(text);
+    const body = await res.json().catch(() => ({ error: 'analysis_failed', code: 'analysis_failed', message: 'Analysis failed. Please try again.' }));
+    return { error: body.error ?? 'analysis_failed', code: body.error ?? 'analysis_failed', message: body.message ?? 'Analysis failed. Please try again.', scraped_pages: body.scraped_pages };
   }
 
   return res.json();

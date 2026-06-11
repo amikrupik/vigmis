@@ -231,6 +231,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const result = await Promise.race([runAnalysis(settingsWithNotes, feedback), timeout]);
       clearTimeout(timer1);
       clearTimeout(timer2);
+      // Check for returned error object (Server Action returns instead of throws)
+      if ('error' in result) {
+        const msg = result.code === 'website_unreadable'
+          ? "Vigmis couldn't read your website automatically (it may be JavaScript-rendered or block bots). Please describe what you sell and your target audience in the chat below, and Vigmis will build your strategy from that."
+          : result.message;
+        setError(msg);
+        setStep('chat');
+        return;
+      }
       setAnalysisStep(3);
       await new Promise(r => setTimeout(r, 500));
       setAnalysisResult(result);
