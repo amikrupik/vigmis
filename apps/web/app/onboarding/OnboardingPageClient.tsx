@@ -17,7 +17,7 @@ import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-type Step = 'connect' | 'meta_assets' | 'chat' | 'analysis' | 'website_check' | 'strategy' | 'creative' | 'tracking' | 'saving';
+type Step = 'connect' | 'meta_assets' | 'chat' | 'analysis' | 'website_check' | 'website_describe' | 'strategy' | 'creative' | 'tracking' | 'saving';
 type CreativeChoice = 'avatar' | 'cinematic' | 'animation' | 'upload' | 'skip' | null;
 
 const STEPS: { key: Step; tKey: string }[] = [
@@ -90,6 +90,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [socialApprovalMode, setSocialApprovalMode] = useState<'auto' | 'review' | 'strict'>('review');
   const [websiteCheck, setWebsiteCheck] = useState<WebsiteCheck | null>(null);
   const [websiteNotes, setWebsiteNotes] = useState('');
+  const [websiteDescription, setWebsiteDescription] = useState('');
   const [pixelSnippet, setPixelSnippet] = useState<PixelSnippet | null>(null);
 
   // Google Ads account selector (shown inline in connect step after Google OAuth)
@@ -233,11 +234,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       clearTimeout(timer2);
       // Check for returned error object (Server Action returns instead of throws)
       if ('error' in result) {
-        const msg = result.code === 'website_unreadable'
-          ? "Vigmis couldn't read your website automatically (it may be JavaScript-rendered or block bots). Please describe what you sell and your target audience in the chat below, and Vigmis will build your strategy from that."
-          : result.message;
-        setError(msg);
-        setStep('chat');
+        if (result.code === 'website_unreadable') {
+          setError(null);
+          setStep('website_describe');
+        } else {
+          setError(result.message);
+          setStep('chat');
+        }
         return;
       }
       setAnalysisStep(3);
@@ -667,6 +670,65 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   // ── Meta Assets selection (Page + IG + Ad Account) ───────────────────────────
   if (step === 'meta_assets') {
     return <MetaAssetsStep onDone={() => setStep('chat')} onBack={() => setStep('connect')} header={header} />;
+  }
+
+  // ── Website describe (shown when website is JS-rendered / unscrapable) ────────
+  if (step === 'website_describe' && pendingSettings) {
+    return (
+      <div className="flex flex-col flex-1">
+        {header}
+        <div className="flex-1 overflow-y-auto p-6 py-10">
+          <div className="max-w-xl mx-auto space-y-5">
+            <div>
+              <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
+                One More Thing
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Tell us about your business</h2>
+              <p className="text-slate-500 text-sm mt-1">
+                Vigmis couldn&apos;t read your website automatically (it may be JavaScript-rendered or block bots).
+                Describe what you sell and who your ideal customer is — Vigmis will build your strategy from that.
+              </p>
+            </div>
+
+            {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">What does your business do? Who is your target customer?</label>
+              <textarea
+                value={websiteDescription}
+                onChange={e => setWebsiteDescription(e.target.value)}
+                placeholder="e.g. We sell AI-powered marketing software for small e-commerce businesses. Our customers are online store owners who want to automate their ad campaigns..."
+                rows={5}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setStep('chat'); setWebsiteDescription(''); }}
+                className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Back to Chat
+              </button>
+              <button
+                onClick={() => {
+                  if (!websiteDescription.trim() || !pendingSettings) return;
+                  const updatedSettings = {
+                    ...pendingSettings,
+                    open_notes: [pendingSettings.open_notes, `Business description (provided manually): ${websiteDescription.trim()}`].filter(Boolean).join('\n'),
+                  };
+                  runAnalysisFlow(updatedSettings, undefined, true);
+                }}
+                disabled={!websiteDescription.trim()}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                Build My Strategy →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ── Website check ─────────────────────────────────────────────────────────────
