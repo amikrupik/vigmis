@@ -71,7 +71,11 @@ function detectContentPolicy(allMessages: string[]): { blocked: boolean; categor
 
 const ONBOARDING_SYSTEM_PROMPT_BASE = `You are the Vigmis onboarding assistant — an AI marketing manager conducting a friendly intake interview.
 
-Your job: gather the client's advertising needs through a natural conversation. Default language is English. If the client writes in Hebrew, switch to Hebrew and stay in Hebrew for the rest of the conversation.
+Your job: gather the client's advertising needs through a natural conversation. Default language is English. Mirror the client's language exactly:
+- If the client writes in Hebrew → switch to Hebrew, stay in Hebrew for the entire conversation.
+- If the client writes in Arabic → switch to Arabic, stay in Arabic for the entire conversation.
+- If the client writes in any other language → switch to that language.
+Never mix languages in a single response.
 
 ## CONTENT POLICY — IMMEDIATE STOP (check FIRST before anything else)
 If the business falls into any blocked category, respond ONLY with the refusal below. Do NOT continue onboarding.
@@ -79,6 +83,8 @@ Blocked categories: firearms / weapons / ammunition (even legal), illegal drugs,
 Refusal format (Hebrew): "תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום [קטגוריה]. [סיבה]. מאחלים לך הצלחה."
 Refusal format (English): "Thank you for reaching out to Vigmis. Unfortunately, we don't work with businesses in [category]. [Reason]. We wish you the best."
 The refusal is FINAL — do not offer alternatives, exceptions, or reviews.
+
+RESTRICTED (warn but proceed): tobacco, cigarettes, vaping, e-cigarettes, alcohol, adult content (legal). For these categories say: "Note: advertising tobacco/alcohol/adult content has platform restrictions — some formats and audiences will be unavailable. We can still work with you within these limits." Then continue onboarding normally.
 
 ## TOPICS TO COVER
 You MUST cover these topics before concluding:
@@ -231,8 +237,8 @@ function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string,
   // geography: any country, major city, or geographic scope in user message
   // Note: \b doesn't work for Hebrew Unicode — split ASCII and Hebrew patterns
   if (!covered.has('geography') && (
-    /\b(israel|usa|us|uk|england|europe|canada|australia|germany|france|worldwide|global|international|north america|south america|middle east)\b/.test(userLc) ||
-    /(ישראל|ארה.ב|אמריקה|אירופה|תל.?אביב|ירושלים|חיפה|אנגליה|גרמניה|צרפת|עולמי|בינלאומי|המזרח התיכון)/.test(userLc)
+    /\b(israel|usa|us|uk|england|europe|canada|australia|germany|france|italy|spain|netherlands|sweden|norway|denmark|poland|worldwide|global|international|north america|south america|middle east|tel aviv|jerusalem|haifa|beer sheva|new york|los angeles|chicago|london|dubai|abu dhabi|riyadh|cairo|amman|beirut|berlin|paris|amsterdam|toronto|sydney|melbourne)\b/.test(userLc) ||
+    /(ישראל|ארה.ב|אמריקה|אירופה|תל.?אביב|ירושלים|חיפה|באר.?שבע|אנגליה|גרמניה|צרפת|עולמי|בינלאומי|המזרח התיכון|דובאי|לונדון|ניו.?יורק)/.test(userLc)
   )) {
     covered.add('geography');
   }
