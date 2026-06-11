@@ -49,6 +49,8 @@ interface Props {
   rethinkMode?: boolean;
 }
 
+const ONBOARDING_PERSIST_KEY = 'vigmis_onboarding_progress';
+
 export default function OnboardingPageClient({ initialConnected, initialError, rethinkMode }: Props) {
   const router = useRouter();
   const t = useTranslations('onboarding');
@@ -98,6 +100,38 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
+
+  // Restore onboarding progress from sessionStorage on mount.
+  // Language switch calls window.location.reload() — this ensures the user doesn't
+  // lose their place in the onboarding flow when they switch languages.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(ONBOARDING_PERSIST_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.step && parsed.step !== 'connect') setStep(parsed.step as Step);
+        if (parsed.pendingConversation?.length) setPendingConversation(parsed.pendingConversation);
+        if (parsed.pendingSettings) setPendingSettings(parsed.pendingSettings);
+        if (parsed.analysisResult) setAnalysisResult(parsed.analysisResult);
+        if (parsed.websiteNotes) setWebsiteNotes(parsed.websiteNotes);
+      }
+    } catch { /* ignore — corrupted storage */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist onboarding progress to sessionStorage on every meaningful state change.
+  // Cleared on completion (router.push to dashboard) and when returning to step 'connect'.
+  useEffect(() => {
+    if (step === 'connect' || step === 'saving') return;
+    try {
+      sessionStorage.setItem(ONBOARDING_PERSIST_KEY, JSON.stringify({
+        step,
+        pendingConversation,
+        pendingSettings,
+        analysisResult,
+        websiteNotes,
+      }));
+    } catch { /* ignore — storage full */ }
+  }, [step, pendingConversation, pendingSettings, analysisResult, websiteNotes]);
 
   // Fetch the real connection status from the API on every mount.
   // The URL param (?connected=meta) only tells us the LAST platform — so connecting Meta
@@ -319,6 +353,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           : errData?.message ?? errData?.error ?? 'Failed to save settings';
         throw new Error(detail);
       }
+      sessionStorage.removeItem(ONBOARDING_PERSIST_KEY);
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');
