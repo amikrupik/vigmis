@@ -348,10 +348,12 @@ async function generateBestOfThreeImages(
   prompt: string,
   style: string | undefined,
 ): Promise<{ url: string; score: number; allUrls: string[] }> {
+  // Stagger starts by 3s to avoid simultaneous burst hitting rate limits (P1-1)
+  const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
   const results = await Promise.allSettled([
     submitDallEJob({ prompt, style }),
-    submitDallEJob({ prompt, style }),
-    submitDallEJob({ prompt, style }),
+    delay(3_000).then(() => submitDallEJob({ prompt, style })),
+    delay(6_000).then(() => submitDallEJob({ prompt, style })),
   ]);
 
   const urls: string[] = [];
@@ -565,8 +567,9 @@ export async function creativeRoutes(app: FastifyInstance) {
       ? buildKeepChangeInstruction(keep_elements ?? [], change_request ?? '')
       : '';
 
-    // Enrich the brief
-    const enrichedBrief = { ...brief };
+    // Enrich the brief — normalize string briefs to avoid char-indexed spread (P1-2)
+    const rawBrief: Record<string, any> = typeof brief === 'string' ? { prompt: brief } : (brief ?? {});
+    const enrichedBrief = { ...rawBrief };
 
     if (type === 'avatar' && typeof enrichedBrief.script === 'string') {
       if (logoUrl && !enrichedBrief.background) {
@@ -621,11 +624,13 @@ export async function creativeRoutes(app: FastifyInstance) {
 
       parentOutputUrl = (parentJob as any).output_url ?? null;
 
+      // Only count non-failed siblings — failed revisions must not consume the revision budget (P0-3)
       const { count: siblingCount } = await db
         .from('creative_jobs')
         .select('id', { count: 'exact', head: true })
         .eq('parent_job_id', parent_job_id)
-        .eq('tenant_id', request.tenantId);
+        .eq('tenant_id', request.tenantId)
+        .neq('status', 'failed');
 
       revisionNumber = (siblingCount ?? 0) + 1;
 
@@ -710,7 +715,8 @@ export async function creativeRoutes(app: FastifyInstance) {
 
           while (criticResult && !criticResult.pass && retryCount < 2) {
             retryCount++;
-            // Regenerate silently
+            // Back off before regenerating to avoid immediate rate-limit burst (P1-1)
+            await new Promise(r => setTimeout(r, 15_000 + retryCount * 5_000));
             const retry = await generateBestOfThreeImages(imagePrompt, enrichedBrief.style);
             finalUrl = retry.url;
             allUrls = [...allUrls, ...retry.allUrls];
@@ -723,8 +729,9 @@ export async function creativeRoutes(app: FastifyInstance) {
         const storedUrl = await uploadImageToStorage(finalUrl, job.id, request.tenantId);
         const outputUrl = storedUrl ?? finalUrl;
 
-        // Store all candidate URLs in brief metadata
-        enrichedBrief._all_candidate_urls = allUrls;
+        // Strip internal pipeline metadata before persisting — _all_candidate_urls must not
+        // leak into the brief column or it corrupts revision prompts (P1-2)
+        const { _all_candidate_urls: _drop, ...storedBrief } = enrichedBrief;
 
         await db
           .from('creative_jobs')
@@ -733,7 +740,7 @@ export async function creativeRoutes(app: FastifyInstance) {
             output_url: outputUrl,
             provider_job_id: `dalle-${Date.now()}`,
             critic_score: criticScore,
-            brief: { ...enrichedBrief, _all_candidate_urls: allUrls },
+            brief: storedBrief,
             updated_at: new Date().toISOString(),
           })
           .eq('id', job.id);
