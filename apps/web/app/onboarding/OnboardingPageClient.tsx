@@ -1781,6 +1781,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 // account Meta returns" fallback.
 
 function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack: () => void; header: React.ReactNode }) {
+  const t = useTranslations('onboarding.metaAssets');
   const [pages, setPages] = useState<MetaPage[] | null>(null);
   const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -1835,11 +1836,8 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
       <div className="flex-1 overflow-y-auto p-6 py-10">
         <div className="max-w-2xl mx-auto space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">Choose what Vigmis will manage</h2>
-            <p className="text-slate-500 text-sm mt-1">
-              Pick one Facebook Page and one Ad Account. Instagram is optional — only used if your Page has a linked Instagram Business account.
-              You can change all of this later in Dashboard → Social → Connect.
-            </p>
+            <h2 className="text-2xl font-bold text-slate-900">{t('title')}</h2>
+            <p className="text-slate-500 text-sm mt-1">{t('subtitle')}</p>
           </div>
 
           {error && (
@@ -1855,13 +1853,13 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
               {/* Facebook Page + IG */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-bold text-slate-900">Facebook Page <span className="text-xs font-normal text-slate-400">— optional (for social publishing)</span></h3>
-                  <span className="text-xs text-slate-400">{pages?.length ?? 0} available</span>
+                  <h3 className="font-bold text-slate-900">{t('facebookPage')} <span className="text-xs font-normal text-slate-400">— {t('facebookPageOptional')}</span></h3>
+                  <span className="text-xs text-slate-400">{pages?.length ?? 0} {t('available')}</span>
                 </div>
-                <p className="text-xs text-slate-500">If the Page has a linked Instagram Business account, it'll be used automatically. If not — Vigmis will only publish to Facebook.</p>
+                <p className="text-xs text-slate-500">{t('instagramNote')}</p>
                 {pages && pages.length === 0 && (
                   <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    No Pages found. You can continue without one — Meta Ads will still work. To enable social publishing, add a Facebook Page from Dashboard → Social → Connect.
+                    {t('noPages')}
                   </p>
                 )}
                 <div className="space-y-2">
@@ -1883,11 +1881,11 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
                             {p.instagram_username ? (
                               <p className="text-xs text-violet-600 mt-1">📷 Instagram: @{p.instagram_username}</p>
                             ) : (
-                              <p className="text-xs text-slate-400 mt-1">No Instagram Business account linked</p>
+                              <p className="text-xs text-slate-400 mt-1">{t('noInstagram')}</p>
                             )}
                           </div>
                           {isSelected && (
-                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">{t('selected')}</span>
                           )}
                         </div>
                       </button>
@@ -1899,12 +1897,12 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
               {/* Ad Account */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-bold text-slate-900">Ad Account <span className="text-xs font-normal text-slate-400">— required</span></h3>
-                  <span className="text-xs text-slate-400">{accounts?.length ?? 0} available</span>
+                  <h3 className="font-bold text-slate-900">{t('adAccount')} <span className="text-xs font-normal text-slate-400">— {t('adAccountRequired')}</span></h3>
+                  <span className="text-xs text-slate-400">{accounts?.length ?? 0} {t('available')}</span>
                 </div>
                 {accounts && accounts.length === 0 && (
                   <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    Meta returned no Ad Accounts. You need admin access to at least one Ad Account in Business Manager.
+                    {t('noAdAccounts')}
                   </p>
                 )}
                 <div className="space-y-2">
@@ -1925,11 +1923,11 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
                             <div className="flex gap-3 text-xs text-slate-500 mt-1 flex-wrap">
                               {a.business && <span>Business: <strong className="text-slate-700">{a.business}</strong></span>}
                               {a.currency && <span>Currency: <strong className="text-slate-700">{a.currency}</strong></span>}
-                              <span>{a.active ? '✓ Active' : '⚠ Inactive'}</span>
+                              <span>{a.active ? t('active') : t('inactive')}</span>
                             </div>
                           </div>
                           {isSelected && (
-                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">Selected</span>
+                            <span className="text-xs bg-emerald-500 text-white px-2.5 py-1 rounded-full font-bold flex-shrink-0">{t('selected')}</span>
                           )}
                         </div>
                       </button>
@@ -1943,18 +1941,18 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
                   onClick={onBack}
                   className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
                 >
-                  Back
+                  {t('back')}
                 </button>
                 <button
                   onClick={handleContinue}
                   disabled={saving || !selectedAccountId}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
                 >
-                  {saving ? 'Saving…' : 'Continue →'}
+                  {saving ? t('saving') : t('continue')}
                 </button>
               </div>
               <p className="text-xs text-slate-400 text-center">
-                You can change these selections anytime in Dashboard → Social → Connect.
+                {t('changeNote')}
               </p>
             </>
           )}

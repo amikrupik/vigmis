@@ -331,10 +331,24 @@
       "cancel": "לא, שמרו על התוכנית הנוכחית"
     },
     "metaAssets": {
-      "title": "‏חברו את חשבון Meta שלכם",
-      "subtitle": "‏בחרו את דף Facebook וחשבון Instagram שינהל ‏Vigmis.",
+      "title": "בחרו מה ינהל Vigmis",
+      "subtitle": "‏בחרו דף Facebook אחד וחשבון פרסום אחד. Instagram הוא אופציונלי — ישמש רק אם לדף שלכם יש חשבון Instagram Business מקושר. ניתן לשנות הכל מאוחר יותר ב-Dashboard → Social → Connect.",
+      "facebookPage": "דף Facebook",
+      "facebookPageOptional": "אופציונלי (לפרסום אורגני)",
+      "instagramNote": "‏אם לדף יש חשבון Instagram Business מקושר, הוא ישמש אוטומטית. אם לא — Vigmis יפרסם ל-Facebook בלבד.",
+      "noPages": "‏לא נמצאו דפים. ניתן להמשיך בלי דף — Meta Ads יעבוד. להפעלת פרסום אורגני, הוסיפו דף Facebook מ-Dashboard → Social → Connect.",
+      "noInstagram": "אין חשבון Instagram Business מקושר",
+      "adAccount": "חשבון פרסום",
+      "adAccountRequired": "חובה",
+      "noAdAccounts": "‏Meta לא מצא חשבונות פרסום. נדרשת גישת מנהל לחשבון פרסום אחד לפחות ב-Business Manager.",
+      "available": "זמין",
+      "selected": "נבחר",
+      "active": "✓ פעיל",
+      "inactive": "⚠ לא פעיל",
       "back": "חזרה",
-      "continue": "המשיכו →"
+      "saving": "שומר…",
+      "continue": "המשיכו →",
+      "changeNote": "‏ניתן לשנות בכל עת מ-Dashboard → Social → Connect."
     }
   },
   "social": {

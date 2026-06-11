@@ -322,6 +322,26 @@
       "title": "Setting up your campaigns...",
       "subtitle": "Just a moment"
     },
+    "metaAssets": {
+      "title": "Choose what Vigmis will manage",
+      "subtitle": "Pick one Facebook Page and one Ad Account. Instagram is optional — only used if your Page has a linked Instagram Business account. You can change all of this later in Dashboard → Social → Connect.",
+      "facebookPage": "Facebook Page",
+      "facebookPageOptional": "optional (for social publishing)",
+      "instagramNote": "If the Page has a linked Instagram Business account, it'll be used automatically. If not — Vigmis will only publish to Facebook.",
+      "noPages": "No Pages found. You can continue without one — Meta Ads will still work. To enable social publishing, add a Facebook Page from Dashboard → Social → Connect.",
+      "noInstagram": "No Instagram Business account linked",
+      "adAccount": "Ad Account",
+      "adAccountRequired": "required",
+      "noAdAccounts": "Meta returned no Ad Accounts. You need admin access to at least one Ad Account in Business Manager.",
+      "available": "available",
+      "selected": "Selected",
+      "active": "✓ Active",
+      "inactive": "⚠ Inactive",
+      "back": "Back",
+      "saving": "Saving…",
+      "continue": "Continue →",
+      "changeNote": "You can change these selections anytime in Dashboard → Social → Connect."
+    },
     "rethink": {
       "title": "Rethink your strategy?",
       "subtitle": "This will restart the interview and build a new campaign plan from scratch.",
