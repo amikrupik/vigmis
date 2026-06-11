@@ -398,13 +398,15 @@ export async function connectorRoutes(app: FastifyInstance) {
   app.get('/auth/status', { preHandler: authenticate }, async (request, reply) => {
     const { data: tokens } = await db
       .from('platform_tokens')
-      .select('platform, expires_at')
+      .select('platform, expires_at, refresh_token')
       .eq('tenant_id', request.tenantId);
 
     const status = { google: false, meta: false, tiktok: false };
     for (const token of tokens ?? []) {
-      const valid = token.expires_at ? new Date(token.expires_at) > new Date() : true;
-      if (valid && token.platform in status) {
+      const notExpired = token.expires_at ? new Date(token.expires_at) > new Date() : true;
+      const canRefresh = !!token.refresh_token;
+      // Connected if token is valid OR a refresh_token exists (auto-refresh will run on next use)
+      if ((notExpired || canRefresh) && token.platform in status) {
         status[token.platform as keyof typeof status] = true;
       }
     }
