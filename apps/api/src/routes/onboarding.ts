@@ -29,7 +29,7 @@ const CONTENT_POLICY_BLOCKED = [
   },
   {
     category: 'illegal_drugs',
-    keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים'],
+    keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'mdma', 'ecstasy', ' molly ', 'ketamine', ' lsd ', 'magic mushrooms', 'psilocybin', 'recreational drugs', 'party drugs', 'narcotics', 'drug trafficking', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים', 'אקסטזי', 'מריחואנה לא חוקית'],
     refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, לא נוכל לעבוד עם עסקים בתחום סמים לא חוקיים. מאחלים לך הצלחה.',
     refusal_en: "Thank you for reaching out. Vigmis doesn't work with businesses in the illegal drugs category. We wish you the best.",
   },
@@ -201,7 +201,11 @@ function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string,
   }
 
   // goal: any goal keyword in user message (natural answer to "what counts as success?")
-  if (!covered.has('goal') && /\b(leads?|purchases?|traffic|awareness|sales?|demo|sign.?ups?|conversions?|לידים|רכישות|מכירות|תנועה|מודעות|הגשות)\b/.test(lc)) {
+  // Note: \b doesn't work for Hebrew Unicode — split ASCII and Hebrew patterns
+  if (!covered.has('goal') && (
+    /\b(leads?|purchases?|traffic|awareness|sales?|demo|sign.?ups?|conversions?)\b/.test(lc) ||
+    /(לידים|רכישות|מכירות|תנועה|מודעות|הגשות)/.test(lc)
+  )) {
     covered.add('goal');
   }
 
@@ -216,7 +220,11 @@ function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string,
   }
 
   // geography: any country, major city, or geographic scope in user message
-  if (!covered.has('geography') && /\b(israel|usa|us|uk|england|europe|canada|australia|germany|france|worldwide|global|international|ישראל|ארה.ב|אמריקה|אירופה|תל.?אביב|ירושלים|חיפה|אנגליה|גרמניה|צרפת|עולמי|בינלאומי|north america|south america|middle east|המזרח התיכון)\b/.test(userLc)) {
+  // Note: \b doesn't work for Hebrew Unicode — split ASCII and Hebrew patterns
+  if (!covered.has('geography') && (
+    /\b(israel|usa|us|uk|england|europe|canada|australia|germany|france|worldwide|global|international|north america|south america|middle east)\b/.test(userLc) ||
+    /(ישראל|ארה.ב|אמריקה|אירופה|תל.?אביב|ירושלים|חיפה|אנגליה|גרמניה|צרפת|עולמי|בינלאומי|המזרח התיכון)/.test(userLc)
+  )) {
     covered.add('geography');
   }
 
