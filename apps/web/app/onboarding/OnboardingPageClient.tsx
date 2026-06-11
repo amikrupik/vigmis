@@ -1709,16 +1709,14 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
   }
 
   async function handleContinue() {
-    if (!selectedPageId) { setError('Please choose a Facebook Page first.'); return; }
     if (!selectedAccountId) { setError('Please choose an Ad Account first.'); return; }
     setSaving(true);
     setError(null);
-    const [pageRes, accountRes] = await Promise.all([
-      selectMetaPage(selectedPageId, selectedIgUserId),
-      selectMetaAdAccount(selectedAccountId),
-    ]);
+    const promises: Promise<any>[] = [selectMetaAdAccount(selectedAccountId)];
+    if (selectedPageId) promises.push(selectMetaPage(selectedPageId, selectedIgUserId));
+    const [accountRes] = await Promise.all(promises);
     setSaving(false);
-    if (!pageRes || !accountRes?.success) {
+    if (!accountRes?.success) {
       setError('Failed to save your selection. Please try again.');
       return;
     }
@@ -1751,13 +1749,13 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
               {/* Facebook Page + IG */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-bold text-slate-900">Facebook Page <span className="text-xs font-normal text-slate-400">— required</span></h3>
+                  <h3 className="font-bold text-slate-900">Facebook Page <span className="text-xs font-normal text-slate-400">— optional (for social publishing)</span></h3>
                   <span className="text-xs text-slate-400">{pages?.length ?? 0} available</span>
                 </div>
                 <p className="text-xs text-slate-500">If the Page has a linked Instagram Business account, it'll be used automatically. If not — Vigmis will only publish to Facebook.</p>
                 {pages && pages.length === 0 && (
                   <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                    Meta returned no Pages. You need admin access to at least one Facebook Page.
+                    No Pages found. You can continue without one — Meta Ads will still work. To enable social publishing, add a Facebook Page from Dashboard → Social → Connect.
                   </p>
                 )}
                 <div className="space-y-2">
@@ -1843,7 +1841,7 @@ function MetaAssetsStep({ onDone, onBack, header }: { onDone: () => void; onBack
                 </button>
                 <button
                   onClick={handleContinue}
-                  disabled={saving || !selectedPageId || !selectedAccountId}
+                  disabled={saving || !selectedAccountId}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
                 >
                   {saving ? 'Saving…' : 'Continue →'}
