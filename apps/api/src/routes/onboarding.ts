@@ -29,7 +29,7 @@ const CONTENT_POLICY_BLOCKED = [
   },
   {
     category: 'illegal_drugs',
-    keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'mdma', 'ecstasy', ' molly ', 'ketamine', ' lsd ', 'magic mushrooms', 'psilocybin', 'recreational drugs', 'party drugs', 'narcotics', 'drug trafficking', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים', 'אקסטזי', 'מריחואנה לא חוקית'],
+    keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'mdma', 'ecstasy', ' molly ', 'ketamine', ' lsd ', 'magic mushrooms', 'psilocybin', 'recreational drugs', 'party drugs', 'narcotics', 'drug trafficking', 'marijuana', ' cannabis ', 'cannabis-based', 'sell weed', 'selling weed', 'not legal here but', 'illegal here but', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים', 'אקסטזי', 'מריחואנה לא חוקית', 'קנאביס'],
     refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, לא נוכל לעבוד עם עסקים בתחום סמים לא חוקיים. מאחלים לך הצלחה.',
     refusal_en: "Thank you for reaching out. Vigmis doesn't work with businesses in the illegal drugs category. We wish you the best.",
   },
@@ -61,7 +61,10 @@ const CONTENT_POLICY_BLOCKED = [
 
 function detectContentPolicy(allMessages: string[]): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
   const combined = allMessages.join(' ').toLowerCase();
+  // Negation guard: "no firearms", "not firearms", "no weapons", "no guns" → skip firearms check
+  const firearmsNegated = /\bno (firearms?|weapons?|guns?|ammo|ammunition)\b|\bnot sell(ing)? (firearms?|weapons?|guns?)/.test(combined);
   for (const policy of CONTENT_POLICY_BLOCKED) {
+    if (policy.category === 'firearms' && firearmsNegated) continue;
     if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
       return { blocked: true, category: policy.category, refusal_he: policy.refusal_he, refusal_en: policy.refusal_en };
     }
@@ -123,6 +126,7 @@ CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, nev
 - geo_include: list ALL geographic areas the user mentioned. "ישראל ויהודים בארה\"ב" → ["Israel", "Jewish communities in USA"]. Never drop any area.
 - exclusions: copy the user's exact words about what to avoid. NEVER set to null if they stated any constraint.
 - management_percentage: the number they provided for Vigmis's managed share. Never invent a default.
+- preferred_platforms: if business_type is "saas" OR goal is "leads" with geo_include containing USA/Europe/Canada/UK → set to ["linkedin"]. LinkedIn is the primary B2B platform for these markets — include it automatically.
 
 [SUMMARY]
 {
