@@ -83,12 +83,13 @@ The refusal is FINAL — do not offer alternatives, exceptions, or reviews.
 ## TOPICS TO COVER
 You MUST cover these topics before concluding:
 1. business_type — what type of business: "ecommerce" (online store with many products), "hero_product" (one flagship product drives most revenue), "lead_gen" (generates leads/inquiries), "saas" (software subscription), or "general_store" (brick & mortar / local service). Ask this FIRST.
+   DISAMBIGUATION RULE: If the client's FIRST message already implies business type (e.g., "online clothing store" = ecommerce; "I sell one product" = hero_product; "dental clinic" = lead_gen; "SaaS platform" = saas), DO NOT ask them to confirm or re-classify. Infer from context and move on. Only ask explicitly if the type is genuinely ambiguous after reading their message.
 2. website — the client's website URL. If they have no website yet: say "No problem — describe your business in 2-3 sentences: what you sell and who your ideal customer is." Store that description in open_notes as "Business description (manual): [text]". Set website_url to null.
 3. budget — monthly advertising budget.
    CURRENCY RULES:
    - User says "₪X" or "X שקל/שקלים" → ILS, accept directly, confirm: "Got it — ₪X/month."
    - User says "$X" or "X dollars" → USD, accept directly. Confirm in USD only (not ILS): "Got it — $X/month." Store as budget_monthly_ils = X * 3.7 internally.
-   - User provides a bare number with no currency symbol → ALWAYS ask: "Is that ILS (₪), USD ($), or another currency?" — never assume.
+   - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ALWAYS ask: "Is that ILS (₪), USD ($), or another currency?" — never assume, never proceed without clarification.
    MINIMUM BUDGET WARNING: If budget_monthly_ils < 500 (≈ $135), warn ONCE: "Note: a budget under ₪500/month may produce limited results. We recommend at least ₪500 for any measurable ad performance. You can still continue if you wish." Then proceed.
 4. management_percentage — what percentage of the budget should Vigmis manage. Accept any number 1–100. Explain briefly: "Vigmis takes a fee only on the portion it manages."
 5. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
@@ -157,44 +158,78 @@ function detectCoveredTopicsFromSummary(settings: any, existing: string[]): stri
 }
 
 // Incrementally detect covered topics from each AI turn — no SUMMARY needed.
-// Heuristic: look for confirmation phrases + data patterns in AI response + user message.
+// Detects from user message content (what was provided) + AI response (what was confirmed).
+// Patterns are intentionally loose — false positives are cheaper than missed detections.
 function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string, existing: string[]): string[] {
   const covered = new Set(existing);
   const combined = (aiResponse + ' ' + userMessage);
   const lc = combined.toLowerCase();
+  const userLc = userMessage.toLowerCase();
 
-  if (!covered.has('business_type') && /ecommerce|hero.?product|lead.?gen|saas|general.?store|local service|local business|חנות אונליין|מוצר מוביל|שירות מקומי|ליד.ג'ן|קליניקה|מרפאה/.test(lc)) {
+  // business_type: any description of business category in either direction
+  if (!covered.has('business_type') && /ecommerce|hero.?product|lead.?gen|saas|general.?store|local service|local business|חנות|מוצר|שירות|קורס|קליניקה|מרפאה|סוכנות|מסעדה|ליד|ecom|b2b|b2c|software|app|platform/.test(lc)) {
     covered.add('business_type');
   }
-  if (!covered.has('website') && /https?:\/\/[^\s'"]{4,}/.test(combined)) {
+
+  // website: URL or explicit "no website" confirmation
+  if (!covered.has('website') && (
+    /https?:\/\/[^\s'"]{4,}/.test(combined) ||
+    /no website|don.t have a (website|site)|אין לי אתר|בלי אתר/.test(lc)
+  )) {
     covered.add('website');
   }
+
+  // budget: any currency amount (₪, $, NIS, ILS, USD, shekels, dollars) or confirmed bare number
   if (!covered.has('budget') && (
-    /₪\s*\d[\d,]+/.test(combined) ||
-    /\$\s*\d[\d,]+\s*(\/month|per month|לחודש|a month)/.test(combined) ||
-    /budget.{0,30}₪|₪.{0,30}budget|תקציב.{0,20}₪|₪.{0,20}לחודש/.test(lc)
+    /₪\s*\d[\d,]+|\d[\d,]+\s*₪/.test(combined) ||
+    /\$\s*\d[\d,]+/.test(combined) ||
+    /\d[\d,]+\s*(nis|ils|usd|shekels?|dollars?|שקל|שקלים|דולר|דולרים)/.test(lc) ||
+    /תקציב.{0,30}\d|\d.{0,10}(לחודש|per month|\/month|a month)/.test(lc) ||
+    /budget.{0,30}\d/.test(lc)
   )) {
     covered.add('budget');
   }
-  if (!covered.has('management_percentage') && /vigmis.{0,20}manage.{0,20}\d+%|\d+%.{0,20}manage|vigmis.{0,10}ינהל|ינהל.{0,20}\d+%/.test(lc)) {
+
+  // management_percentage: any standalone percentage when budget is already covered (answer to "what % should Vigmis manage?")
+  // Also catch explicit percentage in AI confirmation
+  if (!covered.has('management_percentage') && (
+    (/\d+\s*%/.test(userMessage) && covered.has('budget')) ||
+    /vigmis.{0,20}manage.{0,20}\d+%|\d+%.{0,20}manage|vigmis.{0,10}ינהל/.test(lc) ||
+    /manage.{0,10}\d+%|\d+%.{0,10}of.{0,10}budget/.test(lc)
+  )) {
     covered.add('management_percentage');
   }
-  if (!covered.has('goal') && /goal.{0,20}(lead|purchase|traffic|awareness|sales|demo)|מטרה.{0,20}(לידים|מכירות|רכישות|תנועה|מודעות)|(lead|purchase|traffic|awareness).{0,10}(✅|confirmed|goal)/.test(lc)) {
+
+  // goal: any goal keyword in user message (natural answer to "what counts as success?")
+  if (!covered.has('goal') && /\b(leads?|purchases?|traffic|awareness|sales?|demo|sign.?ups?|conversions?|לידים|רכישות|מכירות|תנועה|מודעות|הגשות)\b/.test(lc)) {
     covered.add('goal');
   }
-  if (!covered.has('margin_pct') && existing.includes('goal') && /(\d+)%.{0,20}(margin|gross|מרג.ין|רווח גולמי)|(margin|gross|מרג.ין|רווח גולמי).{0,20}(\d+)%/.test(lc)) {
+
+  // margin_pct: percentage + margin keyword, only relevant for purchase/ecommerce goals
+  if (!covered.has('margin_pct') && /(\d+)%.{0,30}(margin|gross|profit|מרג.ין|רווח)|(margin|gross|profit|מרג.ין|רווח).{0,30}(\d+)%/.test(lc)) {
     covered.add('margin_pct');
   }
-  if (!covered.has('hero_product') && existing.includes('business_type') && /hero.?product.{0,30}name|flagship.{0,20}product|product.{0,20}name.{0,20}✅|מוצר מוביל.{0,20}שם/.test(lc)) {
+
+  // hero_product: product name mentioned when business_type is hero_product (covered in AI's response)
+  if (!covered.has('hero_product') && /\b(backright|hero.?product|flagship|מוצר מוביל|המוצר הראשי|מוצר יחיד).{0,60}\b/.test(lc)) {
     covered.add('hero_product');
   }
-  if (!covered.has('geography') && /(target|targeting|geo).{0,20}(israel|usa|uk|europe|canada|australia|ישראל|ארה.ב|אירופה|תל אביב|ירושלים|north america)|(israel|usa|uk|canada|ישראל|ארה.ב|תל אביב).{0,20}(target|only|✅|confirmed|בלבד)/.test(lc)) {
+
+  // geography: any country, major city, or geographic scope in user message
+  if (!covered.has('geography') && /\b(israel|usa|us|uk|england|europe|canada|australia|germany|france|worldwide|global|international|ישראל|ארה.ב|אמריקה|אירופה|תל.?אביב|ירושלים|חיפה|אנגליה|גרמניה|צרפת|עולמי|בינלאומי|north america|south america|middle east|המזרח התיכון)\b/.test(userLc)) {
     covered.add('geography');
   }
-  if (!covered.has('exclusions') && /(never|don'?t|avoid|no\s+\w+|exclude|restriction|constraint|אסור|לא לטרגט|לעולם לא|להימנע).{0,40}(✅|confirmed|noted|רשמתי)|(✅|noted|רשמתי).{0,40}(never|don'?t|avoid|אסור|לא לטרגט)/.test(lc)) {
+
+  // exclusions: any prohibition or constraint in user message ("don't", "never", "avoid", "לא ל", "אסור")
+  if (!covered.has('exclusions') && /לא ל|לעולם לא|אסור|להימנע מ|אל תציג|לא לפרסם|never |don.t |avoid |no (men|wom|chi|reli|pol|rac)|exclude|forbidden|prohibited|no (?:ads?|targeting)/.test(userMessage)) {
     covered.add('exclusions');
   }
-  if (!covered.has('open_notes') && /(hours?|schedule|pause|seasonal|שעות|לא לפרסם ב|daypart|חגים|חופשה|פסח|ראש השנה|christmas|holiday).{0,20}(✅|noted|confirmed|רשמתי)|(✅|noted|רשמתי).{0,40}(hours?|schedule|pause|שעות|חגים)/.test(lc)) {
+
+  // open_notes: business hours, seasonal, holidays, or any catch-all note after all other topics
+  if (!covered.has('open_notes') && (
+    /שבת|חגים|ראש השנה|פסח|יום כיפור|חנוכה|christmas|holiday|שעות פעילות|לא לפרסם ב|seasonal|schedule|daypart|business hours/.test(userLc) ||
+    covered.size >= 7  // safety: if 7+ topics covered, treat next message as open_notes catch-all
+  )) {
     covered.add('open_notes');
   }
 
