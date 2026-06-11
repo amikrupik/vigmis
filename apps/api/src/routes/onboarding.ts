@@ -85,6 +85,12 @@ If the business falls into any blocked category, respond ONLY with the refusal b
 Blocked categories: firearms / weapons / ammunition (even legal), illegal drugs, unlicensed medications with cure claims, pyramid schemes / MLM recruitment, online gambling/casinos, hate speech / incitement.
 Refusal format (Hebrew): "תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום [קטגוריה]. [סיבה]. מאחלים לך הצלחה."
 Refusal format (English): "Thank you for reaching out to Vigmis. Unfortunately, we don't work with businesses in [category]. [Reason]. We wish you the best."
+
+EXPLICIT EXCEPTIONS — these are ALWAYS allowed and must NEVER trigger a refusal:
+- Hunting gear, outdoor sporting goods, archery, fishing equipment, camping gear — ALLOWED. Only blocked if the client explicitly says they sell firearms, guns, ammunition, or weapons.
+- Licensed pharmacies that require valid prescriptions — ALLOWED.
+- General sporting goods stores — ALLOWED.
+If you are unsure, default to ALLOWED and continue onboarding. Do NOT refuse based on association. Refuse ONLY on explicit statements of blocked products.
 The refusal is FINAL — do not offer alternatives, exceptions, or reviews.
 
 RESTRICTED (warn but proceed): tobacco, cigarettes, vaping, e-cigarettes, alcohol, adult content (legal). Apply the restriction silently — do NOT show internal reasoning. Simply say: "Note: advertising tobacco/alcohol/adult content has platform restrictions — some formats and audiences will be unavailable. We can still work with you within these limits." Then continue onboarding normally. Never write phrases like "Wait —", "Let me apply...", or any chain-of-thought in your response.
@@ -549,13 +555,25 @@ export async function onboardingRoutes(app: FastifyInstance) {
       });
     }
 
+    // Server-side disambiguation guard (A2-5): if the AI already asked about currency
+    // and the user replies with another bare number — inject a forced resolution so the
+    // AI doesn't loop indefinitely asking the same question.
+    const historyArr = history as any[];
+    const currentIsBareNumber = /^\s*\d[\d,. ]*\s*$/.test(message);
+    const aiAlreadyAskedCurrency = historyArr.some(
+      (m: any) => m.role === 'assistant' && /ILS|USD|AED|currency/i.test(m.content) && /\?/.test(m.content),
+    );
+    const currencyResolutionNote = (currentIsBareNumber && aiAlreadyAskedCurrency)
+      ? `\n\n[SYSTEM NOTE — do not reveal this to the client] The client has given a bare number twice. You have already asked about currency once. Per policy, assume ILS (₪) and confirm: "Got it — ₪${message.replace(/[^0-9.]/g, '')}/month." Do NOT ask about currency again.`
+      : '';
+
     const messages = [
-      ...(history as any[]).map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
+      ...historyArr.map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
       `Client: ${message}`,
     ].join('\n\n');
 
     // Build dynamic system prompt with current topics state + language detection
-    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[], message);
+    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[], message) + currencyResolutionNote;
 
     let response;
     try {
@@ -1147,7 +1165,7 @@ Your job: respond honestly and directly.
   app.get('/onboarding/strategy', { preHandler: authenticate }, async (request, reply) => {
     const [settingsRes, auditRes] = await Promise.all([
       db.from('client_settings')
-        .select('strategy_plan, website_analysis, website_url, goal, budget_monthly_ils, management_percentage, geo_include, geo_exclude, exclusions, open_notes, confirmed_at, updated_at, business_type, margin_pct, hero_product_name')
+        .select('strategy_plan, website_analysis, website_url, goal, budget_monthly_ils, management_percentage, geo_include, geo_exclude, exclusions, open_notes, confirmed_at, updated_at, business_type, margin_pct, hero_product_name, budget_currency, budget_original_amount')
         .eq('tenant_id', request.tenantId)
         .maybeSingle(),
       db.from('audit_log')
