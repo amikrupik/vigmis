@@ -12,7 +12,7 @@
 //   avatar    → HeyGen       (HEYGEN_API_KEY)       $15/video
 //   cinematic → Replicate    (REPLICATE_API_TOKEN)  $12/video
 //   animation → Replicate    (REPLICATE_API_TOKEN)  $8/video
-//   image     → DALL-E 3     (OPENAI_API_KEY)       $5/image
+//   image     → gpt-image-1  (OPENAI_API_KEY)       $5/image
 //
 // Revision pricing (A1):
 //   revision 0-2: free (set approved_at immediately)
@@ -94,10 +94,21 @@ async function uploadImageToStorage(
   tenantId: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch(imageUrl);
-    if (!res.ok) return null;
+    let buffer: ArrayBuffer;
 
-    const buffer = await res.arrayBuffer();
+    if (imageUrl.startsWith('data:')) {
+      // gpt-image-1 returns base64 data URLs — decode directly without HTTP fetch
+      const commaIdx = imageUrl.indexOf(',');
+      if (commaIdx === -1) return null;
+      const b64 = imageUrl.slice(commaIdx + 1);
+      const binary = Buffer.from(b64, 'base64');
+      buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+    } else {
+      const res = await fetch(imageUrl);
+      if (!res.ok) return null;
+      buffer = await res.arrayBuffer();
+    }
+
     const path = `${tenantId}/${jobId}.png`;
 
     const { error } = await db.storage
@@ -283,8 +294,13 @@ async function submitAnimationJob(brief: {
   });
 }
 
-// ── DALL-E 3 — Image Creative ─────────────────────────────────────────────────
-// Synchronous — returns URL immediately (no polling)
+// ── gpt-image-1 — Image Creative ─────────────────────────────────────────────
+// Synchronous — returns base64 image immediately (no polling)
+// dall-e-3 was retired; gpt-image-1 is the current generation model.
+// API changes vs dall-e-3:
+//   - `response_format` param removed (b64_json always returned)
+//   - `quality` values changed: 'low' | 'medium' | 'high' | 'auto'  (not 'standard'/'hd')
+//   - model id is 'gpt-image-1'
 
 async function submitDallEJob(brief: {
   prompt: string;
@@ -299,25 +315,30 @@ async function submitDallEJob(brief: {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'dall-e-3',
+      model: 'gpt-image-1',
       prompt: fullPrompt,
       n: 1,
       size: '1024x1024',
-      quality: 'standard',
-      response_format: 'url',
+      quality: 'medium',
     }),
   });
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`DALL-E API error: ${body}`);
+    throw new Error(`Image generation API error: ${body}`);
   }
 
-  const data = await res.json() as { data: Array<{ url: string }> };
-  const url = data.data[0]?.url;
-  if (!url) throw new Error('DALL-E returned no image URL');
+  const data = await res.json() as { data: Array<{ b64_json?: string; url?: string }> };
+  const img = data.data[0];
+  if (!img) throw new Error('Image generation returned no image');
 
-  return { jobId: `dalle-${Date.now()}`, url };
+  // gpt-image-1 always returns b64_json — convert to a data URL so the rest of
+  // the pipeline (scorer, storage upload) can treat it like a regular URL.
+  const b64 = img.b64_json;
+  if (!b64) throw new Error('Image generation returned no b64_json');
+  const dataUrl = `data:image/png;base64,${b64}`;
+
+  return { jobId: `gptimage-${Date.now()}`, url: dataUrl };
 }
 
 // ── Best-of-3 for images ───────────────────────────────────────────────────────
@@ -334,11 +355,20 @@ async function generateBestOfThreeImages(
   ]);
 
   const urls: string[] = [];
+  const errors: string[] = [];
   for (const r of results) {
-    if (r.status === 'fulfilled') urls.push(r.value.url);
+    if (r.status === 'fulfilled') {
+      urls.push(r.value.url);
+    } else {
+      const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      errors.push(msg);
+      console.error('Image generation attempt failed:', msg);
+    }
   }
 
-  if (urls.length === 0) throw new Error('All DALL-E generations failed');
+  if (urls.length === 0) {
+    throw new Error(`All image generation attempts failed: ${errors.join(' | ')}`);
+  }
   if (urls.length === 1) return { url: urls[0], score: 0, allUrls: urls };
 
   // Score each image
