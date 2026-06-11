@@ -430,8 +430,9 @@ export async function connectorRoutes(app: FastifyInstance) {
 
   // ─── Meta Ad Accounts ─────────────────────────────────────────────────────
   // List ad accounts the user has access to + which one Vigmis will use.
+  // Registered under both spellings (hyphen + no-hyphen) for compatibility.
 
-  app.get('/connectors/meta/ad-accounts', { preHandler: authenticate }, async (request, reply) => {
+  async function handleMetaAdAccounts(request: any, reply: any) {
     const { data: tokenRow } = await db
       .from('platform_tokens')
       .select('access_token, account_id')
@@ -455,7 +456,7 @@ export async function connectorRoutes(app: FastifyInstance) {
         return reply.code(502).send({ error: 'Meta API error', detail: body.slice(0, 300) });
       }
       const json = (await res.json()) as { data?: Array<{ id: string; name: string; account_status?: number; currency?: string; business?: { name?: string } }> };
-      const accounts = (json.data ?? []).map(a => ({
+      const accounts = (json.data ?? []).map((a: any) => ({
         id: a.id,
         name: a.name,
         currency: a.currency ?? null,
@@ -467,7 +468,10 @@ export async function connectorRoutes(app: FastifyInstance) {
       request.log.error({ err }, 'Failed to fetch Meta ad accounts');
       return reply.code(500).send({ error: 'Failed to fetch ad accounts' });
     }
-  });
+  }
+
+  app.get('/connectors/meta/ad-accounts', { preHandler: authenticate }, handleMetaAdAccounts);
+  app.get('/connectors/meta/adaccounts', { preHandler: authenticate }, handleMetaAdAccounts);
 
   // List Facebook Pages + connected Instagram Business accounts
   app.get('/connectors/meta/pages', { preHandler: authenticate }, async (request, reply) => {

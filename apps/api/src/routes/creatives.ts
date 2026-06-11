@@ -325,7 +325,13 @@ async function submitDallEJob(brief: {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Image generation API error: ${body}`);
+    // Sanitize — never forward raw OpenAI response (contains org_id and other sensitive fields)
+    let safeMessage = 'Image generation failed';
+    try {
+      const parsed = JSON.parse(body) as { error?: { message?: string; code?: string } };
+      safeMessage = parsed?.error?.message ?? safeMessage;
+    } catch { /* not JSON */ }
+    throw new Error(safeMessage);
   }
 
   const data = await res.json() as { data: Array<{ b64_json?: string; url?: string }> };

@@ -96,9 +96,11 @@ You MUST cover these topics before concluding:
 2. website — the client's website URL. If they have no website yet: say "No problem — describe your business in 2-3 sentences: what you sell and who your ideal customer is." Store that description in open_notes as "Business description (manual): [text]". Set website_url to null.
 3. budget — monthly advertising budget.
    CURRENCY RULES:
-   - User says "₪X" or "X שקל/שקלים" → ILS, accept directly, confirm: "Got it — ₪X/month."
-   - User says "$X" or "X dollars" → USD, accept directly. Confirm in USD only (not ILS): "Got it — $X/month." Store as budget_monthly_ils = X * 3.7 internally.
-   - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ALWAYS ask: "Is that ILS (₪), USD ($), or another currency?" — never assume, never proceed without clarification.
+   - User says "₪X" or "X שקל/שקלים" → ILS, accept directly. Confirm: "Got it — ₪X/month." Set budget_currency="ILS", budget_original_amount=X.
+   - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.7 internally.
+   - User says "X AED" or "X درهم" → AED (UAE dirham). Confirm in AED: "Got it — X AED/month." Set budget_currency="AED", budget_original_amount=X. Store budget_monthly_ils = X × 1.05 internally.
+   - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ask ONCE: "Is that ILS (₪), USD ($), AED, or another currency?"
+   - If you have ALREADY asked for currency clarification in this conversation AND the client gives another bare number without a symbol — stop asking and ASSUME ILS. Confirm: "Got it — ₪X/month." Do NOT ask again.
    MINIMUM BUDGET WARNING: If budget_monthly_ils < 500 (≈ $135), warn ONCE: "Note: a budget under ₪500/month may produce limited results. We recommend at least ₪500 for any measurable ad performance. You can still continue if you wish." Then proceed.
 4. management_percentage — what percentage of the budget should Vigmis manage. Accept any number 1–100. Explain briefly: "Vigmis takes a fee only on the portion it manages."
 5. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
@@ -296,15 +298,17 @@ Topics confirmed: ${coveredTopics.join(', ')}
 Topics still needed: ${allDone ? 'NONE — ALL COMPLETE ✅' : remaining.join(', ')}
 ${allDone ? '\n⚡ ALL REQUIRED TOPICS ARE COVERED. Your NEXT response MUST output the [SUMMARY] JSON block, then a brief friendly closing line. Do NOT ask any more questions.' : ''}`;
 
-  // Hard language override — more reliable than asking the LLM to detect script
+  // Hard language override injected as a HEADER (before the base prompt) so it has
+  // maximum weight in long multi-turn contexts — suffix instructions get ignored by turn 5+
   let langOverride = '';
   if (lastMessage) {
     const lang = detectScriptLanguage(lastMessage);
-    if (lang === 'arabic') langOverride = '\n\n⚠️ MANDATORY: The client is writing in Arabic. Your ENTIRE response MUST be in Arabic. Do NOT use Hebrew or English.';
-    else if (lang === 'hebrew') langOverride = '\n\n⚠️ MANDATORY: The client is writing in Hebrew. Your ENTIRE response MUST be in Hebrew. Do NOT use English.';
+    if (lang === 'arabic') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Arabic. YOUR ENTIRE RESPONSE MUST BE IN ARABIC. Do NOT use Hebrew or English for even a single word.\n\n';
+    else if (lang === 'hebrew') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Hebrew. YOUR ENTIRE RESPONSE MUST BE IN HEBREW. Do NOT use English for even a single word.\n\n';
+    else langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in English. YOUR ENTIRE RESPONSE MUST BE IN ENGLISH.\n\n';
   }
 
-  return ONBOARDING_SYSTEM_PROMPT_BASE + stateBlock + langOverride;
+  return langOverride + ONBOARDING_SYSTEM_PROMPT_BASE + stateBlock;
 }
 
 const DaypartingRuleSchema = z.object({
@@ -324,6 +328,8 @@ const SaveSettingsSchema = z.object({
   website_url: z.preprocess(v => (v === '' ? undefined : v), z.string().url().optional()),
   management_percentage: z.number().min(1).max(100).default(100).transform(v => Math.round(v)),
   budget_monthly_ils: z.number().positive().transform(v => Math.round(v)),
+  budget_currency: z.string().default('ILS'),
+  budget_original_amount: z.number().positive().optional().nullable(),
   goal: z.enum(['leads', 'purchases', 'traffic', 'awareness']),
   margin_pct: z.number().min(0).max(100).optional().nullable(),
   hero_product_name: z.string().optional().nullable(),
@@ -399,10 +405,12 @@ export async function onboardingRoutes(app: FastifyInstance) {
         {
           tenant_id: request.tenantId,
           ...data,
-          margin_pct:              data.margin_pct ?? null,
-          hero_product_name:       data.hero_product_name ?? null,
-          hero_product_margin_pct: data.hero_product_margin_pct ?? null,
-          website_analysis:        data.website_analysis ?? null,
+          margin_pct:               data.margin_pct ?? null,
+          hero_product_name:        data.hero_product_name ?? null,
+          hero_product_margin_pct:  data.hero_product_margin_pct ?? null,
+          website_analysis:         data.website_analysis ?? null,
+          budget_currency:          data.budget_currency ?? 'ILS',
+          budget_original_amount:   data.budget_original_amount ?? null,
           confirmed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -678,9 +686,20 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
       : `CONNECTED PLATFORMS: none yet\nIMPORTANT: The client has not connected any ad platforms yet. Do not include any platform in the budget breakdown. Focus on which platform to connect first and why.`;
 
     // Phase 2: Market research — deep strategic intelligence
-    const managedBudget = Math.round(
-      (settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100),
+    // Use original currency/amount if recorded; fall back to back-converting from ILS
+    const budgetCurrency: string = (settings as any).budget_currency ?? 'ILS';
+    const budgetOriginalAmount: number | null = (settings as any).budget_original_amount ?? null;
+    const managedBudgetIls = Math.round(
+      (settings.budget_monthly_ils / 1) * (settings.management_percentage / 100),
     );
+    const managedBudgetDisplay = budgetCurrency === 'USD'
+      ? `$${Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 3.7) * settings.management_percentage / 100)}`
+      : budgetCurrency === 'AED'
+      ? `${Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 1.05) * settings.management_percentage / 100)} AED`
+      : `₪${Math.round(managedBudgetIls)}`;
+    const managedBudget = budgetCurrency === 'USD'
+      ? Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 3.7) * settings.management_percentage / 100)
+      : Math.round(settings.budget_monthly_ils / 3.7 * settings.management_percentage / 100);
 
     // Fetch industry benchmarks + winning creative themes in parallel with web research
     const countryCode = ((settings.geo_include ?? [])[0] ?? 'IL').toUpperCase().slice(0, 2);
@@ -707,7 +726,7 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
 5. Any recent market trends, seasonal patterns, or shifts in consumer behavior?
 
 Business context: ${websiteAnalysis.slice(0, 400)}
-Goal: ${settings.goal} | Budget: ~$${managedBudget}/month`,
+Goal: ${settings.goal} | Budget: ~${managedBudgetDisplay}/month`,
         options: { maxTokens: 1200 },
       });
       webIntelligence = webRes.output;
@@ -733,7 +752,7 @@ ${websiteAnalysis}
 ## PARAMETERS
 - Advertising goal: ${settings.goal}
 - Target geography: ${(settings.geo_include ?? []).join(', ') || 'not specified'}
-- Monthly ad budget: ~$${managedBudget}/month
+- Monthly ad budget: ~${managedBudgetDisplay}/month
 - Business type: ${settings.business_type ?? 'not specified'}
 ${settings.margin_pct ? `- Gross margin: ${settings.margin_pct}%` : ''}
 ${settings.exclusions ? `- Client constraints: ${settings.exclusions}` : ''}
@@ -801,7 +820,7 @@ ${historicalContext ? `## CLIENT'S HISTORICAL AD PERFORMANCE\n${historicalContex
 
 PARAMETERS:
 - Goal: ${settings.goal}
-- Client's stated monthly budget: ~$${managedBudget}
+- Client's stated monthly budget: ~${managedBudgetDisplay}
 - Target geography: ${(settings.geo_include ?? []).join(', ')}
 - Exclusions: ${settings.exclusions ?? 'none'}
 - Has parallel campaigns outside Vigmis: ${settings.has_parallel_campaigns ? 'yes' : 'no'}
@@ -957,7 +976,7 @@ Return ONLY valid JSON (no extra text):
 
 BUSINESS: ${websiteAnalysis.slice(0, 1500)}
 MARKET RESEARCH: ${marketResearch.slice(0, 1500)}
-GOAL: ${settings.goal} | BUDGET: ~$${managedBudget}/month | GEO: ${(settings.geo_include ?? []).join(', ')}
+GOAL: ${settings.goal} | BUDGET: ~${managedBudgetDisplay}/month | GEO: ${(settings.geo_include ?? []).join(', ')}
 
 Return this exact JSON structure (be concise — max 2 sentences per text field):
 {
