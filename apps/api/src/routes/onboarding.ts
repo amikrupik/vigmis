@@ -109,6 +109,15 @@ You MUST cover these topics before concluding:
 - When all required topics are confirmed, output the [SUMMARY] block immediately.
 
 ## SUMMARY FORMAT (always in English for parsing, even if conversation is Hebrew)
+
+CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, never approximate:
+- website_url: copy the EXACT URL the user typed. If they said "https://www.goodland.co.il", write exactly that. NEVER use a placeholder like "https://example.com".
+- budget_monthly_ils: if user said "$X" (USD), compute X × 3.7 and write the exact integer result. $2000 → 7400. $3000 → 11100. NEVER round to nearest thousand.
+- margin_pct: copy the EXACT number. User said "37%" → write 37. User said "40%" → write 40. Never round.
+- geo_include: list ALL geographic areas the user mentioned. "ישראל ויהודים בארה\"ב" → ["Israel", "Jewish communities in USA"]. Never drop any area.
+- exclusions: copy the user's exact words about what to avoid. NEVER set to null if they stated any constraint.
+- management_percentage: the number they provided for Vigmis's managed share. Never invent a default.
+
 [SUMMARY]
 {
   "business_type": "ecommerce",
@@ -200,11 +209,11 @@ function detectCoveredTopicsIncremental(aiResponse: string, userMessage: string,
     covered.add('management_percentage');
   }
 
-  // goal: any goal keyword in user message (natural answer to "what counts as success?")
-  // Note: \b doesn't work for Hebrew Unicode — split ASCII and Hebrew patterns
+  // goal: detect from USER message only (not lc/combined) to avoid false positives
+  // when the AI asks "leads, purchases, traffic, or awareness?" — those words in AI response must not trigger
   if (!covered.has('goal') && (
-    /\b(leads?|purchases?|traffic|awareness|sales?|demo|sign.?ups?|conversions?)\b/.test(lc) ||
-    /(לידים|רכישות|מכירות|תנועה|מודעות|הגשות)/.test(lc)
+    /\b(leads?|purchases?|traffic|awareness|sales?|demo|sign.?ups?|conversions?)\b/.test(userLc) ||
+    /(לידים|רכישות|מכירות|תנועה|מודעות|הגשות)/.test(userLc)
   )) {
     covered.add('goal');
   }
