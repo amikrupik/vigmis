@@ -126,7 +126,7 @@ CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, nev
 - geo_include: list ALL geographic areas the user mentioned. "ישראל ויהודים בארה\"ב" → ["Israel", "Jewish communities in USA"]. Never drop any area.
 - exclusions: copy the user's exact words about what to avoid. NEVER set to null if they stated any constraint.
 - management_percentage: the number they provided for Vigmis's managed share. Never invent a default.
-- preferred_platforms: if business_type is "saas" OR goal is "leads" with geo_include containing USA/Europe/Canada/UK → set to ["linkedin"]. LinkedIn is the primary B2B platform for these markets — include it automatically.
+- preferred_platforms: MUST be ["linkedin"] if business_type is "saas". MUST include "linkedin" if goal is "leads" AND geo_include contains USA/Canada/UK/Europe (professional B2B markets). Otherwise null. Never leave this null for a SaaS business.
 
 [SUMMARY]
 {
