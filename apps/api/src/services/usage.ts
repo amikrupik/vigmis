@@ -165,13 +165,18 @@ export interface UsageSummary {
   aiCostUsd: number;
   conversations: { used: number; limit: number };
   comments: { used: number; limit: number };
-  activeCampaigns: { limit: number | null }; // null = unlimited
+  activeCampaigns: { used: number; limit: number | null }; // limit null = unlimited
 }
 
 /** UI-facing snapshot of plan, allowances, and consumption this month. */
 export async function getUsageSummary(tenantId: string): Promise<UsageSummary> {
   const ctx = await getBillingContext(tenantId);
   const finite = (n: number) => (Number.isFinite(n) ? n : null);
+  const { count: activeCampaignsCount } = await db
+    .from('campaigns')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active');
   return {
     plan: ctx.plan,
     tier: ctx.allowances.tier,
@@ -184,6 +189,6 @@ export async function getUsageSummary(tenantId: string): Promise<UsageSummary> {
       limit: ctx.allowances.conversations,
     },
     comments: { used: ctx.usage.comments_handled, limit: ctx.allowances.commentsHandled },
-    activeCampaigns: { limit: finite(ctx.allowances.activeCampaigns) },
+    activeCampaigns: { used: activeCampaignsCount ?? 0, limit: finite(ctx.allowances.activeCampaigns) },
   };
 }

@@ -228,7 +228,16 @@ export default function OnboardingChat({ onConfirm }: Props) {
             )}
           </div>
           <button
-            onClick={() => setSettings(null)}
+            onClick={() => {
+              // Strip [SUMMARY]...[/SUMMARY] from the last AI message so the next
+              // user turn doesn't immediately re-trigger another summary.
+              setHistory(prev => prev.map((msg, i) =>
+                i === prev.length - 1 && msg.role === 'assistant'
+                  ? { ...msg, content: msg.content.replace(/\[SUMMARY\][\s\S]*?\[\/SUMMARY\]/g, '').trim() || msg.content }
+                  : msg
+              ));
+              setSettings(null);
+            }}
             className="w-full text-sm text-slate-500 hover:text-slate-700 py-1.5 transition-colors"
           >
             ← Revise an answer

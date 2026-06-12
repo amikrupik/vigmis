@@ -76,15 +76,15 @@ function detectContentPolicy(
   const userExclusionsLangEn = /\b(?:things? like|such as|never advertis|won'?t advertis|exclude|restrict|not (?:promote|sell|advertis))\b[^.!?]{0,120}\b(?:drugs?|weapons?|firearms?|cocaine|heroin)\b/.test(combined);
   const inExclusionsContext = aiAskedExclusions || userExclusionsLangHe || userExclusionsLangEn;
 
-  // English negation guard: "no firearms", "do not sell any weapons", "without guns"
-  const firearmsNegatedEn = /\b(no|not|don'?t|without|never)\b[^.!?]{0,60}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
-  // Hebrew negation guard: "לא נשק", "ללא נשק", "בלי נשק"
-  const firearmsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע)[^.!?]{0,80}(?:נשק|אקדח|רובה|תחמושת|כלי ירייה)/.test(combined);
+  // English negation guard: "no firearms", "won't advertise weapons", "do not sell any guns"
+  const firearmsNegatedEn = /\b(no|not|don'?t|won'?t|will not|without|never|refuse)\b[^.!?]{0,80}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
+  // Hebrew negation guard: "לא נשק", "ללא נשק", "בלי נשק", "לעולם לא נשק"
+  const firearmsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע|לעולם לא)[^.!?]{0,80}(?:נשק|אקדח|רובה|תחמושת|כלי ירייה)/.test(combined);
   const firearmsNegated = firearmsNegatedEn || firearmsNegatedHe || inExclusionsContext;
 
   // Drugs negation guard
-  const drugsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע)[^.!?]{0,80}(?:סמים|קוקאין|הרואין|מריחואנה|קנאביס)/.test(combined);
-  const drugsNegatedEn = /\b(no|not|don'?t|without|never|refuse)\b[^.!?]{0,60}\b(drugs?|cocaine|heroin|marijuana|cannabis)\b/.test(combined);
+  const drugsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע|לעולם לא)[^.!?]{0,80}(?:סמים|קוקאין|הרואין|מריחואנה|קנאביס)/.test(combined);
+  const drugsNegatedEn = /\b(no|not|don'?t|won'?t|will not|without|never|refuse)\b[^.!?]{0,80}\b(drugs?|cocaine|heroin|marijuana|cannabis)\b/.test(combined);
   const drugsNegated = drugsNegatedHe || drugsNegatedEn || inExclusionsContext;
 
   for (const policy of CONTENT_POLICY_BLOCKED) {

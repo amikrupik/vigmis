@@ -739,7 +739,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
   // ── Comments list ─────────────────────────────────────────────────────────
   app.get('/social/comments', { preHandler: authenticate }, async (request, reply) => {
-    const { status, sentiment, limit = 50 } = request.query as any;
+    const { status, sentiment, platform, limit = 50 } = request.query as any;
     let q = db
       .from('social_comments')
       .select('*')
@@ -749,6 +749,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
     if (status) q = q.eq('status', status);
     if (sentiment) q = q.eq('sentiment', sentiment);
+    if (platform) q = q.eq('platform', platform);
 
     const { data } = await q;
     return reply.send({ comments: data ?? [] });
