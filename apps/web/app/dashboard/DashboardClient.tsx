@@ -34,6 +34,7 @@ import {
   exportMarketingPlanHTML, exportInvoiceHTML,
   scoreCreativeAsset, getCreativeThemes, getBudgetForecast,
   getBrandAssets, deleteBrandAsset, uploadBrandAsset, generatePostImage,
+  getCreativeBrief, generateCreativeBrief,
 } from './actions';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
@@ -1217,6 +1218,25 @@ type CreativeJob = {
   revision_requested?: boolean;
 };
 
+// ── Agency Brain Types (mirror @vigmis/db) ────────────────────────────────────
+
+type CreativeConceptItem = {
+  type: 'animation' | 'cinematic' | 'avatar';
+  platform: string;
+  concept: string;
+  script: string;
+  rationale: string;
+};
+
+type CreativeBriefExtended = {
+  messaging_pillars: { pillar: string; headline: string; hook: string; body: string; cta: string }[];
+  tone_guide: { voice: string; examples: string[]; avoid: string[] };
+  hooks: { google: string[]; meta: string[]; tiktok: string[] };
+  creative_concepts: CreativeConceptItem[];
+  audience_variants: { segment: string; message_angle: string; hook: string; platform: string }[];
+  time_strategy: { morning: string; evening: string; weekend: string };
+};
+
 // ── Creative Brief Dialog ─────────────────────────────────────────────────────
 
 type CreativeBriefData = {
@@ -1355,9 +1375,58 @@ function CreativeTab({ settings }: any) {
   const [jobScores, setJobScores] = useState<Record<string, any>>({});
   const [scoringJobId, setScoringJobId] = useState<string | null>(null);
 
+  // Agency Brain: AI creative recommendations
+  const [creativeBrief, setCreativeBrief] = useState<CreativeBriefExtended | null>(null);
+  const [briefLoading, setBriefLoading] = useState(true);
+  const [briefNoStrategy, setBriefNoStrategy] = useState(false);
+  const [briefRegenerating, setBriefRegenerating] = useState(false);
+  // Manual form visibility (collapsed by default once we have AI recommendations)
+  const [manualFormOpen, setManualFormOpen] = useState(false);
+
   useEffect(() => {
     getCreatives().then(res => setJobs(res?.jobs ?? []));
   }, []);
+
+  // Load AI creative brief on mount
+  useEffect(() => {
+    setBriefLoading(true);
+    getCreativeBrief().then(res => {
+      if (!res || res._no_strategy) {
+        setBriefNoStrategy(!res || res._no_strategy);
+        setBriefLoading(false);
+        setManualFormOpen(true); // show manual form if no brief
+        return;
+      }
+      if (res.brief) {
+        setCreativeBrief(res.brief as CreativeBriefExtended);
+      } else {
+        // No cached brief yet — generate one now
+        generateCreativeBrief({ force_regenerate: false }).then(genRes => {
+          if (genRes?.brief) setCreativeBrief(genRes.brief as CreativeBriefExtended);
+          else if (genRes?._no_strategy) setBriefNoStrategy(true);
+        });
+      }
+      setBriefLoading(false);
+    });
+  }, []);
+
+  async function handleRegenerateBrief() {
+    setBriefRegenerating(true);
+    const res = await generateCreativeBrief({ force_regenerate: true });
+    if (res?.brief) setCreativeBrief(res.brief as CreativeBriefExtended);
+    setBriefRegenerating(false);
+  }
+
+  function useConceptScript(concept: CreativeConceptItem) {
+    setVideoScript(concept.script);
+    setSelectedVideoType(concept.type);
+    setBriefApproved(false);
+    setManualFormOpen(true);
+    // Scroll to video production section after a tick
+    setTimeout(() => {
+      document.getElementById('video-production-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
 
   // Poll processing jobs
   useEffect(() => {
@@ -1478,62 +1547,206 @@ function CreativeTab({ settings }: any) {
         ))}
       </div>
 
+      {/* ── AI Creative Recommendations ──────────────────────────────────── */}
+      <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-900">AI Creative Recommendations</h3>
+              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">Agency Brain</span>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">Ready-to-use concepts built from your strategy analysis</p>
+          </div>
+          {creativeBrief && !briefLoading && (
+            <button
+              onClick={handleRegenerateBrief}
+              disabled={briefRegenerating}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold disabled:opacity-50 border border-indigo-200 bg-white px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {briefRegenerating ? 'Regenerating...' : 'Regenerate'}
+            </button>
+          )}
+        </div>
+
+        {/* Loading skeleton */}
+        {briefLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white border border-slate-100 rounded-xl p-4 space-y-3 animate-pulse">
+                <div className="flex gap-2">
+                  <div className="h-5 w-16 bg-slate-200 rounded-full" />
+                  <div className="h-5 w-12 bg-slate-100 rounded-full" />
+                </div>
+                <div className="h-4 w-3/4 bg-slate-200 rounded" />
+                <div className="h-3 w-full bg-slate-100 rounded" />
+                <div className="h-3 w-5/6 bg-slate-100 rounded" />
+                <div className="h-8 w-full bg-slate-200 rounded-xl" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* No strategy state */}
+        {!briefLoading && briefNoStrategy && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center space-y-2">
+            <p className="text-sm font-semibold text-amber-800">Run your strategy analysis to unlock AI creative concepts</p>
+            <p className="text-xs text-amber-600">Go to the Strategy tab and click "Run Analysis" — this takes about 5 minutes and powers all AI recommendations.</p>
+          </div>
+        )}
+
+        {/* Concept cards */}
+        {!briefLoading && !briefNoStrategy && creativeBrief && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {creativeBrief.creative_concepts.map((concept, i) => {
+                const typeBadgeColor =
+                  concept.type === 'animation' ? 'bg-violet-100 text-violet-700' :
+                  concept.type === 'cinematic' ? 'bg-blue-100 text-blue-700' :
+                  'bg-emerald-100 text-emerald-700';
+                const platformBadgeColor =
+                  concept.platform === 'meta' ? 'bg-pink-100 text-pink-700' :
+                  concept.platform === 'tiktok' ? 'bg-slate-900 text-white' :
+                  'bg-amber-100 text-amber-700';
+                const scriptPreview = concept.script.length > 100
+                  ? concept.script.slice(0, 100) + '...'
+                  : concept.script;
+                return (
+                  <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 hover:border-indigo-300 transition-colors flex flex-col">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${typeBadgeColor}`}>{concept.type}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${platformBadgeColor}`}>{concept.platform}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">{concept.concept}</p>
+                    </div>
+                    <div className="text-xs text-slate-500 leading-relaxed flex-1">
+                      <p className="italic">"{scriptPreview}"</p>
+                    </div>
+                    {concept.rationale && (
+                      <p className="text-xs text-indigo-600 font-medium leading-snug">{concept.rationale}</p>
+                    )}
+                    <button
+                      onClick={() => useConceptScript(concept)}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-sm transition-colors mt-auto"
+                    >
+                      Use This →
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Tone guide hint */}
+            {creativeBrief.tone_guide && (
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Brand Voice</p>
+                  <p className="text-sm text-slate-700">{creativeBrief.tone_guide.voice}</p>
+                  {creativeBrief.tone_guide.examples.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {creativeBrief.tone_guide.examples.map((ex, i) => (
+                        <span key={i} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-lg italic">"{ex}"</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Generating state (brief exists but no concepts yet) */}
+        {!briefLoading && briefRegenerating && !creativeBrief && (
+          <div className="text-center py-6 text-sm text-slate-500">Generating your creative brief...</div>
+        )}
+      </div>
+
+      {/* ── Manual Form Toggle ────────────────────────────────────────────── */}
+      {!briefNoStrategy && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setManualFormOpen(v => !v)}
+            className="text-sm text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1.5 transition-colors"
+          >
+            <span className={`transition-transform ${manualFormOpen ? 'rotate-90' : ''}`}>▶</span>
+            {manualFormOpen ? 'Hide manual form' : 'or write your own ↓'}
+          </button>
+        </div>
+      )}
+
       {/* ── Video Production ──────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+      {(manualFormOpen || briefNoStrategy) && (
+      <div id="video-production-section" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
         <div>
           <h3 className="font-bold text-slate-900">Video Production</h3>
           <p className="text-sm text-slate-500 mt-0.5">AI generates your ad video — 1 free revision included</p>
         </div>
 
-        {/* Video type cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {VIDEO_OPTIONS.map(opt => (
-            <button
-              key={opt.type}
-              onClick={() => setSelectedVideoType(opt.type)}
-              className={`text-left p-4 rounded-xl border-2 transition-all ${selectedVideoType === opt.type ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-bold text-slate-900 text-sm">{opt.label}</span>
-                {'badge' in opt && <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">{opt.badge}</span>}
-              </div>
-              <p className="text-xs text-slate-500 mb-2 leading-relaxed">{opt.desc}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-400">via {opt.provider}</span>
-                <span className="text-sm font-black text-slate-900">${opt.price}</span>
-              </div>
-            </button>
-          ))}
+        {/* Step 1: Choose video type */}
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 1: Choose video type</p>
+          {/* Video type cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {VIDEO_OPTIONS.map(opt => (
+              <button
+                key={opt.type}
+                onClick={() => setSelectedVideoType(opt.type)}
+                className={`text-left p-4 rounded-xl border-2 transition-all ${selectedVideoType === opt.type ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-slate-900 text-sm">{opt.label}</span>
+                  {'badge' in opt && <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">{opt.badge}</span>}
+                </div>
+                <p className="text-xs text-slate-500 mb-2 leading-relaxed">{opt.desc}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">via {opt.provider}</span>
+                  <span className="text-sm font-black text-slate-900">${opt.price}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Script / prompt input */}
-        <textarea
-          value={videoScript}
-          onChange={e => { setVideoScript(e.target.value); setBriefApproved(false); }}
-          placeholder={
-            selectedVideoType === 'avatar'
-              ? 'Write the script your AI avatar will say. E.g. "Hi! Are you tired of X? Our solution helps you Y in just Z days. Click below to get started."'
-              : selectedVideoType === 'cinematic'
-              ? 'Describe the scene. E.g. "A confident professional walks into a modern office. Text overlay: Your tagline. CTA appears at end."'
-              : 'Describe the animation. E.g. "Bright animated logo reveal, bold product name, energetic bounce effects, strong CTA button at end."'
-          }
-          rows={4}
-          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-        />
+        {/* Step 2: Write script */}
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 2: Write script or use AI suggestion above</p>
+          {/* Script / prompt input */}
+          <textarea
+            value={videoScript}
+            onChange={e => { setVideoScript(e.target.value); setBriefApproved(false); }}
+            placeholder={
+              selectedVideoType === 'avatar'
+                ? 'Write the script your AI avatar will say. E.g. "Hi! Are you tired of X? Our solution helps you Y in just Z days. Click below to get started."'
+                : selectedVideoType === 'cinematic'
+                ? 'Describe the scene. E.g. "A confident professional walks into a modern office. Text overlay: Your tagline. CTA appears at end."'
+                : 'Describe the animation. E.g. "Bright animated logo reveal, bold product name, energetic bounce effects, strong CTA button at end."'
+            }
+            rows={4}
+            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+          />
+        </div>
 
-        {/* Step 1: Preview Brief */}
+        {/* Step 3: Preview & generate */}
         {!briefApproved ? (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400">
-              {selectedVideoType === 'avatar' ? 'Estimated 3 min · 16:9 · 720p' : selectedVideoType === 'cinematic' ? 'Estimated 5 min · 5–10 sec clip · 16:9' : 'Estimated 4 min · 3 sec loop · 16:9'}
-            </p>
-            <button
-              onClick={() => setBriefApproved(true)}
-              disabled={!videoScript.trim()}
-              className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors"
-            >
-              Preview Brief →
-            </button>
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 3: Preview &amp; generate</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                {selectedVideoType === 'avatar' ? 'Estimated 3 min · 16:9 · 720p' : selectedVideoType === 'cinematic' ? 'Estimated 5 min · 5–10 sec clip · 16:9' : 'Estimated 4 min · 3 sec loop · 16:9'}
+              </p>
+              <div className="flex items-center gap-3">
+                {!videoScript.trim() && (
+                  <span className="text-xs text-slate-400 italic">Write a script above to continue</span>
+                )}
+                <button
+                  onClick={() => setBriefApproved(true)}
+                  disabled={!videoScript.trim()}
+                  className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors"
+                >
+                  Preview Brief →
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* Step 2: Brief Approval */
@@ -1739,6 +1952,7 @@ function CreativeTab({ settings }: any) {
           )}
         </div>
       </div>
+      )} {/* end manualFormOpen || briefNoStrategy */}
 
       {/* ── Ad Copy Generator ─────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
@@ -1770,7 +1984,23 @@ function CreativeTab({ settings }: any) {
                 {v.body && <p className="text-xs text-slate-500 italic">{v.body}</p>}
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">{v.cta}</span>
-                  <button onClick={() => navigator.clipboard?.writeText(`${v.headline_1}\n${v.description_1}`)} className="text-xs text-slate-400 hover:text-slate-600 ml-auto">Copy</button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const text = [v.headline_1, v.description_1, v.body].filter(Boolean).join('\n');
+                        setVideoScript(text);
+                        setBriefApproved(false);
+                        setManualFormOpen(true);
+                        setTimeout(() => {
+                          document.getElementById('video-production-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 100);
+                      }}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 rounded-lg transition-colors"
+                    >
+                      Use for Video →
+                    </button>
+                    <button onClick={() => navigator.clipboard?.writeText(`${v.headline_1}\n${v.description_1}`)} className="text-xs text-slate-400 hover:text-slate-600">Copy</button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1925,6 +2155,10 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   }
 
   async function handleElementAnalysis() {
+    if (!campaigns?.length) {
+      alert('No performance data yet. Launch a campaign and approve creatives first.');
+      return;
+    }
     setElementLoading(true);
     const res = await analyzeCreativeElements(
       (campaigns ?? []).slice(0, 5).map((c: any) => ({
@@ -2552,8 +2786,11 @@ function ProtocolsTab() {
       {loading ? (
         <p className="text-sm text-slate-400">Loading...</p>
       ) : protocols.length === 0 ? (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center text-sm text-slate-400">
-          No protocols yet. Vigmis creates a protocol for every recommendation it makes.
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+          <p className="text-sm font-semibold text-slate-600">No protocols yet.</p>
+          <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+            When Vigmis takes an action on your behalf — pausing a campaign, shifting budget, concluding an A/B test — it documents every decision here with full reasoning.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2912,7 +3149,7 @@ function StrategyTab({ settings: _settings }: any) {
           )}
         </div>
         {s.website_analysis ? (
-          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{s.website_analysis}</p>
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" dir="ltr">{s.website_analysis}</p>
         ) : (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
             No website analysis was stored. Click "Re-analyze website" to scan now — Vigmis will refuse to invent if the site is unreadable.
@@ -2931,13 +3168,13 @@ function StrategyTab({ settings: _settings }: any) {
           </div>
           <div className="p-5 space-y-4 text-sm text-slate-700">
             {plan.market_insights && (
-              <div>
+              <div dir="ltr" className="text-left">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Market insights</p>
                 <p className="leading-relaxed">{plan.market_insights}</p>
               </div>
             )}
             {plan.target_audience && (
-              <div>
+              <div dir="ltr" className="text-left">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Target audience</p>
                 <p className="leading-relaxed">{plan.target_audience}</p>
               </div>
@@ -2970,7 +3207,7 @@ function StrategyTab({ settings: _settings }: any) {
               </div>
             )}
             {plan.recommendations && (
-              <div>
+              <div dir="ltr" className="text-left">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Recommendations</p>
                 <p className="leading-relaxed whitespace-pre-wrap">{plan.recommendations}</p>
               </div>
@@ -3824,6 +4061,7 @@ function GeoTab({ settings }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [auditError, setAuditError] = useState(false);
   const [activeSection, setActiveSection] = useState<'issues' | 'schema' | 'faq' | 'description' | 'checklist'>('issues');
+  const [valuePropDismissed, setValuePropDismissed] = useState(false);
 
   useEffect(() => {
     getGeoReport().then(async r => {
@@ -3858,6 +4096,22 @@ function GeoTab({ settings }: any) {
 
   return (
     <div className="space-y-6">
+      {/* Value prop banner */}
+      {!valuePropDismissed && (
+        <div className="flex items-start justify-between gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5">
+          <p className="text-sm text-amber-800 leading-relaxed">
+            When someone asks ChatGPT &ldquo;who provides [your service] in [your city]?&rdquo; — will they find you? Your current score predicts the answer.
+          </p>
+          <button
+            onClick={() => setValuePropDismissed(true)}
+            className="text-amber-500 hover:text-amber-700 flex-shrink-0 mt-0.5 text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -4003,19 +4257,27 @@ function GeoTab({ settings }: any) {
                       <p className="text-sm font-semibold text-slate-700">FAQ content for your website</p>
                       <p className="text-xs text-slate-400 mt-0.5">Add these Q&As to your website FAQ section — AI systems will use them to answer customer questions</p>
                     </div>
-                    <CopyButton
-                      text={(report.faq ?? []).map((f: any) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n')}
-                      label="Copy all"
-                    />
+                    {(report.faq ?? []).length > 0 && (
+                      <CopyButton
+                        text={(report.faq ?? []).map((f: any) => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n')}
+                        label="Copy all"
+                      />
+                    )}
                   </div>
-                  <div className="space-y-3">
-                    {(report.faq ?? []).map((f: any, i: number) => (
-                      <div key={i} className="border border-slate-200 rounded-xl p-4">
-                        <p className="text-sm font-semibold text-slate-800">Q: {f.question}</p>
-                        <p className="text-sm text-slate-600 mt-1.5">A: {f.answer}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {(report.faq ?? []).length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center">
+                      <p className="text-sm text-slate-400 italic">Run a fresh audit to generate FAQ content for your specific business.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(report.faq ?? []).map((f: any, i: number) => (
+                        <div key={i} className="border border-slate-200 rounded-xl p-4">
+                          <p className="text-sm font-semibold text-slate-800">Q: {f.question}</p>
+                          <p className="text-sm text-slate-600 mt-1.5">A: {f.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

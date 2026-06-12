@@ -1276,4 +1276,255 @@ Your job: respond honestly and directly.
       });
     },
   );
+
+  // ── Agency Brain: Creative Brief Extension ───────────────────────────────────
+  // POST /onboarding/creative-brief
+  //
+  // Generates an extended creative brief on demand — called lazily when the user
+  // enters the Creative tab.  Caches result in strategy_plan.creative_brief_extended
+  // so subsequent calls are free (cache hit).
+  //
+  // Expert panel simulation:
+  //   - Copywriter (hooks, headlines, CTAs)
+  //   - Creative Director (visual concepts, scripts)
+  //   - Media Planner (platform tactics, timing, audience segmentation)
+  //   - Industry Expert (domain-specific insights)
+  //
+  // Input: settings fetched from DB (no body required).
+  //        Optional body: { force_regenerate?: boolean }
+  //
+  // Output:
+  //   { cached: boolean, generated_at: string, brief: CreativeBriefExtended }
+  //
+  // Error 409 if no strategy_plan exists yet.
+
+  app.post('/onboarding/creative-brief', { preHandler: authenticate }, async (request, reply) => {
+    const { force_regenerate = false } = (request.body as any) ?? {};
+
+    // Fetch full client settings
+    const { data: settingsRow, error: settingsErr } = await db
+      .from('client_settings')
+      .select('strategy_plan, goal, website_url, geo_include, business_type, open_notes, exclusions')
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (settingsErr || !settingsRow) {
+      return reply.code(404).send({ error: 'settings_not_found', message: 'No client settings found.' });
+    }
+
+    const strategyPlan = settingsRow.strategy_plan as Record<string, any> | null;
+
+    if (!strategyPlan) {
+      return reply.code(409).send({
+        error: 'no_strategy',
+        message: 'Run strategy analysis first before generating the creative brief.',
+      });
+    }
+
+    // Cache check — return stored brief unless force_regenerate
+    if (!force_regenerate && strategyPlan.creative_brief_extended && strategyPlan.creative_brief_extended_at) {
+      return reply.send({
+        cached: true,
+        generated_at: strategyPlan.creative_brief_extended_at,
+        brief: strategyPlan.creative_brief_extended,
+      });
+    }
+
+    // Build prompt inputs from strategy plan (tolerate missing new fields gracefully)
+    const creativeBriefStr = strategyPlan.creative_brief
+      ? JSON.stringify(strategyPlan.creative_brief, null, 2)
+      : 'Not available';
+
+    const narrativeStr = strategyPlan.strategy_narrative ?? strategyPlan.market_insights ?? '';
+    const audienceStr = strategyPlan.target_audience ?? '';
+    const advantageStr = strategyPlan.competitive_advantage ?? '';
+    const funnelStr = strategyPlan.funnel_strategy ? JSON.stringify(strategyPlan.funnel_strategy, null, 2) : '';
+    const messageMatrixStr = strategyPlan.message_testing_matrix
+      ? JSON.stringify(strategyPlan.message_testing_matrix, null, 2)
+      : 'Not available';
+    const geoStr = (settingsRow.geo_include ?? []).join(', ') || 'not specified';
+    const goal = settingsRow.goal ?? 'purchases';
+    const businessType = settingsRow.business_type ?? 'ecommerce';
+
+    const prompt = `You are a world-class advertising agency expert panel. Your job is to produce a complete, ready-to-use extended creative brief for a client. You represent four distinct experts — read the business context, then deliver each expert's output.
+
+## BUSINESS CONTEXT
+
+Goal: ${goal}
+Business type: ${businessType}
+Geography: ${geoStr}
+Target audience: ${audienceStr}
+Competitive advantage: ${advantageStr || 'Not specified'}
+
+Strategy narrative:
+${narrativeStr.slice(0, 1200)}
+
+Funnel strategy:
+${funnelStr.slice(0, 600)}
+
+Platform creative brief (from strategy):
+${creativeBriefStr.slice(0, 1000)}
+
+Message testing matrix:
+${messageMatrixStr.slice(0, 800)}
+
+---
+
+## YOUR TASK
+
+Produce a comprehensive extended creative brief. Respond ONLY with valid JSON — no markdown, no extra text:
+
+{
+  "messaging_pillars": [
+    {
+      "pillar": "pain_relief",
+      "headline": "<specific, punchy headline for this business>",
+      "hook": "<first 3 seconds / opening line>",
+      "body": "<primary text — 2-3 sentences max>",
+      "cta": "<call to action text>"
+    },
+    {
+      "pillar": "social_proof",
+      "headline": "...",
+      "hook": "...",
+      "body": "...",
+      "cta": "..."
+    },
+    {
+      "pillar": "transformation",
+      "headline": "...",
+      "hook": "...",
+      "body": "...",
+      "cta": "..."
+    }
+  ],
+  "tone_guide": {
+    "voice": "<describe the brand voice in 5-8 words: e.g. confident, warm, jargon-free>",
+    "examples": [
+      "<example on-brand phrase 1>",
+      "<example on-brand phrase 2>",
+      "<example on-brand phrase 3>"
+    ],
+    "avoid": [
+      "<phrase or tone to avoid 1>",
+      "<phrase or tone to avoid 2>"
+    ]
+  },
+  "hooks": {
+    "google": [
+      "<Google search headline hook 1 — max 30 chars>",
+      "<Google search headline hook 2 — max 30 chars>",
+      "<Google search headline hook 3 — max 30 chars>"
+    ],
+    "meta": [
+      "<Meta/Facebook first-line hook 1>",
+      "<Meta/Facebook first-line hook 2>",
+      "<Meta/Facebook first-line hook 3>"
+    ],
+    "tiktok": [
+      "<TikTok opening hook 1 — conversational, scroll-stopping>",
+      "<TikTok opening hook 2>",
+      "<TikTok opening hook 3>"
+    ]
+  },
+  "creative_concepts": [
+    {
+      "type": "avatar",
+      "platform": "meta",
+      "concept": "<concept name, 3-5 words>",
+      "script": "<paste-ready 30-second avatar script — full spoken words>",
+      "rationale": "<why this wins for THIS specific audience>"
+    },
+    {
+      "type": "cinematic",
+      "platform": "meta",
+      "concept": "<concept name>",
+      "script": "<scene-by-scene cinematic description + on-screen text>",
+      "rationale": "<why this format and angle>"
+    },
+    {
+      "type": "animation",
+      "platform": "google",
+      "concept": "<concept name>",
+      "script": "<animation sequence description + copy overlay>",
+      "rationale": "<why this angle>"
+    }
+  ],
+  "audience_variants": [
+    {
+      "segment": "<audience segment name>",
+      "message_angle": "<specific angle for this segment>",
+      "hook": "<hook tailored to this segment>",
+      "platform": "<best platform for this segment>"
+    },
+    {
+      "segment": "<second audience segment>",
+      "message_angle": "...",
+      "hook": "...",
+      "platform": "..."
+    }
+  ],
+  "time_strategy": {
+    "morning": "<what to run in morning hours and why — specific to this business>",
+    "evening": "<what to run in evening hours and why>",
+    "weekend": "<weekend-specific strategy — spend more/less? different creative?>"
+  }
+}
+
+RULES:
+- Every field must be specific to THIS business and THIS audience. Generic placeholder text is unacceptable.
+- messaging_pillars: exactly 3 pillars (pain_relief, social_proof, transformation).
+- creative_concepts: exactly 3 items, one of each type: avatar, cinematic, animation.
+- audience_variants: 2-3 segments.
+- All copy must be ready to paste into an ad — not descriptions of what copy should say.
+- Return ONLY the JSON object above.`;
+
+    const aiRes = await route({
+      task: 'analysis',
+      prompt,
+      systemPrompt: 'You are a world-class advertising agency. Return ONLY valid JSON — no markdown code blocks, no extra text. Every piece of copy must be specific, ready to use, and tailored to this exact business.',
+      options: { maxTokens: 3500, temperature: 0.55 },
+    });
+
+    let brief: Record<string, unknown> | null = null;
+    try {
+      const jsonMatch = aiRes.output.match(/\{[\s\S]*\}/);
+      brief = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch {
+      brief = null;
+    }
+
+    if (!brief) {
+      request.log.warn({ outputLength: aiRes.output.length }, 'creative-brief JSON parse failed');
+      return reply.code(502).send({ error: 'parse_failed', message: 'AI response could not be parsed. Please try again.' });
+    }
+
+    const generatedAt = new Date().toISOString();
+
+    // Persist back into strategy_plan jsonb — read-modify-write to avoid clobbering other fields
+    const updatedPlan = {
+      ...strategyPlan,
+      creative_brief_extended: brief,
+      creative_brief_extended_at: generatedAt,
+    };
+
+    const { error: updateErr } = await db
+      .from('client_settings')
+      .update({
+        strategy_plan: updatedPlan,
+        updated_at: generatedAt,
+      })
+      .eq('tenant_id', request.tenantId);
+
+    if (updateErr) {
+      request.log.error({ updateErr }, 'Failed to persist creative_brief_extended');
+      // Still return the result — a cache-write failure is non-fatal
+    }
+
+    return reply.send({
+      cached: false,
+      generated_at: generatedAt,
+      brief,
+    });
+  });
 }

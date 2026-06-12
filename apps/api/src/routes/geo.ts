@@ -188,7 +188,7 @@ function fallbackGeoReport(websiteUrl: string) {
     ],
     strengths: ['Website is accessible'],
     schema_code: `{"@context":"https://schema.org","@type":"Organization","name":"Business","url":"${websiteUrl}"}`,
-    faq: [{ question: 'What services does this business offer?', answer: 'Run audit again for specific content.' }],
+    faq: [],
     business_description: 'Run audit again with a reachable website URL.',
     checklist: [
       { item: 'Register on Google Business Profile', priority: 'critical', url: 'https://business.google.com' },

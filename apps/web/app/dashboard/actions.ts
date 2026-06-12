@@ -267,7 +267,7 @@ export async function rejectProtocol(id: string, reason?: string) {
 // ── Creatives ─────────────────────────────────────────────────────────────────
 
 export async function generateCreative(
-  type: 'avatar' | 'cinematic' | 'animation',
+  type: 'avatar' | 'cinematic' | 'animation' | 'image',
   brief: Record<string, any>,
   platform?: string,
   campaign_id?: string,
@@ -286,6 +286,46 @@ export async function getCreatives() {
 
 export async function rejectCreative(jobId: string) {
   return apiCall(`/creatives/${jobId}/reject`, 'POST', {});
+}
+
+// ── Agency Brain: Creative Brief Extension ────────────────────────────────────
+
+/**
+ * Generate (or fetch cached) the extended creative brief for the current tenant.
+ * Calls POST /onboarding/creative-brief — lazy, cached in DB.
+ *
+ * @param opts.force_regenerate  Pass true to bypass cache and regenerate.
+ * @returns { cached, generated_at, brief } or null on error / 409 no_strategy.
+ */
+export async function generateCreativeBrief(opts?: { force_regenerate?: boolean }) {
+  const { getToken } = await auth();
+  const token = await getToken();
+  if (!token) return null;
+
+  const res = await fetch(`${API_URL}/onboarding/creative-brief`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts ?? {}),
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    if (res.status === 409) {
+      // No strategy yet — caller should prompt user to run analysis
+      return { _no_strategy: true };
+    }
+    return null;
+  }
+
+  return res.json();
+}
+
+/**
+ * Return the cached creative brief if one exists, without generating a new one.
+ * Wraps generateCreativeBrief with force_regenerate=false (the default).
+ */
+export async function getCreativeBrief() {
+  return generateCreativeBrief({ force_regenerate: false });
 }
 
 // ── Emergency controls ────────────────────────────────────────────────────────

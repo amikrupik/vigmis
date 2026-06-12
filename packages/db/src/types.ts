@@ -98,6 +98,63 @@ export interface StrategyPlan {
   funnel_strategy?: FunnelStrategy;
   creative_brief?: PlatformCreativeBrief[];
   missing_platforms?: MissingPlatformSuggestion[];
+  // Agency brain extension — generated lazily by POST /onboarding/creative-brief
+  creative_brief_extended?: CreativeBriefExtended;
+  creative_brief_extended_at?: string; // ISO timestamp
+}
+
+// ── Agency Brain: Extended Creative Brief ────────────────────────────────────
+// Generated on-demand (lazy) by POST /onboarding/creative-brief.
+// Simulates an expert panel: copywriter + creative director + media planner + industry expert.
+
+export interface MessagingPillar {
+  pillar: string;          // e.g. "pain_relief", "social_proof", "transformation"
+  headline: string;
+  hook: string;
+  body: string;
+  cta: string;
+}
+
+export interface ToneGuide {
+  voice: string;           // e.g. "confident, warm, jargon-free"
+  examples: string[];      // 2-3 on-brand sample phrases
+  avoid: string[];         // phrases/tones to avoid
+}
+
+export interface PlatformHooks {
+  google: string[];        // 3 hooks for Google
+  meta: string[];          // 3 hooks for Meta
+  tiktok: string[];        // 3 hooks for TikTok
+}
+
+export interface CreativeConceptItem {
+  type: 'animation' | 'cinematic' | 'avatar';
+  platform: string;
+  concept: string;         // short concept name / label
+  script: string;          // paste-ready script or description
+  rationale: string;       // why this wins for THIS audience
+}
+
+export interface AudienceVariant {
+  segment: string;
+  message_angle: string;
+  hook: string;
+  platform: string;
+}
+
+export interface TimeStrategy {
+  morning: string;
+  evening: string;
+  weekend: string;
+}
+
+export interface CreativeBriefExtended {
+  messaging_pillars: MessagingPillar[];  // 3 pillars
+  tone_guide: ToneGuide;
+  hooks: PlatformHooks;
+  creative_concepts: CreativeConceptItem[];  // 3 concepts, each different type
+  audience_variants: AudienceVariant[];      // 2-3 variants
+  time_strategy: TimeStrategy;
 }
 
 export type BusinessType = 'ecommerce' | 'hero_product' | 'lead_gen' | 'saas' | 'general_store';
