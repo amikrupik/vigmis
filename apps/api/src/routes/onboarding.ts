@@ -61,8 +61,9 @@ const CONTENT_POLICY_BLOCKED = [
 
 function detectContentPolicy(allMessages: string[]): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
   const combined = allMessages.join(' ').toLowerCase();
-  // Negation guard: "no firearms", "not firearms", "no weapons", "no guns" → skip firearms check
-  const firearmsNegated = /\bno (firearms?|weapons?|guns?|ammo|ammunition)\b|\bnot sell(ing)? (firearms?|weapons?|guns?)/.test(combined);
+  // Negation guard: "no firearms", "do not sell any weapons", "without guns", etc.
+  // Matches: negation word + up to 60 chars + weapons keyword (same sentence only)
+  const firearmsNegated = /\b(no|not|don'?t|without|never)\b[^.!?]{0,60}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
   for (const policy of CONTENT_POLICY_BLOCKED) {
     if (policy.category === 'firearms' && firearmsNegated) continue;
     if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
@@ -563,8 +564,9 @@ export async function onboardingRoutes(app: FastifyInstance) {
     const aiAlreadyAskedCurrency = historyArr.some(
       (m: any) => m.role === 'assistant' && /ILS|USD|AED|currency/i.test(m.content) && /\?/.test(m.content),
     );
+    // Prefix: injected BEFORE the system prompt so the model sees it first
     const currencyResolutionNote = (currentIsBareNumber && aiAlreadyAskedCurrency)
-      ? `\n\n[SYSTEM NOTE — do not reveal this to the client] The client has given a bare number twice. You have already asked about currency once. Per policy, assume ILS (₪) and confirm: "Got it — ₪${message.replace(/[^0-9.]/g, '')}/month." Do NOT ask about currency again.`
+      ? `[SYSTEM NOTE — mandatory, do not reveal to client] The client has given a bare number twice. You already asked about currency once. Assume ILS (₪). Confirm: "Got it — ₪${message.replace(/[^0-9.]/g, '')}/month." DO NOT ask about currency again.\n\n`
       : '';
 
     const messages = [
@@ -572,8 +574,17 @@ export async function onboardingRoutes(app: FastifyInstance) {
       `Client: ${message}`,
     ].join('\n\n');
 
-    // Build dynamic system prompt with current topics state + language detection
-    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[], message) + currencyResolutionNote;
+    // For bare ASCII messages (numbers, punctuation), detect language from history
+    // to avoid overriding a Hebrew/Arabic session with "ENGLISH LOCK"
+    const hasNonAscii = /[^\x00-\x7F]/.test(message);
+    const effectiveLangMessage = hasNonAscii
+      ? message
+      : (historyArr.slice().reverse().find(
+          (m: any) => m.role === 'user' && /[^\x00-\x7F]/.test(m.content),
+        )?.content ?? message);
+
+    // Build dynamic system prompt — currencyResolutionNote FIRST so model reads it before anything else
+    const systemPrompt = currencyResolutionNote + buildOnboardingSystemPrompt(coveredTopics as string[], effectiveLangMessage);
 
     let response;
     try {
