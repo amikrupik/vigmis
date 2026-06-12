@@ -473,12 +473,29 @@ export default function StudioClient() {
 
   const approvedParam = searchParams.get('approved');
 
+  // Initial load + handle ?approved= URL param
   useEffect(() => {
     loadJobs();
     if (approvedParam) {
       setSuccessMsg('Creative approved successfully.');
+      window.history.replaceState({}, '', '/studio');
     }
   }, []);
+
+  // Auto-poll while any job is processing/queued
+  useEffect(() => {
+    const inProgress = jobs.some(j => j.status === 'queued' || j.status === 'processing');
+    if (!inProgress) return;
+    const timer = setTimeout(loadJobs, 5_000);
+    return () => clearTimeout(timer);
+  }, [jobs]);
+
+  // Auto-dismiss success message after 4 seconds
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(null), 4_000);
+    return () => clearTimeout(t);
+  }, [successMsg]);
 
   async function loadJobs() {
     setLoading(true);
