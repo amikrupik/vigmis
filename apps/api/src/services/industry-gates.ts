@@ -26,7 +26,7 @@ const INDUSTRY_PATTERNS: { category: IndustryCategory; pattern: RegExp; required
   { category: 'financial', pattern: /(ייעוץ\s+השקעות|רישיון\s+יועץ|תיקי\s+השקעות)/, required_license: 'financial_advisor_license' },
   { category: 'legal_services', pattern: /\b(attorney|lawyer|legal\s+representation|file\s+(a\s+)?lawsuit)\b/i, required_license: 'bar_admission' },
   { category: 'gambling', pattern: /\b(casino|sports[-\s]?bet(ting)?|poker|blackjack|slots?)\b/i, required_license: 'gambling_license' },
-  { category: 'alcohol', pattern: /\b(beer|wine|whisky|whiskey|vodka|gin|liquor|distillery|brewery|cocktail)\b/i, required_license: 'alcohol_license' },
+  { category: 'alcohol', pattern: /\b(beer|wine|whisky|whiskey|vodka|gin|liquor|distillery|brewery)\b/i, required_license: 'alcohol_license' },
   { category: 'cannabis', pattern: /\b(cannabis|marijuana|weed|CBD|THC|hemp\s+oil)\b/i, required_license: 'cannabis_license' },
   { category: 'cosmetic_procedure', pattern: /\b(botox|filler|liposuction|rhinoplasty|surgical\s+procedure)\b/i, required_license: 'medical_aesthetic_license' },
   { category: 'minor_targeting', pattern: /\b(for\s+kids|for\s+children|teen[s]?|under\s+18)\b/i, required_license: 'minor_targeting_review' },

@@ -51,7 +51,8 @@ export async function launchCampaigns(hasCreative: boolean) {
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message ?? data.error ?? 'Launch failed');
+  // Return error as data (don't throw) so Next.js server-action boundary doesn't intercept it
+  if (!res.ok) return { _error: true, error: data.message ?? data.error ?? 'Launch failed', status: res.status, ...data };
   return data;
 }
 

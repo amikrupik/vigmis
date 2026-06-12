@@ -132,7 +132,19 @@ export default function DashboardClient() {
 
   async function handleLaunch() {
     setLaunching(true); setError(null);
-    try { await launchCampaigns(true); await load(); }
+    try {
+      const result = await launchCampaigns(true);
+      if (result?._error) {
+        const msg = result.error ?? 'Launch failed';
+        setError(msg === 'industry_attestation_required'
+          ? 'This business category requires a license attestation before advertising. Go to Settings → Compliance to upload your license.'
+          : msg === 'conversion_readiness_block'
+          ? 'Your landing page needs improvements before paid campaigns. Check Strategy → Readiness for details.'
+          : msg);
+      } else {
+        await load();
+      }
+    }
     catch (err) { setError(err instanceof Error ? err.message : 'Launch failed'); }
     finally { setLaunching(false); }
   }
@@ -284,6 +296,8 @@ export default function DashboardClient() {
             launching={launching} onLaunch={handleLaunch}
             onEmergencyStop={() => setShowStopModal(true)}
             onGeoTab={() => setTab('geo')}
+            onSocialTab={() => setTab('social')}
+            onCreativeTab={() => setTab('creative')}
           />
         )}
         {tab === 'strategy' && <StrategyTab settings={settings} />}
@@ -451,7 +465,7 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab }: any) {
+function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab, onSocialTab, onCreativeTab }: any) {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
   const [convIntel, setConvIntel] = useState<any>(null);
@@ -722,6 +736,33 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
           <button onClick={onLaunch} disabled={launching} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-8 py-3 rounded-xl transition-colors shadow-sm">
             {launching ? 'Launching...' : 'Launch Campaigns →'}
           </button>
+        </div>
+      )}
+
+      {/* Next Steps — shown after campaigns are launched */}
+      {campaigns.length > 0 && onSocialTab && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3">
+          <p className="text-sm font-bold text-indigo-900">Recommended next steps</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button onClick={onSocialTab} className="flex items-center gap-3 bg-white border border-indigo-200 rounded-xl px-4 py-3 text-left hover:border-indigo-400 transition-colors group">
+              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
+                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Generate Social Posts</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Create this week's Facebook & Instagram content</p>
+              </div>
+            </button>
+            <button onClick={onCreativeTab} className="flex items-center gap-3 bg-white border border-indigo-200 rounded-xl px-4 py-3 text-left hover:border-indigo-400 transition-colors group">
+              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
+                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">Create a Creative</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Generate an image or video ad for your campaigns</p>
+              </div>
+            </button>
+          </div>
         </div>
       )}
 
@@ -4658,7 +4699,8 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
     }
   }
 
-  const pendingPosts = posts.filter(p => p.status === 'pending_approval');
+  const pendingPosts = posts.filter(p => p.status === 'pending_approval' && !p.content?.includes('INSUFFICIENT_CONTENT'));
+  const brokenPosts = posts.filter(p => p.status === 'pending_approval' && p.content?.includes('INSUFFICIENT_CONTENT'));
   const coolingOffPosts = posts.filter(p => p.status === 'cooling_off' && !p.cooling_off_cancelled);
 
   async function handleCancelCoolingOff(postId: string) {
@@ -4826,6 +4868,27 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <p className="text-xs text-slate-400 font-medium mb-1">Spend This Month</p>
             <p className="text-2xl font-bold text-slate-900">${analytics.summary.totalSpendUsd.toFixed(2)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Failed generation — posts where AI had insufficient content */}
+      {brokenPosts.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-red-200 flex items-center justify-between">
+            <p className="text-sm font-bold text-red-800">
+              {brokenPosts.length} post{brokenPosts.length !== 1 ? 's' : ''} failed to generate
+            </p>
+            <button
+              onClick={async () => { await Promise.all(brokenPosts.map(p => deleteSocialPost(p.id))); await load(); }}
+              className="text-xs text-red-600 font-semibold hover:text-red-800"
+            >
+              Delete all
+            </button>
+          </div>
+          <div className="px-5 py-3 text-sm text-red-700 space-y-1">
+            <p>Vigmis could not find enough information about your business to generate posts.</p>
+            <p className="text-xs text-red-500">Delete these and click "Generate this week's posts" again after making sure your website has product/service details.</p>
           </div>
         </div>
       )}

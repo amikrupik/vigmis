@@ -136,8 +136,12 @@ type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'pending_set
 function isProviderReady(type: CreativeType): boolean {
   switch (type) {
     case 'avatar':    return !!process.env.HEYGEN_API_KEY;
-    case 'cinematic': return !!process.env.REPLICATE_API_TOKEN;
-    case 'animation': return !!process.env.REPLICATE_API_TOKEN;
+    case 'cinematic':
+    case 'animation': {
+      const token = process.env.REPLICATE_API_TOKEN ?? '';
+      // Reject non-ASCII tokens — fetch() throws ByteString error on Authorization headers
+      return token.length > 0 && /^[\x20-\x7E]+$/.test(token);
+    }
     case 'image':     return !!process.env.OPENAI_API_KEY;
   }
 }

@@ -207,18 +207,24 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
   let text = '';
   let hashtags: string[] = [];
 
+  // Strip markdown code fences — some models add them despite instructions
+  let rawJson = aiResponse.output.trim();
+  if (rawJson.startsWith('```')) {
+    rawJson = rawJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  }
+
   try {
-    const parsed = JSON.parse(aiResponse.output);
+    const parsed = JSON.parse(rawJson);
     text = parsed.text ?? '';
     hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
   } catch {
     // Fallback: treat entire output as text
-    text = aiResponse.output;
+    text = rawJson;
     hashtags = [];
   }
 
-  // Honor the model's own honesty signal
-  if (text === 'INSUFFICIENT_CONTENT') {
+  // Honor the model's own honesty signal — also catches markdown-wrapped JSON fallback case
+  if (text === 'INSUFFICIENT_CONTENT' || text.includes('"INSUFFICIENT_CONTENT"')) {
     throw new Error('INSUFFICIENT_WEBSITE_CONTENT: AI flagged the website content as too sparse — re-run onboarding analysis with a richer site.');
   }
 
