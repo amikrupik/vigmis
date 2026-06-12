@@ -336,7 +336,18 @@ Social actions:
 ## Platform rules (hard knowledge — do not rely on general training data)
 **Meta:** Prohibited: health claims, before/after weight loss images, financial guarantees, shocking content, adult content unless age-gated. Frequency > 3 in prospecting = creative fatigue. CTR benchmark: 0.9-1.5% feed, 1.5-3% stories. Learning phase = 50 conversions per ad set.
 **Google:** Quality Score drives CPC. Broad match keywords need conversion data before using. ROAS bidding needs ≥30 conversions/month. Search partners often lower quality — exclude if CPA is high.
-**TikTok:** Hook must land in first 2 seconds. Completion rate > 25% = good. Native-looking videos outperform polished ads. Audience skews 18-34. Not suited for B2B, medical, or 50+ audiences.`;
+**TikTok:** Hook must land in first 2 seconds. Completion rate > 25% = good. Native-looking videos outperform polished ads. Audience skews 18-34. Not suited for B2B, medical, or 50+ audiences.
+
+## Budget × Geography intelligence (proactively apply)
+When a client asks about multi-territory targeting or budget allocation across countries:
+- Under $1,500/mo managed: recommend ONE primary market. Spreading thin = no frequency = no learning.
+- $1,500–4,000/mo: max 2 markets. Start with the highest-intent geography (typically home country or highest-LTV market).
+- $4,000–10,000/mo: 3–4 markets viable if CPCs are similar. Separate campaigns per country — never combine.
+- Over $10,000/mo: can scale internationally but still recommend prioritizing by ROAS history.
+- Seasonality rule: if the client is in Q4 or a local holiday period, recommend doubling down on primary market before expanding.
+- If a client asks "how do I split between country A and country B" with a small budget: give a concrete % recommendation, not "it depends". Default: 70% primary / 30% secondary.`;
+
+
 
 export async function chatRoutes(app: FastifyInstance) {
 
@@ -379,7 +390,7 @@ export async function chatRoutes(app: FastifyInstance) {
       const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes, ga4Res, protocolsRes, auditRes, newsRes] = await Promise.all([
         db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
         db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type').eq('tenant_id', tenantId).limit(30),
-        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct').eq('tenant_id', tenantId).maybeSingle(),
+        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct, geo_include, geo_exclude, preferred_platforms, strategy_plan, content_language, budget_currency').eq('tenant_id', tenantId).maybeSingle(),
         db.from('social_posts').select('id, platform, pillar, status, content, scheduled_for').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(20),
         db.from('social_settings').select('enabled, platforms, approval_mode, content_pillars, facebook_page_id, instagram_user_id').eq('tenant_id', tenantId).maybeSingle(),
         db.from('platform_tokens').select('account_id').eq('tenant_id', tenantId).eq('platform', 'meta').maybeSingle(),
@@ -443,11 +454,26 @@ export async function chatRoutes(app: FastifyInstance) {
         ? activeNews.map(n => `  • ${n.title} [score: ${n.relevance_score}] — ${n.why_relevant}`).join('\n')
         : '  (none)';
 
+      const geoInclude = (settings as any)?.geo_include as string[] | undefined;
+      const geoExclude = (settings as any)?.geo_exclude as string[] | undefined;
+      const preferredPlatforms = (settings as any)?.preferred_platforms as string[] | undefined;
+      const strategyPlan = (settings as any)?.strategy_plan as Record<string, unknown> | null | undefined;
+      const budgetCurrency = (settings as any)?.budget_currency as string | undefined;
+
+      const strategyNarrative = strategyPlan?.strategy_narrative as string | undefined;
+      const strategyPlatforms = strategyPlan?.platforms as Array<{ name: string; budget_percentage: number; reasoning: string }> | undefined;
+
       const clientContext = [
         '## Client',
         settings
-          ? `Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ILS ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
+          ? `Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ${budgetCurrency ?? 'ILS'} ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
           : 'No settings yet',
+        geoInclude?.length ? `Target geographies: ${geoInclude.join(', ')}${geoExclude?.length ? ` | Excluded: ${geoExclude.join(', ')}` : ''}` : '',
+        preferredPlatforms?.length ? `Preferred platforms: ${preferredPlatforms.join(', ')}` : '',
+        strategyNarrative ? `\n## Approved Strategy Narrative\n${strategyNarrative.slice(0, 600)}` : '',
+        strategyPlatforms?.length
+          ? `\n## Platform Budget Allocation (Approved Strategy)\n${strategyPlatforms.map(p => `  ${p.name}: ${p.budget_percentage}% — ${p.reasoning.slice(0, 100)}`).join('\n')}`
+          : '',
         '',
         '## Performance — Last 7 Days (GA4 ground truth, not platform self-reported)',
         ga4Line,

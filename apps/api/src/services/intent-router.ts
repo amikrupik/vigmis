@@ -55,6 +55,7 @@ The 6 buckets:
    - TikTok: "run TikTok ads", "create a TikTok campaign", "TikTok budget" — TikTok is FULLY SUPPORTED on all plans
    - Analytics & strategy: "show me my metrics", "what's my strategy", "how are my campaigns performing"
    - Consultation: "what should I do to improve my ROAS?", "which platform is best for me?", "analyze my creative", "what would you change?", "what's a good budget?"
+   - Geography & budget strategy: "how should I split budget between USA and Israel?", "I have $5000/month — which countries should I target?", "should I advertise in North America and Europe?", "how to allocate budget across territories", "what's the best geo strategy for my budget?" — ANY question about budget distribution across countries or geo targeting is ALWAYS native_capability.
 
 2. subscription_gate — Vigmis can do this, but requires a higher plan. Examples: "generate 5 video variations" (Pro), "weekly competitor scan" (Pro), "automated A/B test across 10 creatives" (Pro). NOTE: TikTok is NOT gated — available on all plans.
 

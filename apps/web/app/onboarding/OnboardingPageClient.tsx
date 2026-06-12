@@ -976,7 +976,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 </p>
               </div>
               <div className="divide-y divide-slate-50">
-                {strategy.platforms.map(platform => {
+                {(strategy.platforms ?? []).map(platform => {
                   const platformBudget = Math.round((managedBudget * platform.budget_percentage) / 100);
                   return (
                     <div key={platform.name} className="px-5 py-4 space-y-2.5">
