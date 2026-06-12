@@ -453,7 +453,10 @@ export async function connectorRoutes(app: FastifyInstance) {
       if (!res.ok) {
         const body = await res.text();
         request.log.error({ body }, 'Meta /me/adaccounts failed');
-        return reply.code(502).send({ error: 'Meta API error', detail: body.slice(0, 300) });
+        const detail = body.includes('<!DOCTYPE') || body.includes('<html')
+          ? 'Meta token may be expired — please reconnect Meta'
+          : body.slice(0, 300);
+        return reply.code(502).send({ error: 'Meta API error', detail });
       }
       const json = (await res.json()) as { data?: Array<{ id: string; name: string; account_status?: number; currency?: string; business?: { name?: string } }> };
       const accounts = (json.data ?? []).map((a: any) => ({

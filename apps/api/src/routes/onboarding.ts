@@ -172,6 +172,8 @@ CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, nev
   "business_type": "ecommerce",
   "website_url": "https://example.com",
   "budget_monthly_ils": 10000,
+  "budget_currency": "ILS",
+  "budget_original_amount": 10000,
   "management_percentage": 50,
   "goal": "purchases",
   "margin_pct": 45,
