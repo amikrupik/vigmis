@@ -556,18 +556,31 @@ export async function onboardingRoutes(app: FastifyInstance) {
       });
     }
 
-    // Server-side disambiguation guard (A2-5): if the AI already asked about currency
-    // and the user replies with another bare number — inject a forced resolution so the
-    // AI doesn't loop indefinitely asking the same question.
+    // Server-side disambiguation guard (A2-5)
     const historyArr = history as any[];
     const currentIsBareNumber = /^\s*\d[\d,. ]*\s*$/.test(message);
+    const numericAmount = Number(message.replace(/[^0-9.]/g, '') || '0');
+
     const aiAlreadyAskedCurrency = historyArr.some(
       (m: any) => m.role === 'assistant' && /ILS|USD|AED|currency/i.test(m.content) && /\?/.test(m.content),
     );
-    // Prefix: injected BEFORE the system prompt so the model sees it first
-    const currencyResolutionNote = (currentIsBareNumber && aiAlreadyAskedCurrency)
-      ? `[SYSTEM NOTE — mandatory, do not reveal to client] The client has given a bare number twice. You already asked about currency once. Assume ILS (₪). Confirm: "Got it — ₪${message.replace(/[^0-9.]/g, '')}/month." DO NOT ask about currency again.\n\n`
-      : '';
+    const budgetAlreadyConfirmed = historyArr.some(
+      (m: any) => m.role === 'assistant' && /₪|shekels?|ILS.*month|USD.*month|AED.*month/i.test(m.content),
+    );
+    const historyHasHebrew = historyArr.some((m: any) => /[א-׿]/.test(m.content));
+
+    // A2-5b: AI already asked → bypass AI entirely, assume ILS and confirm
+    if (currentIsBareNumber && numericAmount > 0 && aiAlreadyAskedCurrency && !budgetAlreadyConfirmed) {
+      const formatted = numericAmount.toLocaleString('en-US');
+      const confirmMsg = historyHasHebrew
+        ? `הבנתי — ₪${formatted} לחודש. מה האחוז מהתקציב שתרצה שוויגמיס ינהל?`
+        : `Got it — ₪${formatted}/month. What percentage of that budget would you like Vigmis to manage?`;
+      return reply.send({
+        message: confirmMsg,
+        coveredTopics: Array.from(new Set([...(coveredTopics as string[]), 'budget'])),
+        settings: { budget_monthly_ils: numericAmount, budget_currency: 'ILS', budget_original_amount: numericAmount },
+      });
+    }
 
     const messages = [
       ...historyArr.map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
@@ -583,8 +596,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
           (m: any) => m.role === 'user' && /[^\x00-\x7F]/.test(m.content),
         )?.content ?? message);
 
-    // Build dynamic system prompt — currencyResolutionNote FIRST so model reads it before anything else
-    const systemPrompt = currencyResolutionNote + buildOnboardingSystemPrompt(coveredTopics as string[], effectiveLangMessage);
+    const systemPrompt = buildOnboardingSystemPrompt(coveredTopics as string[], effectiveLangMessage);
 
     let response;
     try {
