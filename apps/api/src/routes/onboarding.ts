@@ -30,44 +30,66 @@ const CONTENT_POLICY_BLOCKED = [
   {
     category: 'illegal_drugs',
     keywords: ['cocaine', 'heroin', 'methamphetamine', ' meth ', 'fentanyl', 'crack cocaine', 'drug dealing', 'drug sales', 'illegal drug', 'mdma', 'ecstasy', ' molly ', 'ketamine', ' lsd ', 'magic mushrooms', 'psilocybin', 'recreational drugs', 'party drugs', 'narcotics', 'drug trafficking', 'marijuana', ' cannabis ', 'cannabis-based', 'sell weed', 'selling weed', 'not legal here but', 'illegal here but', 'סמים', 'קוקאין', 'הרואין', 'מתאמפטמין', 'פנטניל', 'סחר בסמים', 'אקסטזי', 'מריחואנה לא חוקית', 'קנאביס'],
-    refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, לא נוכל לעבוד עם עסקים בתחום סמים לא חוקיים. מאחלים לך הצלחה.',
-    refusal_en: "Thank you for reaching out. Vigmis doesn't work with businesses in the illegal drugs category. We wish you the best.",
+    refusal_he: 'תודה שפנית ל-Vigmis. נראה שהתיאור שסיפקת קשור לסמים לא חוקיים. פלטפורמות הפרסום הגדולות (Meta, Google, TikTok) חוסמות קטגוריה זו לחלוטין, ולכן לא נוכל לספק שירות אפקטיבי.\n\nאם הזכרת סמים כ*הגבלה* שלך — דבר שאינך רוצה לפרסם — פשוט כתוב: "אני מוכר [תאר את העסק שלך]" ונשמח להמשיך.',
+    refusal_en: "Thank you for reaching out to Vigmis. It looks like your description involves illegal drugs — major advertising platforms (Meta, Google, TikTok) categorically block this, making effective campaigns impossible.\n\nIf you mentioned drugs as a RESTRICTION (something you refuse to advertise, not your business), simply write: \"I sell [describe your business]\" and we'll be happy to continue.",
   },
   {
     category: 'unauthorized_pharma',
     keywords: ['unlicensed pharmacy', 'fake medicine', 'unregistered medication', 'unapproved drug', 'cures cancer', 'guaranteed cure', 'miracle cure', 'reverses diabetes', 'eliminate disease', 'תרופה ללא רישוי', 'תרופת פלא', 'מרפא סרטן', 'ריפוי מובטח', 'בית מרקחת לא מורשה'],
-    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים שמוכרים תרופות ללא רישיון רגולטורי, או שעושים טענות ריפוי לא מוכחות. מאחלים לך הצלחה.',
-    refusal_en: "Thank you for reaching out. Vigmis doesn't work with unlicensed pharmaceutical businesses or products making unverified medical cure claims. We wish you the best.",
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים שמוכרים תרופות ללא רישיון רגולטורי, או שעושים טענות ריפוי שאינן מגובות מחקרית — פלטפורמות הפרסום אוסרות על כך מפורשות. נשמח לסייע לעסקים בתחומים אחרים.',
+    refusal_en: "Thank you for reaching out to Vigmis. We're unable to work with unlicensed pharmaceutical businesses or products making unverified medical cure claims — advertising platforms explicitly prohibit this. We'd be glad to help businesses in other categories.",
   },
   {
     category: 'pyramid_scheme',
     keywords: ['pyramid scheme', 'ponzi', 'multi-level marketing', 'mlm recruitment', 'get rich quick', 'make money fast', 'guaranteed passive income', 'recruit members', 'downline', 'פירמידה', 'שיווק רב-שלבי', 'להתעשר מהר', 'הכנסה פסיבית מובטחת', 'גיוס חברים'],
-    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים בתחום פירמידות מכירה, שיווק רב-שלבי עם דגש על גיוס, או הבטחות להתעשרות מהירה. מאחלים לך הצלחה.',
-    refusal_en: "Thank you for reaching out. Vigmis doesn't work with pyramid schemes, recruitment-focused MLM businesses, or get-rich-quick programs. We wish you the best.",
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם עסקים בתחום פירמידות מכירה, שיווק רב-שלבי עם דגש על גיוס, או הבטחות להתעשרות מהירה — קטגוריה זו נחסמת על ידי פלטפורמות הפרסום ואינה עומדת בהנחיות שלנו. נשמח לסייע לעסקים בתחומים אחרים.',
+    refusal_en: "Thank you for reaching out to Vigmis. We're unable to work with pyramid schemes, recruitment-focused MLM businesses, or get-rich-quick programs — these are blocked by advertising platforms and don't align with our guidelines. We'd be glad to help businesses in other categories.",
   },
   {
     category: 'gambling',
     keywords: ['online casino', 'sports betting', 'poker site', 'gambling site', 'casino online', 'bet365', 'betway', 'hizna', 'קזינו אונליין', 'הימורים', 'ספורט בט', 'ניחושי ספורט'],
-    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם אתרי הימורים, קזינו, או הגרלות בשלב זה — קטגוריה זו דורשת רישיון רגולטורי שאין ברשותנו. מאחלים לך הצלחה.',
-    refusal_en: "Thank you for reaching out. Vigmis is currently unable to work with gambling, online casinos, or sports betting sites — this category requires regulatory licensing we don't currently hold. We wish you the best.",
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם אתרי הימורים, קזינו, או הגרלות — קטגוריה זו דורשת רישיון פרסום ייעודי שאין ברשותנו כרגע, ומוגבלת על ידי פלטפורמות הפרסום הגדולות. נשמח לסייע לעסקים בתחומים אחרים.',
+    refusal_en: "Thank you for reaching out to Vigmis. We're currently unable to work with gambling, online casinos, or sports betting — this category requires specialized advertising licenses we don't currently hold, and is heavily restricted by major platforms. We'd be glad to help businesses in other categories.",
   },
   {
     category: 'hate_incitement',
     keywords: ['hate group', 'white supremacist', 'neo-nazi', 'extremist group', 'terrorist', 'incitement to violence', 'anti-semitic', 'racism promotion', 'הסתה', 'גזענות', 'לאומנות קיצונית', 'קנאות דתית אלימה'],
-    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם תוכן זה. מאחלים לך הצלחה.',
-    refusal_en: "Thank you for reaching out. We're unable to work with this type of content. We wish you the best.",
+    refusal_he: 'תודה שפנית ל-Vigmis. לא נוכל לעבוד עם תוכן הסתה, גזענות, או קמפיינים המכוונים נגד קבוצות ציבור — זה סותר את ערכי החברה שלנו ואת מדיניות פלטפורמות הפרסום. נשמח לסייע לעסקים בתחומים אחרים.',
+    refusal_en: "Thank you for reaching out to Vigmis. We're unable to work with hate speech, incitement, or campaigns targeting groups of people — this conflicts with our values and advertising platform policies. We'd be glad to help businesses in other categories.",
   },
 ] as const;
 
-function detectContentPolicy(allMessages: string[]): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
+function detectContentPolicy(
+  allMessages: string[],
+  lastAiMessage?: string,
+): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
   const combined = allMessages.join(' ').toLowerCase();
-  // English negation guard: "no firearms", "do not sell any weapons", "without guns", etc.
+
+  // Exclusions context: user is answering "what will your campaign NEVER do?" — keywords are
+  // things they REFUSE to promote, not their own business. Two signals:
+  // 1. Last AI message asked about restrictions/exclusions
+  // 2. User's own language uses exclusion-framing words before the blocked keyword
+  const aiAskedExclusions = lastAiMessage
+    ? /לעולם לא|הגבלות?|restrictions?|never do|exclude|אסור|מה לא|won'?t do/i.test(lastAiMessage)
+    : false;
+  const userExclusionsLangHe = /(?:שלילי(?:ים|ות)?|לא לכלול|מה שאסור|הגבלות?|לאסור|מניע(?:ת)?|דברים שלא|מה שלא|אין לנו|לא נפרסם)[^.!?]{0,120}(?:סמים|נשק|קוקאין|הרואין|אקדח)/.test(combined);
+  const userExclusionsLangEn = /\b(?:things? like|such as|never advertis|won'?t advertis|exclude|restrict|not (?:promote|sell|advertis))\b[^.!?]{0,120}\b(?:drugs?|weapons?|firearms?|cocaine|heroin)\b/.test(combined);
+  const inExclusionsContext = aiAskedExclusions || userExclusionsLangHe || userExclusionsLangEn;
+
+  // English negation guard: "no firearms", "do not sell any weapons", "without guns"
   const firearmsNegatedEn = /\b(no|not|don'?t|without|never)\b[^.!?]{0,60}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
-  // Hebrew negation guard: "לא נשק", "ללא נשק", "בלי נשק", "אסור נשק" — e.g. "לא לאשר נשק" in exclusions
+  // Hebrew negation guard: "לא נשק", "ללא נשק", "בלי נשק"
   const firearmsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע)[^.!?]{0,80}(?:נשק|אקדח|רובה|תחמושת|כלי ירייה)/.test(combined);
-  const firearmsNegated = firearmsNegatedEn || firearmsNegatedHe;
+  const firearmsNegated = firearmsNegatedEn || firearmsNegatedHe || inExclusionsContext;
+
+  // Drugs negation guard
+  const drugsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע)[^.!?]{0,80}(?:סמים|קוקאין|הרואין|מריחואנה|קנאביס)/.test(combined);
+  const drugsNegatedEn = /\b(no|not|don'?t|without|never|refuse)\b[^.!?]{0,60}\b(drugs?|cocaine|heroin|marijuana|cannabis)\b/.test(combined);
+  const drugsNegated = drugsNegatedHe || drugsNegatedEn || inExclusionsContext;
+
   for (const policy of CONTENT_POLICY_BLOCKED) {
     if (policy.category === 'firearms' && firearmsNegated) continue;
+    if (policy.category === 'illegal_drugs' && drugsNegated) continue;
     if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
       return { blocked: true, category: policy.category, refusal_he: policy.refusal_he, refusal_en: policy.refusal_en };
     }
@@ -543,7 +565,9 @@ export async function onboardingRoutes(app: FastifyInstance) {
       ...(history as any[]).filter((m: any) => m.role === 'user').map((m: any) => m.content),
       message,
     ];
-    const policyCheck = detectContentPolicy(allUserMessages);
+    // Pass the last AI message so the classifier can detect exclusions context
+    const lastAiMsg = (history as any[]).filter((m: any) => m.role === 'assistant').at(-1)?.content as string | undefined;
+    const policyCheck = detectContentPolicy(allUserMessages, lastAiMsg);
     if (policyCheck.blocked) {
       // Detect language from history: if any message contains Hebrew, use Hebrew refusal
       const allText = allUserMessages.join(' ');
