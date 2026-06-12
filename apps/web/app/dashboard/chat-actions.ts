@@ -40,6 +40,6 @@ export async function getPendingFeedback(): Promise<{ trigger: string; question:
   return apiCall('/feedback/pending');
 }
 
-export async function submitFeedback(trigger: string, rating: number, comment?: string): Promise<void> {
-  await apiCall('/feedback/submit', 'POST', { trigger, rating, comment });
+export async function submitFeedback(trigger: string, rating: number, comment?: string, followup?: string): Promise<void> {
+  await apiCall('/feedback/submit', 'POST', { trigger, rating, comment, followup });
 }

@@ -488,8 +488,11 @@ export async function generateSocialContent(brief?: {
   style?: string;
   cta?: string;
   restrictions?: string;
-} | null) {
-  return apiCall('/social/generate', 'POST', brief ? { brief } : {});
+} | null, force = false) {
+  const body: Record<string, unknown> = {};
+  if (brief) body.brief = brief;
+  if (force) body.force = true;
+  return apiCall('/social/generate', 'POST', body);
 }
 
 export async function getSocialAnalytics() {

@@ -46,11 +46,11 @@ export async function feedbackRoutes(app: FastifyInstance) {
   });
 
   // ── Submit feedback ───────────────────────────────────────────────────────
-  app.post<{ Body: { trigger: string; rating: number; comment?: string } }>(
+  app.post<{ Body: { trigger: string; rating: number; comment?: string; followup?: string } }>(
     '/feedback/submit',
     { preHandler: authenticate },
     async (request, reply) => {
-      const { trigger, rating, comment } = request.body ?? {};
+      const { trigger, rating, comment, followup } = request.body ?? {};
       if (!trigger || !rating) return reply.code(400).send({ error: 'trigger and rating required' });
 
       await db.from('feedback').insert({
@@ -58,6 +58,7 @@ export async function feedbackRoutes(app: FastifyInstance) {
         trigger,
         rating,
         comment: comment ?? null,
+        followup: followup ?? null,
       });
 
       // Update last_feedback_at

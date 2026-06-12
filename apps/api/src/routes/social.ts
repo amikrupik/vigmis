@@ -537,8 +537,8 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
       return reply.code(403).send({ error: 'trust_tier_blocked', tier, reason: tierGate.reason });
     }
     try {
-      const body = (request.body ?? {}) as { brief?: Record<string, string> };
-      const result = await generateWeeklyPostsForTenant(request.tenantId, body.brief ?? null);
+      const body = (request.body ?? {}) as { brief?: Record<string, string>; force?: boolean };
+      const result = await generateWeeklyPostsForTenant(request.tenantId, body.brief ?? null, body.force === true);
       return reply.send(result);
     } catch (err) {
       request.log.error({ err, tenantId: request.tenantId }, 'Social generate failed');
@@ -830,6 +830,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
 async function generateWeeklyPostsForTenant(
   tenantId: string,
   brief?: Record<string, string> | null,
+  force = false,
 ): Promise<{ generated: number; skipped: number }> {
   const { data: settings } = await db
     .from('social_settings')
@@ -887,7 +888,7 @@ async function generateWeeklyPostsForTenant(
       .not('status', 'in', ['rejected', 'failed'])
       .limit(1);
 
-    if (existing?.length) { skipped++; continue; }
+    if (existing?.length && !force) { skipped++; continue; }
 
     try {
       const content = await generateSocialContent({

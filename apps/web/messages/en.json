@@ -185,6 +185,15 @@
       "answerAbove": "Please answer above to continue",
       "buildStrategy": "Build my strategy →"
     },
+    "websiteDescribe": {
+      "badge": "One More Thing",
+      "title": "Tell us about your business",
+      "subtitle": "Vigmis couldn't read your website automatically (it may be JavaScript-rendered or block bots). Describe what you sell and who your ideal customer is — Vigmis will build your strategy from that.",
+      "label": "What does your business do? Who is your target customer?",
+      "placeholder": "e.g. We sell AI-powered marketing software for small e-commerce businesses. Our customers are online store owners who want to automate their ad campaigns...",
+      "backToChat": "Back to Chat",
+      "buildStrategy": "Build My Strategy →"
+    },
     "strategy": {
       "ready": "Your campaign plan is ready",
       "basedOn": "Based on your website analysis and market research",
@@ -232,8 +241,8 @@
       "approvalStrict": "Strict",
       "approvalStrictDesc": "Manual approval required",
       "estimatedCost": "Estimated cost — 1 post/week per platform",
-      "modifyRequest": "Modify my request",
-      "proceedDecision": "Proceed with my decision →",
+      "modifyRequest": "Accept Vigmis recommendation",
+      "proceedDecision": "Continue with my original request →",
       "updating": "Updating...",
       "whatToChange": "What would you like to change?",
       "vigmisOpinion": "Vigmis will share its honest opinion before updating the plan.",

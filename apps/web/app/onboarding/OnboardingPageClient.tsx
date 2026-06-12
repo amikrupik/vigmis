@@ -204,6 +204,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [pixelCopied, setPixelCopied] = useState(false);
   const [pixelVerifying, setPixelVerifying] = useState(false);
   const [pixelVerified, setPixelVerified] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [shopifyDomain, setShopifyDomain] = useState('');
   const [shopifyConnecting, setShopifyConnecting] = useState(false);
   const [tiktokAvailable, setTiktokAvailable] = useState(false);
@@ -722,23 +723,20 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           <div className="max-w-xl mx-auto space-y-5">
             <div>
               <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wider">
-                One More Thing
+                {t('websiteDescribe.badge')}
               </div>
-              <h2 className="text-xl font-bold text-slate-900">Tell us about your business</h2>
-              <p className="text-slate-500 text-sm mt-1">
-                Vigmis couldn&apos;t read your website automatically (it may be JavaScript-rendered or block bots).
-                Describe what you sell and who your ideal customer is — Vigmis will build your strategy from that.
-              </p>
+              <h2 className="text-xl font-bold text-slate-900">{t('websiteDescribe.title')}</h2>
+              <p className="text-slate-500 text-sm mt-1">{t('websiteDescribe.subtitle')}</p>
             </div>
 
             {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">What does your business do? Who is your target customer?</label>
+              <label className="text-sm font-semibold text-slate-700">{t('websiteDescribe.label')}</label>
               <textarea
                 value={websiteDescription}
                 onChange={e => setWebsiteDescription(e.target.value)}
-                placeholder="e.g. We sell AI-powered marketing software for small e-commerce businesses. Our customers are online store owners who want to automate their ad campaigns..."
+                placeholder={t('websiteDescribe.placeholder')}
                 rows={5}
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
               />
@@ -749,7 +747,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 onClick={() => { setStep('chat'); setWebsiteDescription(''); }}
                 className="border border-slate-200 text-slate-600 text-sm font-semibold px-5 py-3 rounded-xl hover:bg-slate-50 transition-colors"
               >
-                Back to Chat
+                {t('websiteDescribe.backToChat')}
               </button>
               <button
                 onClick={() => {
@@ -763,7 +761,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                 disabled={!websiteDescription.trim()}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
               >
-                Build My Strategy →
+                {t('websiteDescribe.buildStrategy')}
               </button>
             </div>
           </div>
@@ -1579,6 +1577,16 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       pendingSettings?.business_type === 'ecommerce' ||
       pendingSettings?.business_type === 'hero_product';
 
+    const platformInstructions: Record<string, { title: string; steps: string[] }> = {
+      shopify: { title: 'Shopify', steps: ['Online Store → Themes → Edit Code', 'Open theme.liquid', 'Paste before </head>', 'Save'] },
+      wordpress: { title: 'WordPress', steps: ['Plugins → Add New → "Insert Headers and Footers"', 'Paste in Header Scripts', 'Save'] },
+      wix: { title: 'Wix', steps: ['Settings → Custom Code', 'Add Code → Head', 'Paste and Save'] },
+      squarespace: { title: 'Squarespace', steps: ['Settings → Advanced → Code Injection', 'Paste in Header', 'Save'] },
+      webflow: { title: 'Webflow', steps: ['Project Settings → Custom Code → Head Code', 'Paste and Publish'] },
+      other: { title: 'Other platforms', steps: ['Find your theme/template HTML file', 'Paste before </head> tag', 'Save and republish'] },
+    };
+    type PlatformKey = keyof typeof platformInstructions;
+
     async function handleCopySnippet() {
       if (!pixelSnippet) return;
       await navigator.clipboard.writeText(pixelSnippet.snippet).catch(() => null);
@@ -1659,6 +1667,55 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     >
                       {pixelCopied ? t('tracking.copied') : t('tracking.copySnippet')}
                     </button>
+
+                    {/* Platform installation instructions */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                        <p className="text-xs font-semibold text-slate-600">Where do you want to install it?</p>
+                      </div>
+                      <div className="p-3 grid grid-cols-3 gap-2">
+                        {(Object.keys(platformInstructions) as PlatformKey[]).map((key) => (
+                          <button
+                            key={key}
+                            onClick={() => setSelectedPlatform(selectedPlatform === key ? null : key)}
+                            className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all text-center ${
+                              selectedPlatform === key
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                            }`}
+                          >
+                            {platformInstructions[key].title}
+                          </button>
+                        ))}
+                      </div>
+                      {selectedPlatform && (
+                        <div className="px-4 pb-4 space-y-2">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            How to install on {platformInstructions[selectedPlatform as PlatformKey].title}
+                          </p>
+                          <ol className="space-y-1.5">
+                            {platformInstructions[selectedPlatform as PlatformKey].steps.map((step, i) => (
+                              <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
+                                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  {i + 1}
+                                </span>
+                                {step}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Trust note */}
+                    <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                      <svg className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        This code is safe — it only tracks page visits, does not access your data, and does not slow your site.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6 text-slate-400 text-sm">{t('tracking.loadingSnippet')}</div>

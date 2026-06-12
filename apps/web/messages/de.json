@@ -185,6 +185,15 @@
       "answerAbove": "Bitte oben antworten, um fortzufahren",
       "buildStrategy": "Meine Strategie erstellen →"
     },
+    "websiteDescribe": {
+      "badge": "Noch eine Sache",
+      "title": "Erzählen Sie uns von Ihrem Unternehmen",
+      "subtitle": "Vigmis konnte Ihre Website nicht automatisch lesen (sie ist möglicherweise JavaScript-gerendert oder blockiert Bots). Beschreiben Sie, was Sie verkaufen und wer Ihr idealer Kunde ist — Vigmis erstellt Ihre Strategie daraus.",
+      "label": "Was macht Ihr Unternehmen? Wer ist Ihr Zielkunde?",
+      "placeholder": "z.B. Wir verkaufen KI-gestützte Marketingsoftware für kleine E-Commerce-Unternehmen. Unsere Kunden sind Online-Shop-Besitzer, die ihre Werbekampagnen automatisieren möchten...",
+      "backToChat": "Zurück zum Chat",
+      "buildStrategy": "Meine Strategie erstellen →"
+    },
     "strategy": {
       "ready": "Dein Kampagnenplan ist bereit",
       "basedOn": "Basierend auf deiner Website-Analyse und Marktforschung",
@@ -232,8 +241,8 @@
       "approvalStrict": "Streng",
       "approvalStrictDesc": "Manuelle Freigabe erforderlich",
       "estimatedCost": "Geschätzte Kosten — 1 Beitrag/Woche pro Plattform",
-      "modifyRequest": "Meine Anfrage ändern",
-      "proceedDecision": "Mit meiner Entscheidung fortfahren →",
+      "modifyRequest": "Vigmis-Empfehlung annehmen",
+      "proceedDecision": "Mit meiner ursprünglichen Anfrage fortfahren →",
       "updating": "Wird aktualisiert...",
       "whatToChange": "Was möchtest du ändern?",
       "vigmisOpinion": "Vigmis wird seine ehrliche Meinung teilen, bevor der Plan aktualisiert wird.",

@@ -101,6 +101,34 @@ export interface StrategyPlan {
   // Agency brain extension — generated lazily by POST /onboarding/creative-brief
   creative_brief_extended?: CreativeBriefExtended;
   creative_brief_extended_at?: string; // ISO timestamp
+  // Intellectual honesty layer — confidence, risks, source attribution
+  confidence_scores?: StrategyConfidenceScores;
+  confidence_notes?: StrategyConfidenceNotes;
+  risk_factors?: StrategyRiskFactor[];
+  budget_split_rationale?: string;
+  what_we_dont_know?: string[];
+  counter_argument?: string;
+}
+
+export interface StrategyConfidenceScores {
+  icp: number;      // 0-100
+  channel: number;  // 0-100
+  budget: number;   // 0-100
+  overall: number;  // 0-100
+}
+
+export interface StrategyConfidenceNotes {
+  icp?: string;
+  channel?: string;
+  budget?: string;
+  overall?: string;
+}
+
+export interface StrategyRiskFactor {
+  risk: string;
+  probability: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
+  mitigation: string;
 }
 
 // ── Agency Brain: Extended Creative Brief ────────────────────────────────────

@@ -2090,6 +2090,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro' | 'themes'>('territory');
   const [audiences, setAudiences] = useState<any[]>([]);
   const [audiencesLoading, setAudiencesLoading] = useState(false);
+  const [addedAudiences, setAddedAudiences] = useState<Set<string>>(new Set());
+  const [audienceToast, setAudienceToast] = useState<string | null>(null);
   const [territory, setTerritory] = useState<any>(null);
   const [competitors, setCompetitors] = useState<any>(null);
   const [competitorKeyword, setCompetitorKeyword] = useState('');
@@ -2129,6 +2131,17 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
     const res = await discoverAudiences(settings, settings?.website_url ?? '');
     setAudiences(res?.audiences ?? []);
     setAudiencesLoading(false);
+  }
+
+  function handleAddAudience(id: string) {
+    setAddedAudiences(prev => new Set([...prev, id]));
+    const key = `vigmis_added_audiences`;
+    try {
+      const stored = JSON.parse(localStorage.getItem(key) ?? '[]') as string[];
+      localStorage.setItem(key, JSON.stringify([...new Set([...stored, id])]));
+    } catch { /* localStorage unavailable */ }
+    setAudienceToast('Audience segment saved — apply it in your next campaign brief');
+    setTimeout(() => setAudienceToast(null), 3500);
   }
 
   async function handleCompetitors() {
@@ -2242,6 +2255,9 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
             <h3 className="font-bold text-slate-900">Territory Intelligence</h3>
             <span className="text-sm font-semibold text-indigo-600">{territory.detected_country} · {territory.currency?.symbol}{territory.currency?.code}</span>
           </div>
+          <p className="text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5 leading-relaxed">
+            These geographic markets were identified from your strategy. Your campaign is already configured to target them.
+          </p>
           <div className="grid grid-cols-3 gap-4">
             {territory.cpc_benchmarks && Object.entries(territory.cpc_benchmarks).map(([k, v]: [string, any]) => (
               <div key={k} className="bg-slate-50 rounded-xl p-3">
@@ -2277,6 +2293,13 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
       {/* Audience Discovery */}
       {subTab === 'audiences' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          {/* Toast */}
+          {audienceToast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              {audienceToast}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900">Audience Discovery</h3>
@@ -2293,28 +2316,48 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
             </div>
           )}
           {audiences.length > 0 && (
-            <div className="grid md:grid-cols-2 gap-3">
-              {audiences.map((a: any) => (
-                <div key={a.id} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900 text-sm">{a.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${a.potential === 'high' ? 'bg-emerald-100 text-emerald-700' : a.potential === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{a.potential}</span>
-                      <span className="text-xs text-slate-400">{a.size}</span>
+            <div className="space-y-3">
+              <p className="text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5 leading-relaxed">
+                These segments were identified based on your strategy and business profile. Add them to refine your campaign targeting.
+              </p>
+              <div className="grid md:grid-cols-2 gap-3">
+                {audiences.map((a: any) => (
+                  <div key={a.id} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900 text-sm">{a.name}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${a.potential === 'high' ? 'bg-emerald-100 text-emerald-700' : a.potential === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{a.potential}</span>
+                        <span className="text-xs text-slate-400">{a.size}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">{a.description}</p>
+                    {a.interests?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {a.interests.slice(0, 3).map((int: string) => <span key={int} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{int}</span>)}
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-400">{a.reasoning}</p>
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="flex gap-1">
+                        {(a.platforms ?? []).map((p: string) => <span key={p} className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${PLATFORM_BADGE[p] ?? 'bg-slate-100 text-slate-500'}`}>{p}</span>)}
+                      </div>
+                      {addedAudiences.has(a.id) ? (
+                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                          Added
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleAddAudience(a.id)}
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-3 py-1 rounded-lg transition-colors"
+                        >
+                          Add to Campaign →
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500">{a.description}</p>
-                  {a.interests?.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {a.interests.slice(0, 3).map((int: string) => <span key={int} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{int}</span>)}
-                    </div>
-                  )}
-                  <p className="text-xs text-slate-400">{a.reasoning}</p>
-                  <div className="flex gap-1">
-                    {(a.platforms ?? []).map((p: string) => <span key={p} className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${PLATFORM_BADGE[p] ?? 'bg-slate-100 text-slate-500'}`}>{p}</span>)}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -3211,6 +3254,85 @@ function StrategyTab({ settings: _settings }: any) {
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Recommendations</p>
                 <p className="leading-relaxed whitespace-pre-wrap">{plan.recommendations}</p>
               </div>
+            )}
+            {plan.confidence_scores && (
+              <div dir="ltr" className="text-left">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Confidence</p>
+                <div className="space-y-2">
+                  {(['icp', 'channel', 'budget', 'overall'] as const).map((key) => {
+                    const score = Number((plan.confidence_scores as any)?.[key]);
+                    if (!Number.isFinite(score)) return null;
+                    const note = (plan.confidence_notes as any)?.[key] as string | undefined;
+                    const barColor = score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-rose-500';
+                    const labelColor = score >= 80 ? 'text-emerald-700' : score >= 60 ? 'text-amber-700' : 'text-rose-700';
+                    const label = key === 'icp' ? 'ICP' : key.charAt(0).toUpperCase() + key.slice(1);
+                    return (
+                      <div key={key} title={note || undefined} className={note ? 'cursor-help' : ''}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-xs font-semibold text-slate-600">
+                            {label}
+                            {note && <span className="ml-1 text-slate-300">ⓘ</span>}
+                          </span>
+                          <span className={`text-xs font-bold ${labelColor}`}>{score}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+                        </div>
+                        {note && <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{note}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {plan.budget_split_rationale && (
+              <div dir="ltr" className="text-left">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Why this budget split</p>
+                <p className="leading-relaxed">{plan.budget_split_rationale}</p>
+              </div>
+            )}
+            {Array.isArray(plan.risk_factors) && plan.risk_factors.length > 0 && (
+              <details className="group rounded-lg border border-rose-100 bg-rose-50/50">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-rose-700 uppercase tracking-wider">
+                  Risks & Mitigations ({plan.risk_factors.length})
+                </summary>
+                <div dir="ltr" className="px-3 pb-3 space-y-2.5 text-left">
+                  {plan.risk_factors.map((r: any, i: number) => {
+                    const sev = (lvl: string) =>
+                      lvl === 'high' ? 'bg-rose-100 text-rose-700'
+                        : lvl === 'medium' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600';
+                    return (
+                      <div key={i} className="bg-white border border-rose-100 rounded-lg p-2.5">
+                        <p className="font-semibold text-slate-800">{r.risk}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${sev(r.probability)}`}>P: {r.probability}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${sev(r.impact)}`}>Impact: {r.impact}</span>
+                        </div>
+                        {r.mitigation && <p className="text-xs text-slate-600 mt-1.5"><span className="font-semibold text-slate-700">Mitigation:</span> {r.mitigation}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
+            {plan.counter_argument && (
+              <details className="group rounded-lg border border-indigo-100 bg-indigo-50/40">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-indigo-700 uppercase tracking-wider">
+                  Why not the alternatives?
+                </summary>
+                <p dir="ltr" className="px-3 pb-3 text-left text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{plan.counter_argument}</p>
+              </details>
+            )}
+            {Array.isArray(plan.what_we_dont_know) && plan.what_we_dont_know.length > 0 && (
+              <details className="group rounded-lg border border-slate-200 bg-slate-50">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Assumptions & unknowns
+                </summary>
+                <ul dir="ltr" className="px-3 pb-3 text-left list-disc list-inside space-y-1 text-xs text-slate-600">
+                  {plan.what_we_dont_know.map((u: string, i: number) => <li key={i}>{u}</li>)}
+                </ul>
+              </details>
             )}
             {plan.custom_benchmarks && (
               <details className="text-xs text-slate-500">
@@ -4602,6 +4724,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   const [rejectReason, setRejectReason] = useState('');
   const [editPost, setEditPost] = useState<{ id: string; content: string } | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [lastGenerateSkipped, setLastGenerateSkipped] = useState(0);
   // Creative brief dialog state for social post generation
   const [socialBriefOpen, setSocialBriefOpen] = useState(false);
   const [socialBriefData, setSocialBriefData] = useState<CreativeBriefData | null>(null);
@@ -4908,19 +5031,21 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
     setSocialBriefOpen(true);
   }
 
-  async function runGenerateSocialContent(brief: CreativeBriefData | null) {
+  async function runGenerateSocialContent(brief: CreativeBriefData | null, force = false) {
     setSocialBriefData(brief);
     setGenerating(true);
-    const result = await generateSocialContent(brief);
+    setLastGenerateSkipped(0);
+    const result = await generateSocialContent(brief, force);
     await load();
     setGenerating(false);
     if (!result) {
       alert('Generation failed. Check that Meta is connected and try again.');
     } else if (result.generated === 0 && result.skipped === 0) {
       alert('Social media is not configured. Enable it first.');
-    } else if (result.generated === 0) {
-      alert(`No new posts generated. ${result.skipped} skipped (already scheduled this week).`);
+    } else if (result.generated === 0 && result.skipped > 0) {
+      setLastGenerateSkipped(result.skipped);
     } else {
+      setLastGenerateSkipped(0);
       alert(`Generated ${result.generated} post${result.generated > 1 ? 's' : ''}.`);
     }
   }
@@ -5042,6 +5167,22 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
           </button>
         </div>
       </div>
+
+      {/* Skipped banner */}
+      {lastGenerateSkipped > 0 && (
+        <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+          <span className="text-amber-800 font-medium">
+            {lastGenerateSkipped} platform{lastGenerateSkipped > 1 ? 's' : ''} skipped — already scheduled this week.
+          </span>
+          <button
+            onClick={() => runGenerateSocialContent(socialBriefData, true)}
+            disabled={generating}
+            className="shrink-0 text-amber-700 font-semibold underline underline-offset-2 hover:text-amber-900 disabled:opacity-50 transition-colors"
+          >
+            Generate anyway →
+          </button>
+        </div>
+      )}
 
       {/* Section toggle */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">

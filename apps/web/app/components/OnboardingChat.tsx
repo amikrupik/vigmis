@@ -42,14 +42,17 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isListening, setIsListening] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [lang, setLang] = useState<string>('en');
+  const [isRevising, setIsRevising] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
   // Set greeting language from vigmis_lang cookie on mount (avoids SSR hydration mismatch)
   useEffect(() => {
-    const lang = document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en';
-    const greeting = lang === 'he' ? GREETING_HE : lang === 'ar' ? GREETING_AR : GREETING_EN;
+    const detectedLang = document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en';
+    setLang(detectedLang);
+    const greeting = detectedLang === 'he' ? GREETING_HE : detectedLang === 'ar' ? GREETING_AR : GREETING_EN;
     setHistory([{ role: 'assistant', content: greeting, timestamp: new Date().toISOString() }]);
   }, []);
 
@@ -60,7 +63,6 @@ export default function OnboardingChat({ onConfirm }: Props) {
   }, [history, isPending]);
 
   function startVoice() {
-    const lang = document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en';
     const SpeechRecognitionAPI =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
@@ -94,6 +96,7 @@ export default function OnboardingChat({ onConfirm }: Props) {
     const nextHistory = [...history, userMsg];
     setHistory(nextHistory);
     setInput('');
+    setIsRevising(false);
     setSubmitError(null);
 
     startTransition(async () => {
@@ -180,74 +183,120 @@ export default function OnboardingChat({ onConfirm }: Props) {
       {/* Summary + confirm */}
       {allDone && settings && (
         <div className="border-t border-emerald-200 bg-emerald-50 px-6 py-4 space-y-3 flex-shrink-0">
-          <p className="text-sm font-semibold text-emerald-800">Summary — confirm to continue</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-slate-700">
-            <div className="col-span-2">
-              <span className="font-medium text-slate-500">Website:</span>{' '}
-              <span className="font-medium">{settings.website_url}</span>
-            </div>
-            <div>
-              <span className="font-medium text-slate-500">Budget:</span>{' '}
-              {(() => {
-                const currency = settings.budget_currency ?? 'ILS';
-                const orig = settings.budget_original_amount;
-                if (orig && currency !== 'ILS') {
-                  const symbol = currency === 'USD' ? '$' : currency === 'AED' ? 'AED ' : currency + ' ';
-                  return `${symbol}${orig.toLocaleString()}/mo`;
-                }
-                return `₪${settings.budget_monthly_ils.toLocaleString()}/mo`;
-              })()}
-            </div>
-            <div>
-              <span className="font-medium text-slate-500">Managed:</span>{' '}
-              {settings.management_percentage}% (~${managedBudget})
-            </div>
-            <div>
-              <span className="font-medium text-slate-500">Goal:</span>{' '}
-              <span className="capitalize">{settings.goal}</span>
-            </div>
-            <div>
-              <span className="font-medium text-slate-500">Fee (Grow plan):</span>{' '}
-              ~${fee}/mo
-            </div>
-            <div className="col-span-2">
-              <span className="font-medium text-slate-500">Targeting:</span>{' '}
-              {settings.geo_include.join(', ')}
-            </div>
-            {settings.geo_exclude.length > 0 && (
-              <div className="col-span-2">
-                <span className="font-medium text-slate-500">Exclude:</span>{' '}
-                {settings.geo_exclude.join(', ')}
-              </div>
-            )}
-            {settings.exclusions && (
-              <div className="col-span-2">
-                <span className="font-medium text-slate-500">Restrictions:</span>{' '}
-                {settings.exclusions}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => {
-              // Strip [SUMMARY]...[/SUMMARY] from the last AI message so the next
-              // user turn doesn't immediately re-trigger another summary.
-              setHistory(prev => prev.map((msg, i) =>
-                i === prev.length - 1 && msg.role === 'assistant'
-                  ? { ...msg, content: msg.content.replace(/\[SUMMARY\][\s\S]*?\[\/SUMMARY\]/g, '').trim() || msg.content }
-                  : msg
-              ));
-              setSettings(null);
-            }}
-            className="w-full text-sm text-slate-500 hover:text-slate-700 py-1.5 transition-colors"
-          >
-            ← Revise an answer
-          </button>
-          <button
-            onClick={() => onConfirm(settings, history)}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
-          >
-            Confirm — Start Analysis →
-          </button>
+          {(() => {
+            const isAr = lang === 'ar';
+            const isHe = lang === 'he';
+            const L = isHe ? {
+              title: 'סיכום — אשר להמשיך',
+              website: 'אתר',
+              budget: 'תקציב',
+              managed: 'ניהול',
+              goal: 'מטרה',
+              fee: 'עמלה (תוכנית Grow)',
+              targeting: 'טירגוט',
+              exclude: 'מוחרג',
+              restrictions: 'הגבלות',
+              revise: '→ תקן תשובה',
+              confirm: 'אשר — התחל ניתוח →',
+            } : isAr ? {
+              title: 'ملخص — أكد للمتابعة',
+              website: 'الموقع',
+              budget: 'الميزانية',
+              managed: 'المُدار',
+              goal: 'الهدف',
+              fee: 'الرسوم (خطة Grow)',
+              targeting: 'الاستهداف',
+              exclude: 'مستبعد',
+              restrictions: 'القيود',
+              revise: '→ مراجعة إجابة',
+              confirm: 'تأكيد — ابدأ التحليل →',
+            } : {
+              title: 'Summary — confirm to continue',
+              website: 'Website',
+              budget: 'Budget',
+              managed: 'Managed',
+              goal: 'Goal',
+              fee: 'Fee (Grow plan)',
+              targeting: 'Targeting',
+              exclude: 'Exclude',
+              restrictions: 'Restrictions',
+              revise: '← Revise an answer',
+              confirm: 'Confirm — Start Analysis →',
+            };
+            return (
+              <>
+                <p className="text-sm font-semibold text-emerald-800">{L.title}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-slate-700">
+                  <div className="col-span-2">
+                    <span className="font-medium text-slate-500">{L.website}:</span>{' '}
+                    <span className="font-medium">{settings.website_url}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-500">{L.budget}:</span>{' '}
+                    {(() => {
+                      const currency = settings.budget_currency ?? 'ILS';
+                      const orig = settings.budget_original_amount;
+                      if (orig && currency !== 'ILS') {
+                        const symbol = currency === 'USD' ? '$' : currency === 'AED' ? 'AED ' : currency + ' ';
+                        return `${symbol}${orig.toLocaleString()}/mo`;
+                      }
+                      return `₪${settings.budget_monthly_ils.toLocaleString()}/mo`;
+                    })()}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-500">{L.managed}:</span>{' '}
+                    {settings.management_percentage}% (~${managedBudget})
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-500">{L.goal}:</span>{' '}
+                    <span className="capitalize">{settings.goal}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-500">{L.fee}:</span>{' '}
+                    ~${fee}/mo
+                  </div>
+                  <div className="col-span-2">
+                    <span className="font-medium text-slate-500">{L.targeting}:</span>{' '}
+                    {settings.geo_include.join(', ')}
+                  </div>
+                  {settings.geo_exclude.length > 0 && (
+                    <div className="col-span-2">
+                      <span className="font-medium text-slate-500">{L.exclude}:</span>{' '}
+                      {settings.geo_exclude.join(', ')}
+                    </div>
+                  )}
+                  {settings.exclusions && (
+                    <div className="col-span-2">
+                      <span className="font-medium text-slate-500">{L.restrictions}:</span>{' '}
+                      {settings.exclusions}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    // Strip [SUMMARY]...[/SUMMARY] from the last AI message so the next
+                    // user turn doesn't immediately re-trigger another summary.
+                    setHistory(prev => prev.map((msg, i) =>
+                      i === prev.length - 1 && msg.role === 'assistant'
+                        ? { ...msg, content: msg.content.replace(/\[SUMMARY\][\s\S]*?\[\/SUMMARY\]/g, '').trim() || msg.content }
+                        : msg
+                    ));
+                    setIsRevising(true);
+                    setSettings(null);
+                  }}
+                  className="w-full text-sm text-slate-500 hover:text-slate-700 py-1.5 transition-colors"
+                >
+                  {L.revise}
+                </button>
+                <button
+                  onClick={() => onConfirm(settings, history)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+                >
+                  {L.confirm}
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -274,8 +323,16 @@ export default function OnboardingChat({ onConfirm }: Props) {
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            placeholder="Type your answer..."
+            onKeyDown={e => { if (e.key === 'Enter') { setIsRevising(false); submit(); } }}
+            placeholder={
+              isRevising
+                ? lang === 'he'
+                  ? 'כתוב כאן מה תרצה שאתקן מהתשובות שנתת...'
+                  : lang === 'ar'
+                    ? 'اكتب هنا ما تريد تصحيحه من إجاباتك السابقة...'
+                    : 'Tell me what you\'d like me to correct or change from your previous answers...'
+                : 'Type your answer...'
+            }
             disabled={isPending}
             autoFocus
             className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 bg-white"

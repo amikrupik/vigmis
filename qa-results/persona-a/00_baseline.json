@@ -1,0 +1,23 @@
+{
+  "snapshot_time": "2026-06-11",
+  "tenant_id": "7822c548-ecea-4572-929b-bcee1b4b3db2",
+  "note": "RESTORE THIS STATE after QA — do not leave persona data in production",
+  "auth_status": {"google":true,"meta":true,"tiktok":true,"tiktok_available":true},
+  "onboarding": {
+    "complete": true,
+    "confirmed_at": "2026-06-08T08:32:15.646+00:00",
+    "goal": "purchases",
+    "budget_monthly_ils": 3700,
+    "management_percentage": 100,
+    "website_url": "https://www.goodland.co.il",
+    "risk_level": "balanced"
+  },
+  "campaigns": [],
+  "billing_plan": "free",
+  "billing_fee_usd": 29,
+  "tracking": {
+    "pixel_active": false,
+    "business_type": "ecommerce",
+    "margin_pct": 50
+  }
+}

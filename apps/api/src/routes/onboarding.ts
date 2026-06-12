@@ -19,6 +19,10 @@ import { getWinningThemes } from '../services/creative-performance.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
+// Approximate ILS/USD exchange rate — update periodically, no live API needed
+// approximate rate, updated 2026-06
+const ILS_USD_RATE = 3.65;
+
 // Content policy — categories blocked at MVP. Refusal is final, no exceptions.
 const CONTENT_POLICY_BLOCKED = [
   {
@@ -128,7 +132,7 @@ You MUST cover these topics before concluding:
 3. budget — monthly advertising budget.
    CURRENCY RULES:
    - User says "₪X" or "X שקל/שקלים" → ILS, accept directly. Confirm: "Got it — ₪X/month." Set budget_currency="ILS", budget_original_amount=X.
-   - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.7 internally.
+   - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.65 internally.
    - User says "X AED" or "X درهم" → AED (UAE dirham). Confirm in AED: "Got it — X AED/month." Set budget_currency="AED", budget_original_amount=X. Store budget_monthly_ils = X × 1.05 internally.
    - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ask ONCE: "Is that ILS (₪), USD ($), AED, or another currency?"
    - If you have ALREADY asked for currency clarification in this conversation AND the client gives another bare number without a symbol — stop asking and ASSUME ILS. Confirm: "Got it — ₪X/month." Do NOT ask again.
@@ -160,7 +164,7 @@ You MUST cover these topics before concluding:
 
 CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, never approximate:
 - website_url: copy the EXACT URL the user typed. If they said "https://www.goodland.co.il", write exactly that. NEVER use a placeholder like "https://example.com".
-- budget_monthly_ils: if user said "$X" (USD), compute X × 3.7 and write the exact integer result. $2000 → 7400. $3000 → 11100. NEVER round to nearest thousand.
+- budget_monthly_ils: if user said "$X" (USD), compute X × 3.65 and write the exact integer result. $2000 → 7300. $3000 → 10950. NEVER round to nearest thousand.
 - margin_pct: copy the EXACT number. User said "37%" → write 37. User said "40%" → write 40. Never round.
 - geo_include: list ALL geographic areas the user mentioned. "ישראל ויהודים בארה\"ב" → ["Israel", "Jewish communities in USA"]. Never drop any area.
 - exclusions: copy the user's exact words about what to avoid. NEVER set to null if they stated any constraint.
@@ -762,13 +766,13 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
       (settings.budget_monthly_ils / 1) * (settings.management_percentage / 100),
     );
     const managedBudgetDisplay = budgetCurrency === 'USD'
-      ? `$${Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 3.7) * settings.management_percentage / 100)}`
+      ? `$${Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / ILS_USD_RATE) * settings.management_percentage / 100)}`
       : budgetCurrency === 'AED'
       ? `${Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 1.05) * settings.management_percentage / 100)} AED`
       : `₪${Math.round(managedBudgetIls)}`;
     const managedBudget = budgetCurrency === 'USD'
-      ? Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / 3.7) * settings.management_percentage / 100)
-      : Math.round(settings.budget_monthly_ils / 3.7 * settings.management_percentage / 100);
+      ? Math.round((budgetOriginalAmount ?? settings.budget_monthly_ils / ILS_USD_RATE) * settings.management_percentage / 100)
+      : Math.round(settings.budget_monthly_ils / ILS_USD_RATE * settings.management_percentage / 100);
 
     // Fetch industry benchmarks + winning creative themes in parallel with web research
     const countryCode = ((settings.geo_include ?? [])[0] ?? 'IL').toUpperCase().slice(0, 2);
@@ -936,6 +940,20 @@ message_testing_matrix: 4 distinct creative angles to A/B test in the first mont
 
 missing_platforms: Platforms NOT connected that would significantly help THIS business — with specific reasoning tied to the research.
 
+INTELLECTUAL HONESTY — this separates a real strategist from a yes-man. Be candid about the limits of your own analysis:
+
+confidence_scores: Rate your own confidence (0-100 integers) in four dimensions — icp (how well you understand the ideal customer profile from the available data), channel (how confident the platform selection is correct), budget (how confident the budget allocation is right), and overall. A strategy built on a thin website with no historical data should NOT score 90+. Be realistic: 50-70 is honest when data is sparse, 80-95 when you have rich signals. Never default everything to a single number.
+
+confidence_notes: For at least icp and channel (add budget/overall if useful), one sentence explaining WHY the score is what it is and what specific data would raise it.
+
+risk_factors: 3-5 concrete risks to THIS plan. For each: the risk, probability ("low"|"medium"|"high"), impact ("low"|"medium"|"high"), and a specific mitigation we will actually take. Real risks — CPC volatility, thin audience, weak landing page, seasonality, single-channel dependency, attribution blind spots — not platitudes.
+
+budget_split_rationale: Explain WHY this specific platform split (the percentages), not just restate the numbers. What does each dollar buy and why this ratio over alternatives.
+
+what_we_dont_know: 2-5 honest unknowns that would change the plan if known — e.g. "No historical performance data", "Competitor spend unknown", "Landing page conversion rate unverified". This builds trust by naming the gaps.
+
+counter_argument: Steelman the road not taken. Name the most credible alternative approach (e.g. adding Meta, going broad instead of narrow, a different primary channel), give the strongest case FOR it, then explain precisely why we still chose the recommended path. Format: "Here is why NOT to do X: ... Here is why we still chose Y: ..."
+
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 
 Return ONLY valid JSON (no extra text):
@@ -1023,7 +1041,25 @@ Return ONLY valid JSON (no extra text):
     "content_pillars": ["educational", "promotional", "social_proof"],
     "synergy_with_ads": "How organic posts specifically help paid performance for this business",
     "estimated_monthly_cost_usd": 8
-  }
+  },
+  "confidence_scores": {
+    "icp": 85,
+    "channel": 74,
+    "budget": 91,
+    "overall": 83
+  },
+  "confidence_notes": {
+    "icp": "Based on website content + stated goal; would improve with explicit customer data",
+    "channel": "Google strong fit; Meta excluded due to budget — low confidence without testing",
+    "budget": "Allocation reasonable for the market; refine after first 2 weeks of real CPC",
+    "overall": "Solid directional plan; biggest unknown is real conversion rate"
+  },
+  "risk_factors": [
+    { "risk": "High CPC on target keywords", "probability": "high", "impact": "medium", "mitigation": "Start with broad match, narrow after week 2 once search-term data lands" }
+  ],
+  "budget_split_rationale": "Why this specific platform split — what each dollar buys and why this ratio over the alternatives, not just the numbers",
+  "what_we_dont_know": ["No historical performance data", "Competitor spend unknown", "Landing page conversion rate unverified"],
+  "counter_argument": "Here is why NOT to do X: <strongest case for the alternative>. Here is why we still chose Y: <why the recommended path wins for THIS business>."
 }`,
       systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
       options: { maxTokens: 8000, temperature: 0.3 },
@@ -1181,7 +1217,7 @@ Rules:
     if (!strategy || !clientRequest) return reply.code(400).send({ error: 'strategy and clientRequest required' });
 
     const managedBudget = settings
-      ? Math.round((settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100))
+      ? Math.round((settings.budget_monthly_ils / ILS_USD_RATE) * (settings.management_percentage / 100))
       : null;
 
     const res = await route({

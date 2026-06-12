@@ -185,6 +185,15 @@
       "answerAbove": "Devam etmek için lütfen yukarıyı yanıtlayın",
       "buildStrategy": "Stratejimi oluştur →"
     },
+    "websiteDescribe": {
+      "badge": "Bir Şey Daha",
+      "title": "İşletmeniz hakkında bize bilgi verin",
+      "subtitle": "Vigmis web sitenizi otomatik olarak okuyamadı (JavaScript tabanlı olabilir veya botları engelliyor olabilir). Ne sattığınızı ve ideal müşterinizin kim olduğunu açıklayın — Vigmis stratejinizi buna göre oluşturacak.",
+      "label": "İşletmeniz ne yapıyor? Hedef müşteriniz kim?",
+      "placeholder": "örn. Küçük e-ticaret işletmeleri için yapay zeka destekli pazarlama yazılımı satıyoruz. Müşterilerimiz, reklam kampanyalarını otomatikleştirmek isteyen online mağaza sahipleri...",
+      "backToChat": "Sohbete geri dön",
+      "buildStrategy": "Stratejimi oluştur →"
+    },
     "strategy": {
       "ready": "Kampanya planınız hazır",
       "basedOn": "Web sitesi analizinize ve pazar araştırmasına dayalı",
@@ -232,8 +241,8 @@
       "approvalStrict": "Katı",
       "approvalStrictDesc": "Manuel onay gerekli",
       "estimatedCost": "Tahmini maliyet — platform başına haftada 1 gönderi",
-      "modifyRequest": "İsteğimi değiştir",
-      "proceedDecision": "Kararımla devam et →",
+      "modifyRequest": "Vigmis önerisini kabul et",
+      "proceedDecision": "Orijinal isteğimle devam et →",
       "updating": "Güncelleniyor...",
       "whatToChange": "Ne değiştirmek istersiniz?",
       "vigmisOpinion": "Vigmis, planı güncellemeden önce dürüst görüşünü paylaşacak.",

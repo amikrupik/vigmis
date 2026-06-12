@@ -185,6 +185,15 @@
       "answerAbove": "続行するには上記に回答してください",
       "buildStrategy": "戦略を作成する →"
     },
+    "websiteDescribe": {
+      "badge": "もう一つ",
+      "title": "あなたのビジネスについて教えてください",
+      "subtitle": "VigmisはあなたのウェブサイトをJavaScriptレンダリングまたはボットブロックのため自動的に読み取れませんでした。販売内容と理想の顧客を説明してください — Vigmisはそれをもとに戦略を構築します。",
+      "label": "あなたのビジネスは何をしていますか？ターゲット顧客は誰ですか？",
+      "placeholder": "例：中小EC企業向けAIマーケティングソフトウェアを販売しています。顧客は広告キャンペーンを自動化したいオンラインショップオーナーです...",
+      "backToChat": "チャットに戻る",
+      "buildStrategy": "戦略を作成する →"
+    },
     "strategy": {
       "ready": "キャンペーンプランが完成しました",
       "basedOn": "ウェブサイト分析と市場調査に基づいています",
@@ -232,8 +241,8 @@
       "approvalStrict": "厳格",
       "approvalStrictDesc": "手動承認が必要",
       "estimatedCost": "推定コスト — プラットフォームごとに週1投稿",
-      "modifyRequest": "リクエストを変更する",
-      "proceedDecision": "決定通りに進める →",
+      "modifyRequest": "Vigmisの推奨を受け入れる",
+      "proceedDecision": "元のリクエスト通りに進める →",
       "updating": "更新中...",
       "whatToChange": "何を変更しますか？",
       "vigmisOpinion": "プランを更新する前に、Vigmisが率直な意見を共有します。",
