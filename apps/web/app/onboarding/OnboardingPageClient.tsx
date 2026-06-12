@@ -241,17 +241,23 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   async function runAnalysisFlow(settings: OnboardingSettings, feedback?: string, skipWebsiteCheck = false) {
     setStep('analysis');
     setAnalysisStep(0);
+    setError(null);
     try {
       // Phase 1: Quick website understanding (skip on re-runs / feedback revisions)
       if (!skipWebsiteCheck && settings.website_url && !feedback) {
         const check = await checkWebsite(settings.website_url);
         setWebsiteCheck(check);
-        // If unclear or inadequate — pause and show the check to the user
+        // Website couldn't load at all (JS-rendered / blocked / DNS fail) → skip to manual describe
+        if (!check.adequate && !check.summary) {
+          setStep('website_describe');
+          return;
+        }
+        // Website was read but has clarification questions
         if (!check.adequate || check.unclear.length > 0) {
           setStep('website_check');
           return;
         }
-        // If adequate with no questions — continue directly with notes from check
+        // Adequate with no questions — continue directly
       }
 
       // Phase 2: Full strategy analysis
