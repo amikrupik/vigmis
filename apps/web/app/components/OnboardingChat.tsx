@@ -24,11 +24,15 @@ interface Props {
   onConfirm: (settings: OnboardingSettings, conversation: ConversationMessage[]) => void;
 }
 
+const GREETING_EN = "Hi! I'm Vigmis — your AI marketing manager. To build the right campaign for you, I need a few details. First — what type of business do you have? (e.g. online store, local service, lead generation, SaaS, or a business focused on one flagship product)";
+const GREETING_HE = "היי! אני Vigmis — מנהל הפרסום שלך. כדי לבנות עבורך את הקמפיין הנכון, אני צריך כמה פרטים. ראשית — מה סוג העסק שלך? (למשל: חנות אונליין, שירות מקומי, יצירת לידים, SaaS, או עסק המתמקד במוצר מרכזי)";
+const GREETING_AR = "مرحباً! أنا Vigmis — مدير التسويق الرقمي الخاص بك. لبناء الحملة المناسبة لك، أحتاج إلى بعض التفاصيل. أولاً — ما نوع عملك؟ (مثلاً: متجر إلكتروني، خدمة محلية، توليد عملاء، SaaS، أو عمل يركز على منتج رئيسي)";
+
 export default function OnboardingChat({ onConfirm }: Props) {
   const [history, setHistory] = useState<ConversationMessage[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm Vigmis — your AI marketing manager. To build the right campaign for you, I need a few details. First — what type of business do you have? (e.g. online store, local service, lead generation, SaaS, or a business focused on one flagship product)",
+      content: GREETING_EN,
       timestamp: new Date().toISOString(),
     },
   ]);
@@ -42,6 +46,13 @@ export default function OnboardingChat({ onConfirm }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Set greeting language from vigmis_lang cookie on mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    const lang = document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en';
+    const greeting = lang === 'he' ? GREETING_HE : lang === 'ar' ? GREETING_AR : GREETING_EN;
+    setHistory([{ role: 'assistant', content: greeting, timestamp: new Date().toISOString() }]);
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     // Re-focus the input after every AI response so the user can type immediately
@@ -49,12 +60,13 @@ export default function OnboardingChat({ onConfirm }: Props) {
   }, [history, isPending]);
 
   function startVoice() {
+    const lang = document.cookie.match(/vigmis_lang=([^;]+)/)?.[1] ?? 'en';
     const SpeechRecognitionAPI =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
 
     const recognition = new SpeechRecognitionAPI();
-    recognition.lang = 'en-US';
+    recognition.lang = lang === 'he' ? 'he-IL' : lang === 'ar' ? 'ar-AE' : 'en-US';
     recognition.interimResults = false;
     recognition.onresult = (e: any) => {
       setInput(e.results[0][0].transcript);
