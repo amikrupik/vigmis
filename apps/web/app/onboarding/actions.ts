@@ -1,7 +1,5 @@
 'use server';
 
-export const maxDuration = 300;
-
 import { auth } from '@clerk/nextjs/server';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
