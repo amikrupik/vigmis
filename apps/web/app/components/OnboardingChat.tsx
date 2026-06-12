@@ -113,7 +113,9 @@ export default function OnboardingChat({ onConfirm }: Props) {
     });
   }
 
-  const allDone = coveredTopics.length === ALL_TOPICS.length && settings !== null;
+  // allDone = API returned a parsed [SUMMARY] block (settings). coveredTopics count
+  // doesn't need to reach 10 — optional topics (margin_pct, hero_product) may be skipped.
+  const allDone = settings !== null;
   const managedBudget = settings
     ? Math.round((settings.budget_monthly_ils / 3.7) * (settings.management_percentage / 100))
     : 0;

@@ -312,8 +312,8 @@ ${allDone ? '\n⚡ ALL REQUIRED TOPICS ARE COVERED. Your NEXT response MUST outp
   let langOverride = '';
   if (lastMessage) {
     const lang = detectScriptLanguage(lastMessage);
-    if (lang === 'arabic') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Arabic. YOUR ENTIRE RESPONSE MUST BE IN ARABIC. Do NOT use Hebrew or English for even a single word.\n\n';
-    else if (lang === 'hebrew') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Hebrew. YOUR ENTIRE RESPONSE MUST BE IN HEBREW. Do NOT use English for even a single word.\n\n';
+    if (lang === 'arabic') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Arabic. YOUR ENTIRE RESPONSE MUST BE IN ARABIC. EXCEPTION: the [SUMMARY]...[/SUMMARY] block must always use English JSON keys and values — output it in English regardless of conversation language.\n\n';
+    else if (lang === 'hebrew') langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in Hebrew. YOUR ENTIRE RESPONSE MUST BE IN HEBREW. EXCEPTION: the [SUMMARY]...[/SUMMARY] block must always use English JSON keys and values — output it in English regardless of conversation language.\n\n';
     else langOverride = '⚠️ LANGUAGE LOCK: The client just wrote in English. YOUR ENTIRE RESPONSE MUST BE IN ENGLISH.\n\n';
   }
 
