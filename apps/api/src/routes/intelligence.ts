@@ -359,7 +359,7 @@ Return ONLY valid JSON:
       .order('created_at', { ascending: false })
       .limit(20);
 
-    return reply.send({ tests: tests ?? [], is_mock: true });
+    return reply.send({ tests: tests ?? [] });
   });
 
   app.post('/intelligence/ab-test/conclude', { preHandler: authenticate }, async (request, reply) => {
@@ -545,7 +545,7 @@ Return ONLY valid JSON:
       recommendation = match ? JSON.parse(match[0]) : null;
     } catch { recommendation = null; }
 
-    return reply.send(recommendation ?? { recommended_shifts: [], summary: 'Insufficient data for recommendations — connect Google/Meta to enable real-time shifting.', is_mock: true });
+    return reply.send(recommendation ?? { recommended_shifts: [], summary: 'Insufficient data for recommendations — connect Google/Meta to enable real-time shifting.' });
   });
 
   app.post('/intelligence/budget-shift', { preHandler: authenticate }, async (request, reply) => {
