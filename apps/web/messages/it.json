@@ -188,7 +188,8 @@
     "websiteDescribe": {
       "badge": "Un'altra cosa",
       "title": "Raccontaci della tua attività",
-      "subtitle": "Vigmis non è riuscito a leggere il tuo sito automaticamente (potrebbe essere renderizzato con JavaScript o bloccare i bot). Descrivi cosa vendi e chi è il tuo cliente ideale — Vigmis costruirà la tua strategia partendo da questo.",
+      "subtitle": "Non siamo riusciti a leggere automaticamente il tuo sito. Questo è comune con le piattaforme moderne come Shopify, Wix o siti personalizzati — non significa che ci sia qualcosa che non va nel tuo sito. Raccontaci semplicemente della tua attività qui sotto e creeremo la tua strategia dalla tua descrizione.",
+      "vigmisNote": "Sembra che tu abbia inserito il sito di Vigmis. Inserisci invece il sito della tua attività.",
       "label": "Cosa fa la tua attività? Chi è il tuo cliente target?",
       "placeholder": "Es. Vendiamo software di marketing basato sull'IA per piccole aziende di e-commerce. I nostri clienti sono proprietari di negozi online che vogliono automatizzare le loro campagne pubblicitarie...",
       "backToChat": "Torna alla chat",

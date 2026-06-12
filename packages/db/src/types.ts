@@ -108,6 +108,10 @@ export interface StrategyPlan {
   budget_split_rationale?: string;
   what_we_dont_know?: string[];
   counter_argument?: string;
+  // Statistics source attribution — verified claims only
+  cited_stats?: Array<{ claim: string; source: string; confidence: 'high' | 'medium' }>;
+  // ICP confidence gap — one sentence on what additional info would improve accuracy
+  icp_confidence_gap?: string;
 }
 
 export interface StrategyConfidenceScores {

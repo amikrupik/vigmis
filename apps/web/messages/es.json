@@ -188,7 +188,8 @@
     "websiteDescribe": {
       "badge": "Una cosa más",
       "title": "Cuéntanos sobre tu negocio",
-      "subtitle": "Vigmis no pudo leer tu sitio web automáticamente (puede estar renderizado con JavaScript o bloquear bots). Describe lo que vendes y quién es tu cliente ideal — Vigmis construirá tu estrategia a partir de eso.",
+      "subtitle": "No pudimos leer tu sitio web automáticamente. Esto es habitual con plataformas modernas como Shopify, Wix o sitios personalizados — no significa que haya algo mal con tu sitio. Solo cuéntanos sobre tu negocio a continuación y crearemos tu estrategia a partir de tu descripción.",
+      "vigmisNote": "Parece que ingresaste el sitio web de Vigmis. Por favor ingresa el sitio web de tu propio negocio.",
       "label": "¿Qué hace tu negocio? ¿Quién es tu cliente objetivo?",
       "placeholder": "ej. Vendemos software de marketing con IA para pequeñas empresas de comercio electrónico. Nuestros clientes son dueños de tiendas online que quieren automatizar sus campañas publicitarias...",
       "backToChat": "Volver al chat",

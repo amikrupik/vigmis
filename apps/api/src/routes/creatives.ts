@@ -135,7 +135,11 @@ type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'pending_set
 
 function isProviderReady(type: CreativeType): boolean {
   switch (type) {
-    case 'avatar':    return !!process.env.HEYGEN_API_KEY;
+    case 'avatar': {
+      const key = process.env.HEYGEN_API_KEY ?? '';
+      // Reject non-ASCII keys — fetch() throws ByteString error on X-Api-Key headers
+      return key.length > 0 && /^[\x20-\x7E]+$/.test(key);
+    }
     case 'cinematic':
     case 'animation': {
       const token = process.env.REPLICATE_API_TOKEN ?? '';
@@ -808,6 +812,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
+      console.error(`[creatives] ${type} job submission failed (job=${job.id}):`, message);
       await db
         .from('creative_jobs')
         .update({ status: 'failed', updated_at: new Date().toISOString() })

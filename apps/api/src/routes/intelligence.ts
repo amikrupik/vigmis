@@ -291,9 +291,79 @@ Return ONLY valid JSON:
   });
 
   // ── A/B Test Management ──────────────────────────────────────────────────────
-  // POST /intelligence/ab-test/create  — define a test between 2+ ad variants
-  // GET  /intelligence/ab-test         — list active tests + results
-  // POST /intelligence/ab-test/conclude — AI picks winner, pauses losers
+  // POST /intelligence/ab-test/create      — define a test between 2+ ad variants
+  // GET  /intelligence/ab-test             — list active tests + results
+  // GET  /intelligence/ab-test/recommendation — AI-recommended test for this tenant
+  // POST /intelligence/ab-test/conclude    — AI picks winner, pauses losers
+
+  app.get('/intelligence/ab-test/recommendation', { preHandler: authenticate }, async (request, reply) => {
+    const { data: clientSettings } = await db
+      .from('client_settings')
+      .select('strategy_plan, goal, website_url, geo_include')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    const strategyContext = clientSettings?.strategy_plan
+      ? (typeof clientSettings.strategy_plan === 'string'
+          ? clientSettings.strategy_plan
+          : JSON.stringify(clientSettings.strategy_plan)).slice(0, 1200)
+      : 'No strategy available yet';
+
+    const res = await route({
+      task: 'analysis',
+      prompt: `You are a performance marketing strategist. Based on this business's strategy, recommend ONE high-impact A/B test they should run right now.
+
+Business goal: ${clientSettings?.goal ?? 'leads'}
+Target markets: ${(clientSettings?.geo_include ?? []).join(', ') || 'Not specified'}
+Website: ${clientSettings?.website_url ?? 'Not provided'}
+
+Strategy plan:
+${strategyContext}
+
+Recommend the single most impactful A/B test that would give this business the most useful data.
+Focus on something that is:
+1. Directly tied to their goal and market
+2. Easy to set up with 2 ad variants
+3. Likely to yield a clear winner within 2 weeks
+
+Return ONLY valid JSON:
+{
+  "name": "Short test name (e.g. CTA Wording Test)",
+  "platform": "google|meta|tiktok",
+  "rationale": "2-3 sentences: why this test matters for their specific goal and market",
+  "expected_outcome": "What winning this test means for their results",
+  "variant_a": {
+    "name": "Variant A",
+    "description": "Specific description of what this ad looks/sounds like"
+  },
+  "variant_b": {
+    "name": "Variant B",
+    "description": "Specific description of the alternative"
+  }
+}`,
+      systemPrompt: 'You are a data-driven marketing strategist. Return only valid JSON. No extra text.',
+      options: { maxTokens: 700, temperature: 0.5 },
+    });
+
+    let recommendation;
+    try {
+      const match = res.output.match(/\{[\s\S]*\}/);
+      recommendation = match ? JSON.parse(match[0]) : null;
+    } catch { recommendation = null; }
+
+    if (!recommendation) {
+      recommendation = {
+        name: 'CTA Wording Test',
+        platform: 'meta',
+        rationale: 'CTA text is one of the highest-leverage elements in an ad. Testing two different calls-to-action reveals which framing resonates best with your audience and can lift click-through rate significantly.',
+        expected_outcome: 'Identify the CTA that drives more clicks with the same budget.',
+        variant_a: { name: 'Variant A', description: 'CTA: "Get Free Demo" — emphasizes zero-risk entry' },
+        variant_b: { name: 'Variant B', description: 'CTA: "Start Free Trial" — emphasizes immediate value' },
+      };
+    }
+
+    return reply.send(recommendation);
+  });
 
   app.post('/intelligence/ab-test/create', { preHandler: authenticate }, async (request, reply) => {
     const { name, variants, goal, platform, campaign_id } = request.body as any;

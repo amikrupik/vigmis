@@ -207,10 +207,14 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
   let text = '';
   let hashtags: string[] = [];
 
-  // Strip markdown code fences — some models add them despite instructions
+  // Strip markdown code fences — some models add them despite instructions.
+  // Handles fences anywhere in the output, not just leading/trailing.
   let rawJson = aiResponse.output.trim();
-  if (rawJson.startsWith('```')) {
-    rawJson = rawJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  if (rawJson.includes('```')) {
+    rawJson = rawJson
+      .replace(/```(?:json)?/gi, '')
+      .replace(/```/g, '')
+      .trim();
   }
 
   try {
@@ -218,10 +222,27 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
     text = parsed.text ?? '';
     hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
   } catch {
-    // Fallback: treat entire output as text
-    text = rawJson;
-    hashtags = [];
+    // Fallback 1: the output may contain a JSON object embedded in prose.
+    const jsonMatch = rawJson.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        text = parsed.text ?? '';
+        hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
+      } catch {
+        text = '';
+      }
+    }
+    // Fallback 2: treat the (fence-stripped) output as plain text.
+    if (!text) {
+      text = rawJson;
+      hashtags = [];
+    }
   }
+
+  // Defensive: never persist residual code fences into post content, even if a
+  // model returned plain text wrapped in fences that slipped past the parse path.
+  text = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
 
   // Honor the model's own honesty signal — also catches markdown-wrapped JSON fallback case
   if (text === 'INSUFFICIENT_CONTENT' || text.includes('"INSUFFICIENT_CONTENT"')) {

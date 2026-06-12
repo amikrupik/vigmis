@@ -159,6 +159,10 @@ export async function concludeAbTest(test_id: string) {
   return apiCall('/intelligence/ab-test/conclude', 'POST', { test_id });
 }
 
+export async function getAbTestRecommendation() {
+  return apiCall('/intelligence/ab-test/recommendation');
+}
+
 // ── Creative Element Analytics ────────────────────────────────────────────────
 
 export async function analyzeCreativeElements(creatives: any[], platform: string, goal: string) {

@@ -188,7 +188,8 @@
     "websiteDescribe": {
       "badge": "Bir Şey Daha",
       "title": "İşletmeniz hakkında bize bilgi verin",
-      "subtitle": "Vigmis web sitenizi otomatik olarak okuyamadı (JavaScript tabanlı olabilir veya botları engelliyor olabilir). Ne sattığınızı ve ideal müşterinizin kim olduğunu açıklayın — Vigmis stratejinizi buna göre oluşturacak.",
+      "subtitle": "Web sitenizi otomatik olarak okuyamadık. Bu, Shopify, Wix veya özel yapılmış siteler gibi modern platformlarda yaygındır — sitenizde bir sorun olduğu anlamına gelmez. Aşağıda işletmenizi bize anlatın, stratejinizi açıklamanızdan oluşturalım.",
+      "vigmisNote": "Vigmis web sitesini girdiğiniz görünüyor. Lütfen bunun yerine kendi işletmenizin web sitesini girin.",
       "label": "İşletmeniz ne yapıyor? Hedef müşteriniz kim?",
       "placeholder": "örn. Küçük e-ticaret işletmeleri için yapay zeka destekli pazarlama yazılımı satıyoruz. Müşterilerimiz, reklam kampanyalarını otomatikleştirmek isteyen online mağaza sahipleri...",
       "backToChat": "Sohbete geri dön",

@@ -900,6 +900,16 @@ PARAMETERS:
 
 ${connectedPlatformsNote}
 
+BUDGET SPLIT RULE (apply strictly based on monthly managed budget in USD):
+- Budget < $2000/month: recommend Google-only. Meta is not cost-effective at this scale — minimum test budget on Meta is $15–20/day to exit the learning phase.
+- Budget $2000–$4000/month: recommend 85/15 Google/Meta split. The 15% Meta allocation is for retargeting only — warm audiences, past site visitors, video viewers, lookalikes. Do NOT use Meta for cold prospecting at this budget tier.
+- Budget > $4000/month: recommend 70/30 Google/Meta. At this scale Meta prospecting becomes efficient enough to justify broader top-of-funnel investment alongside retargeting.
+Always explain the split reasoning in budget_split_rationale — not just the numbers, but WHY this ratio fits this specific budget level.
+
+ICP CONFIDENCE GAP RULE: If website analysis does not clearly identify the business type (Shopify store vs. SaaS vs. service vs. local), include "icp_confidence_gap" field with one sentence stating what specific information would improve ICP accuracy (e.g. "Knowing whether customers are B2B buyers or individual consumers would allow sharper audience targeting"). If the business type is clearly identified from the website, set this field to null or omit it.
+
+STATISTICS SOURCE RULE — CRITICAL: For any statistic, benchmark, or specific numeric claim in your output (e.g. "CTR improves by 30%", "average CPC $1.50", "conversion rate 2–5%"), you MUST cite a real, named source. Add all cited statistics to the "cited_stats" array as { "claim": "...", "source": "WordStream 2024 / Meta Business Insights 2025 / Google Ads Industry Benchmarks 2024 / Statista 2025", "confidence": "high" | "medium" }. Use "high" when the source is authoritative and recent (within 2 years). Use "medium" when the source is plausible but less precise. If you cannot name a real source for a statistic, DO NOT include that statistic. Remove all unverifiable numeric claims from the strategy.
+
 PLATFORM SELECTION RULES (apply strictly — do not include platforms that don't fit):
 - Google Search: only if there is clear search intent for this product/service
 - Google Display: only for retargeting or brand awareness with budget >$500/mo
@@ -1059,7 +1069,12 @@ Return ONLY valid JSON (no extra text):
   ],
   "budget_split_rationale": "Why this specific platform split — what each dollar buys and why this ratio over the alternatives, not just the numbers",
   "what_we_dont_know": ["No historical performance data", "Competitor spend unknown", "Landing page conversion rate unverified"],
-  "counter_argument": "Here is why NOT to do X: <strongest case for the alternative>. Here is why we still chose Y: <why the recommended path wins for THIS business>."
+  "counter_argument": "Here is why NOT to do X: <strongest case for the alternative>. Here is why we still chose Y: <why the recommended path wins for THIS business>.",
+  "cited_stats": [
+    { "claim": "Average Google Search CTR for ecommerce is 2–5%", "source": "WordStream Google Ads Benchmarks 2024", "confidence": "high" },
+    { "claim": "Meta retargeting CPM is typically $8–15 in Israel", "source": "Meta Business Insights 2025", "confidence": "medium" }
+  ],
+  "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
 }`,
       systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
       options: { maxTokens: 8000, temperature: 0.3 },
@@ -1334,6 +1349,41 @@ Your job: respond honestly and directly.
   //
   // Error 409 if no strategy_plan exists yet.
 
+  // GET /onboarding/creative-brief — cache-only read. Never triggers AI
+  // generation (and thus never incurs cost or latency). Returns the cached
+  // extended brief if one exists, otherwise { cached: false, brief: null }.
+  // The frontend uses POST for lazy generation; this GET is a cheap probe.
+  app.get('/onboarding/creative-brief', { preHandler: authenticate }, async (request, reply) => {
+    const { data: settingsRow, error: settingsErr } = await db
+      .from('client_settings')
+      .select('strategy_plan')
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (settingsErr || !settingsRow) {
+      return reply.code(404).send({ error: 'settings_not_found', message: 'No client settings found.' });
+    }
+
+    const strategyPlan = settingsRow.strategy_plan as Record<string, any> | null;
+
+    if (!strategyPlan) {
+      return reply.code(409).send({
+        error: 'no_strategy',
+        message: 'Run strategy analysis first before generating the creative brief.',
+      });
+    }
+
+    if (strategyPlan.creative_brief_extended && strategyPlan.creative_brief_extended_at) {
+      return reply.send({
+        cached: true,
+        generated_at: strategyPlan.creative_brief_extended_at,
+        brief: strategyPlan.creative_brief_extended,
+      });
+    }
+
+    return reply.send({ cached: false, generated_at: null, brief: null });
+  });
+
   app.post('/onboarding/creative-brief', { preHandler: authenticate }, async (request, reply) => {
     const { force_regenerate = false } = (request.body as any) ?? {};
 
@@ -1523,11 +1573,21 @@ RULES:
     });
 
     let brief: Record<string, unknown> | null = null;
+    // Strip any markdown code fences before extracting the JSON object — some
+    // models wrap their output in ```json despite the explicit instruction not to.
+    let rawOut = aiRes.output.trim();
+    if (rawOut.includes('```')) {
+      rawOut = rawOut.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+    }
     try {
-      const jsonMatch = aiRes.output.match(/\{[\s\S]*\}/);
-      brief = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      brief = JSON.parse(rawOut);
     } catch {
-      brief = null;
+      try {
+        const jsonMatch = rawOut.match(/\{[\s\S]*\}/);
+        brief = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      } catch {
+        brief = null;
+      }
     }
 
     if (!brief) {

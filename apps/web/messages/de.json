@@ -188,7 +188,8 @@
     "websiteDescribe": {
       "badge": "Noch eine Sache",
       "title": "Erzählen Sie uns von Ihrem Unternehmen",
-      "subtitle": "Vigmis konnte Ihre Website nicht automatisch lesen (sie ist möglicherweise JavaScript-gerendert oder blockiert Bots). Beschreiben Sie, was Sie verkaufen und wer Ihr idealer Kunde ist — Vigmis erstellt Ihre Strategie daraus.",
+      "subtitle": "Wir konnten Ihre Website nicht automatisch lesen. Das ist bei modernen Plattformen wie Shopify, Wix oder maßgeschneiderten Websites üblich — das bedeutet nicht, dass mit Ihrer Website etwas nicht stimmt. Beschreiben Sie unten einfach Ihr Unternehmen und wir erstellen Ihre Strategie aus Ihrer Beschreibung.",
+      "vigmisNote": "Es scheint, dass Sie die Vigmis-Website eingegeben haben. Bitte geben Sie stattdessen die Website Ihres eigenen Unternehmens ein.",
       "label": "Was macht Ihr Unternehmen? Wer ist Ihr Zielkunde?",
       "placeholder": "z.B. Wir verkaufen KI-gestützte Marketingsoftware für kleine E-Commerce-Unternehmen. Unsere Kunden sind Online-Shop-Besitzer, die ihre Werbekampagnen automatisieren möchten...",
       "backToChat": "Zurück zum Chat",

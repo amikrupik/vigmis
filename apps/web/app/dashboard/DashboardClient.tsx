@@ -9,7 +9,7 @@ import {
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
   generateCreative, getCreatives, getCreativeStatus, rejectCreative,
-  createAbTest, getAbTests, concludeAbTest,
+  createAbTest, getAbTests, concludeAbTest, getAbTestRecommendation,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
   runOptimizationNow, getOptimizationHistory, getOptimizationSettings, saveOptimizationSettings,
@@ -2100,6 +2100,9 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   const [abTests, setAbTests] = useState<any[]>([]);
   const [abLoading, setAbLoading] = useState(false);
   const [newTest, setNewTest] = useState({ name: '', platform: 'google', goal: 'leads', variantA: '', variantB: '' });
+  const [abRecommendation, setAbRecommendation] = useState<any>(null);
+  const [abRecLoading, setAbRecLoading] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
 
   // Creative Element Analytics
   const [elementAnalysis, setElementAnalysis] = useState<any>(null);
@@ -2124,6 +2127,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
       getTerritoryIntel(settings.geo_include ?? [], settings.website_url ?? '', settings.goal ?? 'leads').then(setTerritory);
     }
     getAbTests().then(r => setAbTests(r?.tests ?? []));
+    setAbRecLoading(true);
+    getAbTestRecommendation().then(r => { setAbRecommendation(r ?? null); setAbRecLoading(false); });
   }, [settings]);
 
   async function handleDiscoverAudiences() {
@@ -2149,6 +2154,18 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
     setCompetitors(res);
   }
 
+  function handleUseRecommendation() {
+    if (!abRecommendation) return;
+    setNewTest({
+      name: abRecommendation.name ?? '',
+      platform: abRecommendation.platform ?? 'meta',
+      goal: newTest.goal,
+      variantA: abRecommendation.variant_a?.description ?? '',
+      variantB: abRecommendation.variant_b?.description ?? '',
+    });
+    setShowManualForm(true);
+  }
+
   async function handleCreateAbTest() {
     if (!newTest.variantA || !newTest.variantB) return;
     setAbLoading(true);
@@ -2159,6 +2176,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
     const res = await createAbTest(newTest.name || 'New A/B Test', variants, newTest.platform, newTest.goal);
     if (res?.id) setAbTests(prev => [res, ...prev]);
     setNewTest({ name: '', platform: 'google', goal: 'leads', variantA: '', variantB: '' });
+    setShowManualForm(false);
     setAbLoading(false);
   }
 
@@ -2427,20 +2445,78 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
       {/* A/B Testing */}
       {subTab === 'ab' && (
         <div className="space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-900">Create A/B Test</h3>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <input value={newTest.name} onChange={e => setNewTest(n => ({ ...n, name: e.target.value }))} placeholder="Test name (e.g. Hook style test)" className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <select value={newTest.platform} onChange={e => setNewTest(n => ({ ...n, platform: e.target.value }))} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="google">Google</option><option value="meta">Meta</option><option value="tiktok">TikTok</option>
-              </select>
+
+          {/* Vigmis Recommendation Card */}
+          {abRecLoading && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 animate-pulse">
+              <div className="h-4 bg-amber-200 rounded w-48 mb-3" />
+              <div className="h-3 bg-amber-100 rounded w-full mb-2" />
+              <div className="h-3 bg-amber-100 rounded w-3/4" />
             </div>
-            <textarea value={newTest.variantA} onChange={e => setNewTest(n => ({ ...n, variantA: e.target.value }))} placeholder="Variant A — describe the ad creative or copy..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-            <textarea value={newTest.variantB} onChange={e => setNewTest(n => ({ ...n, variantB: e.target.value }))} placeholder="Variant B — describe the alternative..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-            <button onClick={handleCreateAbTest} disabled={abLoading || !newTest.variantA || !newTest.variantB} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
-              {abLoading ? 'Creating...' : 'Create Test'}
-            </button>
-          </div>
+          )}
+          {!abRecLoading && abRecommendation && (
+            <div className="bg-gradient-to-br from-amber-50 to-indigo-50 border border-amber-200 rounded-2xl p-5 shadow-sm space-y-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Vigmis recommends a test</p>
+                  <h3 className="font-bold text-slate-900 text-base">{abRecommendation.name}</h3>
+                  <span className="inline-block text-xs font-semibold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full capitalize">{abRecommendation.platform}</span>
+                </div>
+                <button
+                  onClick={handleUseRecommendation}
+                  className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors whitespace-nowrap"
+                >
+                  Use this recommendation →
+                </button>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant A</p>
+                  <p className="text-xs font-semibold text-slate-700">{abRecommendation.variant_a?.name}</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_a?.description}</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant B</p>
+                  <p className="text-xs font-semibold text-slate-700">{abRecommendation.variant_b?.name}</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_b?.description}</p>
+                </div>
+              </div>
+              {abRecommendation.rationale && (
+                <p className="text-xs text-slate-600 leading-relaxed border-t border-amber-100 pt-2">
+                  <span className="font-semibold text-slate-700">Why: </span>{abRecommendation.rationale}
+                </p>
+              )}
+              {abRecommendation.expected_outcome && (
+                <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                  <span className="font-semibold">Expected outcome: </span>{abRecommendation.expected_outcome}
+                </p>
+              )}
+              <button
+                onClick={() => setShowManualForm(v => !v)}
+                className="text-xs text-slate-500 hover:text-slate-700 font-medium transition-colors"
+              >
+                {showManualForm ? '↑ hide manual form' : 'or create your own ↓'}
+              </button>
+            </div>
+          )}
+
+          {/* Manual Create Form — shown when no recommendation yet, or user clicked "or create your own" */}
+          {(showManualForm || !abRecommendation) && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="font-bold text-slate-900">Create A/B Test</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <input value={newTest.name} onChange={e => setNewTest(n => ({ ...n, name: e.target.value }))} placeholder="Test name (e.g. Hook style test)" className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <select value={newTest.platform} onChange={e => setNewTest(n => ({ ...n, platform: e.target.value }))} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="google">Google</option><option value="meta">Meta</option><option value="tiktok">TikTok</option>
+                </select>
+              </div>
+              <textarea value={newTest.variantA} onChange={e => setNewTest(n => ({ ...n, variantA: e.target.value }))} placeholder="Variant A — describe the ad creative or copy..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <textarea value={newTest.variantB} onChange={e => setNewTest(n => ({ ...n, variantB: e.target.value }))} placeholder="Variant B — describe the alternative..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <button onClick={handleCreateAbTest} disabled={abLoading || !newTest.variantA || !newTest.variantB} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
+                {abLoading ? 'Creating...' : 'Create Test'}
+              </button>
+            </div>
+          )}
 
           {abTests.length === 0 && (
             <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
@@ -3332,6 +3408,33 @@ function StrategyTab({ settings: _settings }: any) {
                 <ul dir="ltr" className="px-3 pb-3 text-left list-disc list-inside space-y-1 text-xs text-slate-600">
                   {plan.what_we_dont_know.map((u: string, i: number) => <li key={i}>{u}</li>)}
                 </ul>
+              </details>
+            )}
+            {plan.icp_confidence_gap && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                <span className="text-amber-500 text-base leading-none mt-0.5">&#9888;</span>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  <span className="font-semibold">To improve accuracy: </span>{plan.icp_confidence_gap}
+                </p>
+              </div>
+            )}
+            {Array.isArray(plan.cited_stats) && plan.cited_stats.length > 0 && (
+              <details className="group rounded-lg border border-slate-200 bg-slate-50">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Sources ({plan.cited_stats.length})
+                </summary>
+                <div dir="ltr" className="px-3 pb-3 space-y-2 text-left">
+                  {plan.cited_stats.map((s: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs">
+                      <span className={`mt-0.5 flex-shrink-0 w-2 h-2 rounded-full ${s.confidence === 'high' ? 'bg-emerald-400' : 'bg-amber-400'}`} title={s.confidence === 'high' ? 'High confidence' : 'Medium confidence'} />
+                      <div>
+                        <span className="text-slate-700">{s.claim}</span>
+                        <span className="text-slate-400 ml-1">— {s.source}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-slate-400 pt-1">Green dot = high confidence, amber = medium confidence</p>
+                </div>
               </details>
             )}
             {plan.custom_benchmarks && (

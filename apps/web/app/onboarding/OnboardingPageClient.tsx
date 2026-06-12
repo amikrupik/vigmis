@@ -716,6 +716,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   // ── Website describe (shown when website is JS-rendered / unscrapable) ────────
   if (step === 'website_describe' && pendingSettings) {
+    const isVigmisSite = /vigmis\.com/i.test(pendingSettings.website_url ?? '');
     return (
       <div className="flex flex-col flex-1">
         {header}
@@ -728,6 +729,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               <h2 className="text-xl font-bold text-slate-900">{t('websiteDescribe.title')}</h2>
               <p className="text-slate-500 text-sm mt-1">{t('websiteDescribe.subtitle')}</p>
             </div>
+
+            {isVigmisSite && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+                {t('websiteDescribe.vigmisNote')}
+              </div>
+            )}
 
             {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{error}</div>}
 
