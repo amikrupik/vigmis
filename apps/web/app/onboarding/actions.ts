@@ -36,6 +36,8 @@ export interface OnboardingSettings {
   dayparting_rules: Array<{ day: number; start_hour: number; end_hour: number }>;
   has_parallel_campaigns?: boolean;
   preferred_platforms?: string[] | null;
+  budget_currency?: string;
+  budget_original_amount?: number | null;
 }
 
 export interface ChatResponse {

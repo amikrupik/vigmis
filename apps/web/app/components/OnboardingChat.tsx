@@ -188,7 +188,15 @@ export default function OnboardingChat({ onConfirm }: Props) {
             </div>
             <div>
               <span className="font-medium text-slate-500">Budget:</span>{' '}
-              ₪{settings.budget_monthly_ils.toLocaleString()}/mo
+              {(() => {
+                const currency = settings.budget_currency ?? 'ILS';
+                const orig = settings.budget_original_amount;
+                if (orig && currency !== 'ILS') {
+                  const symbol = currency === 'USD' ? '$' : currency === 'AED' ? 'AED ' : currency + ' ';
+                  return `${symbol}${orig.toLocaleString()}/mo`;
+                }
+                return `₪${settings.budget_monthly_ils.toLocaleString()}/mo`;
+              })()}
             </div>
             <div>
               <span className="font-medium text-slate-500">Managed:</span>{' '}
@@ -219,6 +227,12 @@ export default function OnboardingChat({ onConfirm }: Props) {
               </div>
             )}
           </div>
+          <button
+            onClick={() => setSettings(null)}
+            className="w-full text-sm text-slate-500 hover:text-slate-700 py-1.5 transition-colors"
+          >
+            ← Revise an answer
+          </button>
           <button
             onClick={() => onConfirm(settings, history)}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"

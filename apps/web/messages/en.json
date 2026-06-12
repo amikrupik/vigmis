@@ -161,11 +161,11 @@
       }
     },
     "analysis": {
-      "working": "Vigmis is working for you",
-      "takes": "This takes about 20 seconds",
-      "scanningWebsite": "Scanning your website...",
-      "researchingMarket": "Researching your market...",
-      "buildingPlan": "Building your campaign plan..."
+      "working": "Vigmis is building your strategy",
+      "takes": "This takes 2–4 minutes. A thorough analysis is worth the wait ☕",
+      "scanningWebsite": "Scanning and analyzing your website...",
+      "researchingMarket": "Researching competitors, market trends, and benchmarks...",
+      "buildingPlan": "Building your personalized campaign plan..."
     },
     "websiteCheck": {
       "badge": "Website Review",
