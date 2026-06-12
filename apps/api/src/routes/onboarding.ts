@@ -70,7 +70,7 @@ function detectContentPolicy(
   // 1. Last AI message asked about restrictions/exclusions
   // 2. User's own language uses exclusion-framing words before the blocked keyword
   const aiAskedExclusions = lastAiMessage
-    ? /לעולם לא|הגבלות?|restrictions?|never do|exclude|אסור|מה לא|won'?t do/i.test(lastAiMessage)
+    ? /לעולם לא|הגבלות?|restrictions?|never\b|exclude|avoid|אסור|מה לא|won'?t/i.test(lastAiMessage)
     : false;
   const userExclusionsLangHe = /(?:שלילי(?:ים|ות)?|לא לכלול|מה שאסור|הגבלות?|לאסור|מניע(?:ת)?|דברים שלא|מה שלא|אין לנו|לא נפרסם)[^.!?]{0,120}(?:סמים|נשק|קוקאין|הרואין|אקדח)/.test(combined);
   const userExclusionsLangEn = /\b(?:things? like|such as|never advertis|won'?t advertis|exclude|restrict|not (?:promote|sell|advertis))\b[^.!?]{0,120}\b(?:drugs?|weapons?|firearms?|cocaine|heroin)\b/.test(combined);
