@@ -61,9 +61,11 @@ const CONTENT_POLICY_BLOCKED = [
 
 function detectContentPolicy(allMessages: string[]): { blocked: boolean; category?: string; refusal_he?: string; refusal_en?: string } {
   const combined = allMessages.join(' ').toLowerCase();
-  // Negation guard: "no firearms", "do not sell any weapons", "without guns", etc.
-  // Matches: negation word + up to 60 chars + weapons keyword (same sentence only)
-  const firearmsNegated = /\b(no|not|don'?t|without|never)\b[^.!?]{0,60}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
+  // English negation guard: "no firearms", "do not sell any weapons", "without guns", etc.
+  const firearmsNegatedEn = /\b(no|not|don'?t|without|never)\b[^.!?]{0,60}\b(firearms?|weapons?|guns?|ammo|ammunition)\b/.test(combined);
+  // Hebrew negation guard: "לא נשק", "ללא נשק", "בלי נשק", "אסור נשק" — e.g. "לא לאשר נשק" in exclusions
+  const firearmsNegatedHe = /(?:לא|ללא|בלי|אסור|מנע)[^.!?]{0,80}(?:נשק|אקדח|רובה|תחמושת|כלי ירייה)/.test(combined);
+  const firearmsNegated = firearmsNegatedEn || firearmsNegatedHe;
   for (const policy of CONTENT_POLICY_BLOCKED) {
     if (policy.category === 'firearms' && firearmsNegated) continue;
     if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
