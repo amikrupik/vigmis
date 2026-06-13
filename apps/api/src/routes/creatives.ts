@@ -40,6 +40,8 @@ import sharp from 'sharp';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { fetchLogoForTenant } from '../services/logo-fetcher.js';
+import { extractCreativeContext } from '../services/creative-context.js';
+import { buildCreativeDirectorBrief } from '../services/creative-director.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
 import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
@@ -741,10 +743,10 @@ export async function creativeRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: `type must be one of: ${validTypes.join(', ')}` });
     }
 
-    // Fetch brand DNA from client_settings
+    // Fetch brand DNA + strategy intelligence from client_settings
     const { data: clientSettings } = await db
       .from('client_settings')
-      .select('logo_url, website_url, brand_colors, do_not_change_elements, approved_creative_styles, business_name')
+      .select('logo_url, website_url, brand_colors, do_not_change_elements, approved_creative_styles, business_name, strategy_plan, brand_voice_profile')
       .eq('tenant_id', request.tenantId)
       .maybeSingle();
 
@@ -774,21 +776,61 @@ export async function creativeRoutes(app: FastifyInstance) {
       : (brief ?? {});
     const enrichedBrief = { ...rawBrief };
 
-    // ── Brand Identity Injection ─────────────────────────────────────────────
-    // Every creative MUST contain the brand name and website URL.
-    // If the user's brief omits them, we inject them before sending to any provider.
-    // This prevents publishing creatives that don't mention the business.
+    // ── Creative Director AI ──────────────────────────────────────────────────
+    // Before touching any provider, run the user's brief through a Creative Director
+    // layer that injects strategy context (audience pain, promise, voice, hooks).
+    // This replaces generic "generate a video for Vigmis" with a production-ready
+    // brief grounded in the tenant's actual strategy plan and brand voice.
     //
-    // businessName fallback: extract from domain if not explicitly set.
-    // "vigmis.com" → "Vigmis", "acme-corp.com" → "Acme Corp"
-    const derivedBusinessName = (() => {
+    // derivedBusinessName and websiteToken are needed here — derive them early.
+    const derivedBusinessNameEarly = (() => {
       if (businessName) return businessName;
       if (!websiteUrl) return 'Vigmis';
       const domain = websiteUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').split('.')[0];
       return domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     })();
-    const brandNameToken = derivedBusinessName;
-    const websiteToken = websiteUrl ?? '';
+    const websiteTokenEarly = websiteUrl ?? '';
+
+    try {
+      const strategyPlan = (clientSettings as any)?.strategy_plan ?? null;
+      const brandVoiceProfile = (clientSettings as any)?.brand_voice_profile ?? null;
+
+      const creativeCtx = await extractCreativeContext(
+        request.tenantId,
+        strategyPlan,
+        brandVoiceProfile,
+        platform ?? 'general',
+        type,
+        derivedBusinessNameEarly,
+        websiteTokenEarly,
+      );
+
+      // Extract the raw user input (before any mutation)
+      const rawUserInput: string = type === 'avatar'
+        ? (enrichedBrief.script ?? enrichedBrief.prompt ?? '')
+        : (enrichedBrief.prompt ?? '');
+
+      if (rawUserInput.trim()) {
+        const enhancedBrief = await buildCreativeDirectorBrief(type, rawUserInput, creativeCtx);
+        if (type === 'avatar') {
+          enrichedBrief.script = enhancedBrief;
+        } else {
+          enrichedBrief.prompt = enhancedBrief;
+        }
+      }
+    } catch (cdErr) {
+      // Creative Director failure must never block generation
+      console.error('[creatives] creative-director step failed:', cdErr instanceof Error ? cdErr.message : cdErr);
+    }
+
+    // ── Brand Identity Injection ─────────────────────────────────────────────
+    // Every creative MUST contain the brand name and website URL.
+    // If the user's brief omits them, we inject them before sending to any provider.
+    // This prevents publishing creatives that don't mention the business.
+    //
+    // brandNameToken / websiteToken — reuse the values already computed above
+    const brandNameToken = derivedBusinessNameEarly;
+    const websiteToken = websiteTokenEarly;
 
     // Helper: check if text already contains the brand name (case-insensitive)
     const hasBrandName = (text: string) =>
@@ -801,14 +843,17 @@ export async function creativeRoutes(app: FastifyInstance) {
       if (brandDNA) enrichedBrief._brand_dna = brandDNA;
       if (keepChangeInstruction) enrichedBrief.script = `${keepChangeInstruction} ${enrichedBrief.script ?? ''}`;
 
-      // Ensure avatar script says the brand name and URL
+      // Ensure avatar script mentions the brand name and URL.
+      // If the Creative Director already wrote them in naturally, these are no-ops.
+      // Fallback injection uses mid-sentence form to avoid TTS letter-spelling.
       const script: string = enrichedBrief.script ?? '';
       let finalScript = script;
       if (!hasBrandName(finalScript)) {
-        finalScript = `${brandNameToken} — ${finalScript}`;
+        // Append naturally at the end rather than prepending as a prefix
+        finalScript = `${finalScript.trimEnd()} That's the ${brandNameToken} difference.`;
       }
       if (!hasWebsite(finalScript) && websiteToken) {
-        finalScript = `${finalScript.trimEnd()} Visit ${websiteToken}.`;
+        finalScript = `${finalScript.trimEnd()} Visit us at ${websiteToken}.`;
       }
       enrichedBrief.script = finalScript;
     }

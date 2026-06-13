@@ -2072,7 +2072,13 @@ function CreativeTab({ settings }: any) {
                 {v.description_1 && <p dir="auto" className="text-sm text-slate-600">{v.description_1}</p>}
                 {v.body && <p dir="auto" className="text-xs text-slate-500 italic">{v.body}</p>}
                 <div className="flex items-center gap-2 pt-1">
-                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">{v.cta}</span>
+                  <button
+                    title="Click to copy this CTA text"
+                    onClick={() => navigator.clipboard?.writeText(v.cta ?? '')}
+                    className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-medium cursor-pointer transition-colors border border-indigo-100 hover:border-indigo-300"
+                  >
+                    {v.cta} ↗
+                  </button>
                   <div className="ml-auto flex items-center gap-2">
                     <button
                       onClick={() => {
