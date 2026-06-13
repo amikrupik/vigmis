@@ -31,12 +31,19 @@
 // Best-of-3 (C6): image-only, generate 3 DALL-E images, return highest-scoring
 
 import type { FastifyInstance } from 'fastify';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { writeFile, readFile, unlink } from 'fs/promises';
 import sharp from 'sharp';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
 import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
+
+const execFileAsync = promisify(execFile);
 
 // ── Revision pricing (50% of original for revisions 3-5) ────────────────────
 // Full prices in cents
@@ -57,21 +64,68 @@ const REVISION_PRICES_CENTS: Record<string, number> = {
 
 // ── Supabase Storage upload ───────────────────────────────────────────────────
 
+// Adds a brand name + website text bar at the bottom of every generated video
+// using FFmpeg drawtext. Hard guarantee — applied post-generation regardless of
+// what the AI rendered. Falls back to the original video if FFmpeg is not
+// available (e.g., local dev without FFmpeg installed).
+async function addBrandOverlayToVideo(
+  videoBuffer: Buffer,
+  brandName: string,
+  websiteUrl: string,
+): Promise<Buffer> {
+  const domain = websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const label = domain ? `${brandName}  ·  ${domain}` : brandName;
+  // FFmpeg drawtext requires escaping special characters
+  const safeLabel = label.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/:/g, '\\:');
+
+  const id = `brand-${Date.now()}`;
+  const inputPath = join(tmpdir(), `${id}-in.mp4`);
+  const outputPath = join(tmpdir(), `${id}-out.mp4`);
+
+  try {
+    await writeFile(inputPath, videoBuffer);
+
+    // Centered text bar at the bottom: semi-transparent black box + white bold text
+    const filter =
+      `drawtext=text='${safeLabel}':fontcolor=white:fontsize=36:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:` +
+      `box=1:boxcolor=black@0.70:boxborderw=14:x=(w-text_w)/2:y=h-text_h-24`;
+
+    await execFileAsync('ffmpeg', [
+      '-i', inputPath,
+      '-vf', filter,
+      '-c:a', 'copy',
+      '-y',
+      outputPath,
+    ], { timeout: 120_000 });
+
+    return await readFile(outputPath);
+  } catch (err) {
+    console.error('[creatives] addBrandOverlayToVideo failed, using original video:', err);
+    return videoBuffer;
+  } finally {
+    await Promise.allSettled([unlink(inputPath).catch(() => {}), unlink(outputPath).catch(() => {})]);
+  }
+}
+
 async function uploadVideoToStorage(
   providerUrl: string,
   jobId: string,
   tenantId: string,
+  brand?: { name: string; website: string },
 ): Promise<string | null> {
   try {
     const res = await fetch(providerUrl);
     if (!res.ok) return null;
 
-    const buffer = await res.arrayBuffer();
+    const rawBuffer = Buffer.from(await res.arrayBuffer());
+    const finalBuffer = brand
+      ? await addBrandOverlayToVideo(rawBuffer, brand.name, brand.website)
+      : rawBuffer;
     const path = `${tenantId}/${jobId}.mp4`;
 
     const { error } = await db.storage
       .from('creatives')
-      .upload(path, buffer, {
+      .upload(path, finalBuffer, {
         contentType: 'video/mp4',
         upsert: true,
       });
@@ -997,7 +1051,18 @@ export async function creativeRoutes(app: FastifyInstance) {
       }
 
       if (result.status === 'completed' && result.url) {
-        const storedUrl = await uploadVideoToStorage(result.url, job.id, job.tenant_id);
+        // Fetch brand settings so the overlay uses the tenant's actual brand name/URL
+        const { data: cs } = await db
+          .from('client_settings')
+          .select('business_name, website_url')
+          .eq('tenant_id', job.tenant_id)
+          .maybeSingle();
+        const brandForOverlay = {
+          name: (cs as any)?.business_name ?? 'Vigmis',
+          website: (cs as any)?.website_url ?? '',
+        };
+
+        const storedUrl = await uploadVideoToStorage(result.url, job.id, job.tenant_id, brandForOverlay);
         const finalUrl = storedUrl ?? result.url;
 
         await db

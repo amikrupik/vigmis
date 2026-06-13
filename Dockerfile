@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# FFmpeg + fonts for programmatic brand overlay on generated videos
+RUN apk add --no-cache ffmpeg fontconfig ttf-dejavu
+
 WORKDIR /app
 
 # Copy workspace manifests (root + all packages)
