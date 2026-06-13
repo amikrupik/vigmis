@@ -649,7 +649,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (parent_job_id) {
       const { data: parentJob } = await db
         .from('creative_jobs')
-        .select('id, tenant_id, output_url')
+        .select('id, tenant_id, output_url, revision_number')
         .eq('id', parent_job_id)
         .eq('tenant_id', request.tenantId)
         .maybeSingle();
@@ -660,15 +660,8 @@ export async function creativeRoutes(app: FastifyInstance) {
 
       parentOutputUrl = (parentJob as any).output_url ?? null;
 
-      // Only count non-failed siblings — failed revisions must not consume the revision budget (P0-3)
-      const { count: siblingCount } = await db
-        .from('creative_jobs')
-        .select('id', { count: 'exact', head: true })
-        .eq('parent_job_id', parent_job_id)
-        .eq('tenant_id', request.tenantId)
-        .neq('status', 'failed');
-
-      revisionNumber = (siblingCount ?? 0) + 1;
+      // revision_number = parent's depth + 1 (walk the chain, not count siblings)
+      revisionNumber = ((parentJob as any).revision_number ?? 0) + 1;
 
       if (revisionNumber > 5) {
         return reply.code(400).send({ error: 'Maximum 5 revisions reached for this creative. Please start a new creative.' });
@@ -792,18 +785,40 @@ export async function creativeRoutes(app: FastifyInstance) {
           critic_score: criticScore,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Image generation failed';
+        const rawMessage = err instanceof Error ? err.message : 'Image generation failed';
+        // Mask upstream vendor details from client — log full error internally only
+        console.error(`[creatives] image job failed (job=${job.id}):`, rawMessage);
+        const isPolicy = rawMessage.includes('safety') || rawMessage.includes('rejected') || rawMessage.includes('policy') || rawMessage.includes('POLICY');
+        const clientMessage = isPolicy
+          ? 'Content was rejected by the image safety system. Please revise your prompt.'
+          : 'Image generation failed. Please try again.';
         await db
           .from('creative_jobs')
-          .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
+          .update({ status: 'failed', error_message: clientMessage, updated_at: new Date().toISOString() })
           .eq('id', job.id);
         if (creditConsumed) await restoreScaleCredit(request.tenantId, 'image').catch(() => {});
-        return reply.code(500).send({ error: message, job_id: job.id });
+        return reply.code(isPolicy ? 422 : 500).send({
+          error: clientMessage,
+          code: isPolicy ? 'POLICY_BLOCKED' : 'GENERATION_FAILED',
+          job_id: job.id,
+        });
       }
     }
 
     // ── Video: async generation with provider polling ─────────────────────────
     try {
+      // Validate avatar brief has required script — catch before calling HeyGen
+      if (type === 'avatar') {
+        const script = typeof enrichedBrief.script === 'string'
+          ? enrichedBrief.script.trim()
+          : (typeof enrichedBrief.prompt === 'string' ? enrichedBrief.prompt.trim() : '');
+        if (!script) {
+          await db.from('creative_jobs').update({ status: 'failed', error_message: 'Script is required for avatar videos.', updated_at: new Date().toISOString() }).eq('id', job.id);
+          if (creditConsumed) await restoreScaleCredit(request.tenantId, 'video').catch(() => {});
+          return reply.code(400).send({ error: 'Script is required for avatar videos. Add a script or prompt to your brief.', job_id: job.id });
+        }
+      }
+
       let providerJobId: string;
 
       if (type === 'avatar') {
@@ -835,15 +850,17 @@ export async function creativeRoutes(app: FastifyInstance) {
         estimated_minutes: type === 'avatar' ? 3 : type === 'cinematic' ? 5 : 4,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Generation failed';
-      console.error(`[creatives] ${type} job submission failed (job=${job.id}):`, message);
+      const rawMessage = err instanceof Error ? err.message : 'Generation failed';
+      // Mask vendor error details — never forward HeyGen/Replicate internal field paths to client
+      console.error(`[creatives] ${type} job submission failed (job=${job.id}):`, rawMessage);
+      const clientMessage = 'Video generation failed. Please try again or contact support.';
       await db
         .from('creative_jobs')
-        .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
+        .update({ status: 'failed', error_message: clientMessage, updated_at: new Date().toISOString() })
         .eq('id', job.id);
       if (creditConsumed) await restoreScaleCredit(request.tenantId, 'video').catch(() => {});
 
-      return reply.code(500).send({ error: message, job_id: job.id });
+      return reply.code(500).send({ error: clientMessage, job_id: job.id });
     }
   });
 
@@ -1026,8 +1043,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       .single();
 
     if (fetchErr || !job) return reply.code(404).send({ error: 'Job not found' });
-    if (job.status !== 'completed') return reply.code(400).send({ error: 'Job is not completed yet' });
     if (job.approved_at) return reply.send({ success: true, charged: false, already_approved: true });
+    if (!['completed', 'approved'].includes(job.status)) return reply.code(400).send({ error: 'Job is not completed yet' });
 
     const revisionNumber = job.revision_number ?? 0;
 
@@ -1035,7 +1052,7 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (revisionNumber <= 2) {
       await db
         .from('creative_jobs')
-        .update({ approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .update({ status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('tenant_id', request.tenantId);
 

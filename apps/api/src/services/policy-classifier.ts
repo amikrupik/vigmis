@@ -118,11 +118,16 @@ const TIER0_PATTERNS: Tier0Pattern[] = [
     pattern: /\b(buy|sell|order)\s+(cocaine|heroin|meth|mdma|ecstasy|fentanyl|crack)\b/i,
     reason: 'Sale of controlled substances is illegal.',
   },
-  // Weapons sales (unregulated)
+  // Weapons sales (any — covers licensed dealers too, platform risk)
   {
     category: 'illegal_weapon_sale',
-    pattern: /\b(unregistered|untraceable|ghost)\s+(gun|firearm|weapon)\b/i,
-    reason: 'Sale of unregistered weapons is illegal.',
+    pattern: /\b(sell|buy|order|purchase|shop|store|dealer|sale|advertis)\w*\b.{0,60}\b(gun|rifle|pistol|handgun|shotgun|firearm|ammunition|ammo|ak-?47|ar-?15|weapon)\b/i,
+    reason: 'Advertising firearms or ammunition sales is not permitted on this platform.',
+  },
+  {
+    category: 'illegal_weapon_sale',
+    pattern: /\b(ak-?47|ar-?15|glock|beretta|colt|smith\s*&\s*wesson)\b.{0,40}\b(buy|sale|price|order|shop|cheap|discount)\b/i,
+    reason: 'Advertising specific firearm models for sale is not permitted.',
   },
   // Marketing to minors of restricted goods
   {

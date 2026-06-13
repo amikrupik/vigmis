@@ -923,6 +923,8 @@ async function generateWeeklyPostsForTenant(
       }).select('id').single();
 
       if (insertErr) {
+        // Unique constraint violation = race condition (another concurrent request already inserted)
+        if (insertErr.code === '23505') { skipped++; continue; }
         errors++;
         lastError = insertErr.message;
         continue;

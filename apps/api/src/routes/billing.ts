@@ -261,6 +261,41 @@ export async function billingRoutes(app: FastifyInstance) {
     return reply.send({ received: true });
   });
 
+  // ── Creative credits balance ────────────────────────────────────────────────
+  app.get('/billing/credits', { preHandler: authenticate }, async (request, reply) => {
+    const { data: billing } = await db
+      .from('billing_customers')
+      .select('plan, scale_video_credits_used, scale_image_credits_used, scale_post_credits_used, credits_period, downgrade_requested_at')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    const plan = billing?.plan ?? 'free';
+    const isPro = plan === 'pro';
+    const VIDEO_LIMIT = 1;
+    const IMAGE_LIMIT = 3;
+    const POST_LIMIT = 5;
+
+    return reply.send({
+      plan,
+      period: (billing as any)?.credits_period ?? null,
+      video: {
+        used: isPro ? ((billing as any)?.scale_video_credits_used ?? 0) : 0,
+        limit: isPro ? VIDEO_LIMIT : 0,
+        available: isPro ? Math.max(0, VIDEO_LIMIT - ((billing as any)?.scale_video_credits_used ?? 0)) : 0,
+      },
+      image: {
+        used: isPro ? ((billing as any)?.scale_image_credits_used ?? 0) : 0,
+        limit: isPro ? IMAGE_LIMIT : 0,
+        available: isPro ? Math.max(0, IMAGE_LIMIT - ((billing as any)?.scale_image_credits_used ?? 0)) : 0,
+      },
+      post: {
+        used: isPro ? ((billing as any)?.scale_post_credits_used ?? 0) : 0,
+        limit: isPro ? POST_LIMIT : 0,
+        available: isPro ? Math.max(0, POST_LIMIT - ((billing as any)?.scale_post_credits_used ?? 0)) : 0,
+      },
+    });
+  });
+
   // ── Invoice list ───────────────────────────────────────────────────────────
   app.get('/billing/invoices', { preHandler: authenticate }, async (request, reply) => {
     const { data: invoices } = await db
