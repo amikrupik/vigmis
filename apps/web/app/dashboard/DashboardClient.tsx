@@ -299,15 +299,14 @@ export default function DashboardClient() {
       )}
 
       {/* Body: sidebar + content */}
-      <div className="flex min-h-[calc(100vh-112px)] rtl:flex-row-reverse" dir="auto">
+      <div className="flex min-h-[calc(100vh-112px)]">
 
         {/* Vertical sidebar */}
         <aside
           className={[
-            'fixed md:sticky top-[112px] z-30 h-[calc(100vh-112px)] w-[220px] bg-slate-50 border-slate-200 overflow-y-auto flex-shrink-0 flex flex-col py-4 transition-transform duration-200',
-            'ltr:border-r rtl:border-l',
-            sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full md:translate-x-0',
-            'ltr:left-0 rtl:right-0',
+            'w-[220px] flex-shrink-0 bg-slate-100 border-r border-slate-300 flex flex-col py-4 overflow-y-auto z-30 transition-transform duration-200',
+            'fixed top-0 h-screen md:sticky md:top-[112px] md:h-[calc(100vh-112px)]',
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
           ].join(' ')}
         >
           {NAV_GROUPS.map(group => (
