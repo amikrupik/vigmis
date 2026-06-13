@@ -118,7 +118,17 @@ export default function DashboardClient() {
   const t = useTranslations('dashboard');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<Tab>('overview');
+
+  // Initialize from URL so language-switch reloads (and direct links) restore the correct tab
+  const initialTab = (searchParams?.get('tab') as Tab | null) ?? 'overview';
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  // Wrap setTab so every tab change also updates the URL search param.
+  // This makes the tab survive window.location.reload() (language switch).
+  function switchTab(next: Tab) {
+    setTab(next);
+    window.history.replaceState(null, '', `?tab=${next}`);
+  }
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +157,7 @@ export default function DashboardClient() {
     getProtocols('pending').then(r => setPendingProtocolCount(r?.protocols?.length ?? 0));
     // After Google OAuth from dashboard, refresh connection status and stay in Social tab
     if (searchParams?.get('connected') === 'google') {
-      setTab('social');
+      switchTab('social');
       load();
     }
   }, []);
@@ -228,7 +238,7 @@ export default function DashboardClient() {
             </div>
             <div className="flex items-center gap-4 text-sm">
               <button
-                onClick={() => setTab('overview')}
+                onClick={() => switchTab('overview')}
                 className="relative text-slate-400 hover:text-slate-700 transition-colors"
                 title={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}` : 'Alerts'}
               >
@@ -273,12 +283,12 @@ export default function DashboardClient() {
               {!p.connected && (
                 <button
                   onClick={async () => {
-                    if (p.key === 'tiktok') { setTab('social'); return; }
+                    if (p.key === 'tiktok') { switchTab('social'); return; }
                     try {
                       const tok = await (window as any).Clerk?.session?.getToken();
                       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
                       window.location.href = `${apiUrl}/auth/${p.key}?token=${encodeURIComponent(tok ?? '')}&return=dashboard`;
-                    } catch { setTab('social'); }
+                    } catch { switchTab('social'); }
                   }}
                   className="ml-0.5 underline underline-offset-2 hover:no-underline text-amber-600"
                 >
@@ -319,7 +329,7 @@ export default function DashboardClient() {
                 return (
                   <div key={item.key} className="px-2">
                   <button
-                    onClick={() => { setTab(item.key); setSidebarOpen(false); }}
+                    onClick={() => { switchTab(item.key); setSidebarOpen(false); }}
                     className={[
                       'w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors text-start rounded-lg',
                       isActive
@@ -353,12 +363,12 @@ export default function DashboardClient() {
             pendingCampaigns={pendingCampaigns}
             errorCampaigns={errorCampaigns} totalDailyBudget={totalDailyBudget}
             managedBudget={managedBudget} feeEstimate={feeEstimate}
-            onViewAll={() => setTab('campaigns')}
+            onViewAll={() => switchTab('campaigns')}
             launching={launching} onLaunch={handleLaunch}
             onEmergencyStop={() => setShowStopModal(true)}
-            onGeoTab={() => setTab('geo')}
-            onSocialTab={() => setTab('social')}
-            onCreativeTab={() => setTab('creative')}
+            onGeoTab={() => switchTab('geo')}
+            onSocialTab={() => switchTab('social')}
+            onCreativeTab={() => switchTab('creative')}
           />
         )}
         {tab === 'strategy' && <StrategyTab settings={settings} />}
