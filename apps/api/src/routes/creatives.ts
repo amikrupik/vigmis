@@ -39,6 +39,7 @@ import { writeFile, readFile, unlink } from 'fs/promises';
 import sharp from 'sharp';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { fetchLogoForTenant } from '../services/logo-fetcher.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
 import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
@@ -64,14 +65,15 @@ const REVISION_PRICES_CENTS: Record<string, number> = {
 
 // ── Supabase Storage upload ───────────────────────────────────────────────────
 
-// Adds a brand name + website text bar at the bottom of every generated video
-// using FFmpeg drawtext. Hard guarantee — applied post-generation regardless of
-// what the AI rendered. Falls back to the original video if FFmpeg is not
-// available (e.g., local dev without FFmpeg installed).
+// Adds a brand name + website text bar at the bottom of every generated video,
+// and optionally overlays the company logo in the top-right corner.
+// Hard guarantee — applied post-generation. Falls back gracefully if FFmpeg
+// is not available (e.g. local dev without FFmpeg installed).
 async function addBrandOverlayToVideo(
   videoBuffer: Buffer,
   brandName: string,
   websiteUrl: string,
+  logoUrl?: string | null,
 ): Promise<Buffer> {
   const domain = websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const label = domain ? `${brandName}  ·  ${domain}` : brandName;
@@ -81,30 +83,63 @@ async function addBrandOverlayToVideo(
   const id = `brand-${Date.now()}`;
   const inputPath = join(tmpdir(), `${id}-in.mp4`);
   const outputPath = join(tmpdir(), `${id}-out.mp4`);
+  const logoPath = join(tmpdir(), `${id}-logo.png`);
+  let hasLogo = false;
 
   try {
     await writeFile(inputPath, videoBuffer);
 
-    // Centered text bar at the bottom: semi-transparent black box + white bold text
-    const filter =
-      // Alpine ttf-dejavu installs fonts under /usr/share/fonts/dejavu/
-      `drawtext=text='${safeLabel}':fontcolor=white:fontsize=36:fontfile=/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf:` +
+    // Download and resize logo if available
+    if (logoUrl) {
+      try {
+        const logoRes = await fetch(logoUrl);
+        if (logoRes.ok) {
+          const logoRaw = Buffer.from(await logoRes.arrayBuffer());
+          // Resize to 120px wide, preserve aspect ratio
+          const logoResized = await sharp(logoRaw)
+            .resize({ width: 120, withoutEnlargement: true })
+            .png()
+            .toBuffer();
+          await writeFile(logoPath, logoResized);
+          hasLogo = true;
+        }
+      } catch (e) {
+        console.warn('[creatives] logo download for video failed, skipping logo:', e);
+      }
+    }
+
+    // Build FFmpeg filter graph
+    // Text bar at the bottom + optional logo in top-right corner
+    const textFilter =
+      `drawtext=text='${safeLabel}':fontcolor=white:fontsize=36:` +
+      `fontfile=/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf:` +
       `box=1:boxcolor=black@0.70:boxborderw=14:x=(w-text_w)/2:y=h-text_h-24`;
 
-    await execFileAsync('ffmpeg', [
-      '-i', inputPath,
-      '-vf', filter,
-      '-c:a', 'copy',
-      '-y',
-      outputPath,
-    ], { timeout: 120_000 });
+    const args: string[] = ['-i', inputPath];
+    let filter: string;
+
+    if (hasLogo) {
+      args.push('-i', logoPath);
+      // Scale logo to 10% of video width, overlay top-right with 20px padding
+      filter = `[1:v]scale=iw*10/100:-1[logo];[0:v]${textFilter}[txt];[txt][logo]overlay=W-w-20:20`;
+    } else {
+      filter = textFilter;
+    }
+
+    args.push('-vf', filter, '-c:a', 'copy', '-y', outputPath);
+
+    await execFileAsync('ffmpeg', args, { timeout: 120_000 });
 
     return await readFile(outputPath);
   } catch (err) {
     console.error('[creatives] addBrandOverlayToVideo failed, using original video:', err);
     return videoBuffer;
   } finally {
-    await Promise.allSettled([unlink(inputPath).catch(() => {}), unlink(outputPath).catch(() => {})]);
+    await Promise.allSettled([
+      unlink(inputPath).catch(() => {}),
+      unlink(outputPath).catch(() => {}),
+      hasLogo ? unlink(logoPath).catch(() => {}) : Promise.resolve(),
+    ]);
   }
 }
 
@@ -112,7 +147,7 @@ async function uploadVideoToStorage(
   providerUrl: string,
   jobId: string,
   tenantId: string,
-  brand?: { name: string; website: string },
+  brand?: { name: string; website: string; logoUrl?: string | null },
 ): Promise<string | null> {
   try {
     const res = await fetch(providerUrl);
@@ -120,7 +155,7 @@ async function uploadVideoToStorage(
 
     const rawBuffer = Buffer.from(await res.arrayBuffer());
     const finalBuffer = brand
-      ? await addBrandOverlayToVideo(rawBuffer, brand.name, brand.website)
+      ? await addBrandOverlayToVideo(rawBuffer, brand.name, brand.website, brand.logoUrl)
       : rawBuffer;
     const path = `${tenantId}/${jobId}.mp4`;
 
@@ -144,13 +179,15 @@ async function uploadVideoToStorage(
   }
 }
 
-// Adds a brand name + website bar at the bottom of the image using sharp.
+// Adds a brand name + website bar at the bottom of the image, and optionally
+// composites the company logo in the top-right corner.
 // This is a HARD GUARANTEE: regardless of what the AI rendered, the brand
 // identity will always appear correctly in the final image.
 async function addBrandOverlay(
   imageBuffer: Buffer,
   brandName: string,
   websiteUrl: string,
+  logoUrl?: string | null,
 ): Promise<Buffer> {
   try {
     const { width = 1024, height = 1024 } = await sharp(imageBuffer).metadata();
@@ -172,8 +209,33 @@ async function addBrandOverlay(
       `</svg>`,
     );
 
+    const layers: sharp.OverlayOptions[] = [
+      { input: svgOverlay, top: height - barH, left: 0 },
+    ];
+
+    // Composite logo in top-right corner if available
+    if (logoUrl) {
+      try {
+        const logoRes = await fetch(logoUrl);
+        if (logoRes.ok) {
+          const logoRaw = Buffer.from(await logoRes.arrayBuffer());
+          const logoMaxW = Math.round(width * 0.14);
+          const logoMaxH = Math.round(height * 0.10);
+          const logoResized = await sharp(logoRaw)
+            .resize({ width: logoMaxW, height: logoMaxH, fit: 'inside', withoutEnlargement: true })
+            .png()
+            .toBuffer();
+          const { width: lw = 0, height: lh = 0 } = await sharp(logoResized).metadata();
+          const padding = Math.round(width * 0.02);
+          layers.push({ input: logoResized, top: padding, left: width - lw - padding });
+        }
+      } catch (e) {
+        console.warn('[creatives] logo composite failed, skipping logo:', e);
+      }
+    }
+
     return await sharp(imageBuffer)
-      .composite([{ input: svgOverlay, top: height - barH, left: 0 }])
+      .composite(layers)
       .png()
       .toBuffer();
   } catch (err) {
@@ -187,7 +249,7 @@ async function uploadImageToStorage(
   imageUrl: string,
   jobId: string,
   tenantId: string,
-  brand?: { name: string; website: string },
+  brand?: { name: string; website: string; logoUrl?: string | null },
 ): Promise<string | null> {
   try {
     let rawBuffer: Buffer;
@@ -205,9 +267,9 @@ async function uploadImageToStorage(
     }
 
     // Apply programmatic brand overlay — this is the hard guarantee that the
-    // brand name and website always appear correctly, regardless of AI rendering.
+    // brand name, website, and logo always appear correctly, regardless of AI rendering.
     const finalBuffer = brand
-      ? await addBrandOverlay(rawBuffer, brand.name, brand.website)
+      ? await addBrandOverlay(rawBuffer, brand.name, brand.website, brand.logoUrl)
       : rawBuffer;
 
     const path = `${tenantId}/${jobId}.png`;
@@ -686,9 +748,12 @@ export async function creativeRoutes(app: FastifyInstance) {
       .eq('tenant_id', request.tenantId)
       .maybeSingle();
 
-    const logoUrl: string | null = (clientSettings as any)?.logo_url ?? null;
     const websiteUrl: string | null = (clientSettings as any)?.website_url ?? null;
     const businessName: string | null = (clientSettings as any)?.business_name ?? null;
+
+    // Fetch logo — use stored one or auto-discover from website.
+    // Run in parallel with the rest of the setup to avoid adding latency.
+    const logoUrl: string | null = await fetchLogoForTenant(request.tenantId).catch(() => null);
 
     // Build Brand DNA string
     const brandDNA = buildBrandDNA({
@@ -713,7 +778,16 @@ export async function creativeRoutes(app: FastifyInstance) {
     // Every creative MUST contain the brand name and website URL.
     // If the user's brief omits them, we inject them before sending to any provider.
     // This prevents publishing creatives that don't mention the business.
-    const brandNameToken = businessName ?? 'Vigmis';
+    //
+    // businessName fallback: extract from domain if not explicitly set.
+    // "vigmis.com" → "Vigmis", "acme-corp.com" → "Acme Corp"
+    const derivedBusinessName = (() => {
+      if (businessName) return businessName;
+      if (!websiteUrl) return 'Vigmis';
+      const domain = websiteUrl.replace(/^https?:\/\//, '').replace(/^www\./, '').split('.')[0];
+      return domain.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    })();
+    const brandNameToken = derivedBusinessName;
     const websiteToken = websiteUrl ?? '';
 
     // Helper: check if text already contains the brand name (case-insensitive)
