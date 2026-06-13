@@ -61,7 +61,7 @@ function detectLanguage(text: string): { code: 'he' | 'ar' | 'ru' | 'en'; name: 
   return { code: 'en', name: 'English' };
 }
 
-function buildPrompt(input: SocialContentInput, websiteContent: string): string {
+function buildPrompt(input: SocialContentInput, websiteContent: string, contentSource: 'website' | 'strategy' = 'website'): string {
   const pillarDesc = PILLAR_DESCRIPTIONS[input.pillar] ?? input.pillar;
   const platformGuide = PLATFORM_GUIDELINES[input.platform];
   const audience = input.strategyPlan?.target_audience ?? 'general business audience';
@@ -91,11 +91,23 @@ function buildPrompt(input: SocialContentInput, websiteContent: string): string 
     ? `\nBRAND LOGO: The business has a logo at ${input.logoUrl}. When generating image prompts, always include the logo or brand name prominently. The AI image generation should incorporate the brand identity.\n`
     : '';
 
+  const contentLabel = contentSource === 'strategy'
+    ? 'BUSINESS CONTEXT (from strategy analysis — website is a JavaScript app that could not be scraped):'
+    : 'ACTUAL WEBSITE CONTENT (use this — do not guess what the business does):';
+
+  const insufficientRule = contentSource === 'strategy'
+    ? `- You have strategy context above (audience, industry, goal, market insights). Generate the best post you can from this context. Only return {"text": "INSUFFICIENT_CONTENT", "hashtags": []} if there is literally zero information about the business or its industry.`
+    : `- If the content above is empty or you cannot tell what the business sells, return {"text": "INSUFFICIENT_CONTENT", "hashtags": []} and stop.`;
+
+  const productRef = contentSource === 'strategy'
+    ? `<the full post copy in ${lang.name} — based on the business context and strategy above>`
+    : `<the full post copy in ${lang.name} — reference the actual products/services from the website>`;
+
   return `You are a social media copywriter. Generate a ${input.platform} post for the following business.
 
 LANGUAGE: write the post in ${lang.name}. The website is in ${lang.name} — the post MUST match. Do not switch languages. Hashtags can stay in English/transliteration when the platform expects it (Instagram), but the body text must be ${lang.name}.
 
-ACTUAL WEBSITE CONTENT (use this — do not guess what the business does):
+${contentLabel}
 ${websiteContent || '(website content unavailable — see URL: ' + (input.websiteUrl ?? 'unknown') + ')'}
 
 ${marketInsights ? `MARKET INSIGHTS:\n${marketInsights.slice(0, 600)}\n` : ''}${briefBlock}${logoBlock}
@@ -107,7 +119,7 @@ Platform format: ${platformGuide}
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
-  "text": "<the full post copy in ${lang.name} — reference the actual products/services from the website>",
+  "text": "${productRef}",
   "hashtags": ["<tag1>", "<tag2>", ...]
 }
 
@@ -119,8 +131,8 @@ ${input.brief?.cta
     : `- END EVERY POST with a call-to-action. Encourage the reader to contact the business (e.g. "DM us", "Contact us today", or similar).`}
 
 Rules:
-- The post MUST be about the actual business above — its actual products. NEVER invent products that aren't in the content.
-- If the content above is empty or you cannot tell what the business sells, return {"text": "INSUFFICIENT_CONTENT", "hashtags": []} and stop.
+- The post MUST be relevant to the actual business described above. NEVER invent specific product names, prices, or claims not supported by the context.
+- ${insufficientRule}
 - hashtags must be without the # symbol
 - For facebook: 3–5 hashtags
 - For instagram: 20–25 hashtags
@@ -176,9 +188,14 @@ function buildImagePrompt(input: SocialContentInput, postText: string): string {
 
 export async function generateSocialContent(input: SocialContentInput): Promise<SocialContentOutput> {
   // Prefer the stored AI analysis (richer, already extracted), fall back to live scrape if missing.
-  let websiteContent =
+  const rawWebsiteContent =
     input.websiteAnalysis?.trim()
       ?? (input.websiteUrl ? await fetchWebsiteContent(input.websiteUrl) : '');
+
+  let websiteContent = rawWebsiteContent;
+  // Track whether we're using strategy_plan as the primary grounding source
+  // (happens when website is a JS SPA that can't be scraped, like vigmis.com)
+  let contentSource: 'website' | 'strategy' = rawWebsiteContent.length >= 200 ? 'website' : 'strategy';
 
   // Augment with strategy_plan context when available.
   // SPAs (Next.js, React) can't be scraped — strategy_narrative is authoritative.
@@ -190,8 +207,8 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
     if (input.strategyPlan.target_audience) parts.push(`Target audience: ${input.strategyPlan.target_audience}`);
     if (input.strategyPlan.recommendations) parts.push(input.strategyPlan.recommendations);
     const strategyText = parts.join('\n\n');
-    websiteContent = websiteContent
-      ? `${websiteContent}\n\n--- STRATEGY CONTEXT ---\n${strategyText}`
+    websiteContent = rawWebsiteContent
+      ? `${rawWebsiteContent}\n\n--- STRATEGY CONTEXT ---\n${strategyText}`
       : strategyText;
   }
 
@@ -201,7 +218,7 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
     throw new Error('INSUFFICIENT_WEBSITE_CONTENT: cannot generate post without real product data — re-run onboarding analysis or update the website URL.');
   }
 
-  const basePrompt = buildPrompt(input, websiteContent);
+  const basePrompt = buildPrompt(input, websiteContent, contentSource);
   // Prepend creative brief + brand voice instructions. Brief defines WHAT we say,
   // voice defines HOW we say it. Both are load-bearing — without them the output
   // is generic.
