@@ -1903,6 +1903,18 @@ function CreativeTab({ settings }: any) {
                       </div>
                     </div>
 
+                    {/* Error reason */}
+                    {job.status === 'failed' && (job as any).error_message && (
+                      <div className="px-3 py-2 bg-red-50 border-t border-red-100">
+                        <p className="text-xs text-red-700">{(job as any).error_message}</p>
+                      </div>
+                    )}
+                    {job.status === 'pending_setup' && (
+                      <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+                        <p className="text-xs text-amber-800">API key not configured — add it in Railway and retry.</p>
+                      </div>
+                    )}
+
                     {/* B5: Preview before charge — shown when completed and not yet approved */}
                     {needsApproval && (
                       <div className="p-4 space-y-3">
@@ -5239,8 +5251,13 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
     setGenerating(false);
     if (!result) {
       alert('Generation failed. Check that Meta is connected and try again.');
-    } else if (result.generated === 0 && result.skipped === 0) {
+    } else if (result.generated === 0 && result.skipped === 0 && !result.errors) {
       alert('Social media is not configured. Enable it first.');
+    } else if (result.errors > 0 && result.generated === 0) {
+      const reason = result.lastError?.includes('INSUFFICIENT_WEBSITE_CONTENT')
+        ? 'Website analysis is missing — re-run onboarding analysis first.'
+        : (result.lastError ?? 'AI generation failed — try again in a few minutes.');
+      alert(`Post generation failed: ${reason}`);
     } else if (result.generated === 0 && result.skipped > 0) {
       setLastGenerateSkipped(result.skipped);
     } else {

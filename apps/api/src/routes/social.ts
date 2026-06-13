@@ -831,7 +831,7 @@ async function generateWeeklyPostsForTenant(
   tenantId: string,
   brief?: Record<string, string> | null,
   force = false,
-): Promise<{ generated: number; skipped: number }> {
+): Promise<{ generated: number; skipped: number; errors: number; lastError: string | null }> {
   const { data: settings } = await db
     .from('social_settings')
     .select('*')
@@ -839,7 +839,7 @@ async function generateWeeklyPostsForTenant(
     .eq('enabled', true)
     .maybeSingle();
 
-  if (!settings) return { generated: 0, skipped: 0 };
+  if (!settings) return { generated: 0, skipped: 0, errors: 0, lastError: null };
 
   const { data: clientSettings } = await db
     .from('client_settings')
@@ -857,7 +857,7 @@ async function generateWeeklyPostsForTenant(
     if (settings.instagram_user_id) inferred.push({ platform: 'instagram', enabled: true, page_id: settings.instagram_user_id });
     platforms = inferred;
   }
-  if (!platforms.length) return { generated: 0, skipped: 0 };
+  if (!platforms.length) return { generated: 0, skipped: 0, errors: 0, lastError: null };
 
   const pillars: string[] = settings.content_pillars ?? ['educational', 'promotional', 'social_proof'];
   const pillarIndex = settings.active_pillar_index ?? 0;
@@ -868,6 +868,8 @@ async function generateWeeklyPostsForTenant(
 
   let generated = 0;
   let skipped = 0;
+  let errors = 0;
+  let lastError: string | null = null;
 
   for (const platformConfig of platforms) {
     const { platform } = platformConfig;
@@ -934,7 +936,8 @@ async function generateWeeklyPostsForTenant(
       generated++;
     } catch (err) {
       console.error(`Social content generation failed for tenant ${tenantId}, platform ${platform}:`, err);
-      skipped++;
+      errors++;
+      lastError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -944,7 +947,7 @@ async function generateWeeklyPostsForTenant(
     updated_at: new Date().toISOString(),
   }).eq('tenant_id', tenantId);
 
-  return { generated, skipped };
+  return { generated, skipped, errors, lastError };
 }
 
 function getNextMonday(): Date {

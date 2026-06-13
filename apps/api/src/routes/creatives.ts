@@ -772,7 +772,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         const message = err instanceof Error ? err.message : 'Image generation failed';
         await db
           .from('creative_jobs')
-          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
           .eq('id', job.id);
         return reply.code(500).send({ error: message, job_id: job.id });
       }
@@ -815,7 +815,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       console.error(`[creatives] ${type} job submission failed (job=${job.id}):`, message);
       await db
         .from('creative_jobs')
-        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
         .eq('id', job.id);
 
       return reply.code(500).send({ error: message, job_id: job.id });
@@ -842,6 +842,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         type: job.type,
         output_url: job.output_url ?? null,
         critic_score: (job as any).critic_score ?? null,
+        error_message: (job as any).error_message ?? null,
       });
     }
 
