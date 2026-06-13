@@ -4563,7 +4563,8 @@ function GeoTab({ settings }: any) {
                   </div>
                   {(report.faq ?? []).length === 0 ? (
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center">
-                      <p className="text-sm text-slate-400 italic">Run a fresh audit to generate FAQ content for your specific business.</p>
+                      <p className="text-sm text-slate-500 font-medium">No FAQ content generated yet</p>
+                      <p className="text-xs text-slate-400 mt-1.5">We couldn&apos;t fully scan your website for AI optimization. To generate your FAQ: add your website URL in the field above and click Refresh Audit.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -4608,9 +4609,18 @@ function GeoTab({ settings }: any) {
                         </span>
                       </div>
                       {item.url && (
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
-                          Open →
-                        </a>
+                        item.url === 'https://schema.org' ? (
+                          <button
+                            onClick={() => setActiveSection('schema')}
+                            className="text-xs text-indigo-600 hover:underline whitespace-nowrap"
+                          >
+                            View Schema →
+                          </button>
+                        ) : (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
+                            Open →
+                          </a>
+                        )
                       )}
                     </div>
                   ))}

@@ -283,7 +283,9 @@ async function executeActions(
   return results;
 }
 
-const SYSTEM_PROMPT = `You are VIGMIS — the client's Senior Campaign Manager, Performance Strategist, and Media Buyer. You have full visibility into their account: campaigns, real spend, real ROAS, pending decisions, recent AI actions, and external context (weather, news, calendar). You act like the head of their ad agency who reads the data before every meeting.
+const SYSTEM_PROMPT = `CRITICAL: You have full context about this business below. NEVER ask the user what their business does, what they sell, who their customers are, or any basic business question — you already know. If you need to refer to their business, use the data provided. If strategy or website analysis is not yet available, guide the user to complete onboarding — but still do NOT ask "what do you sell."
+
+You are VIGMIS — the client's Senior Campaign Manager, Performance Strategist, and Media Buyer. You have full visibility into their account: campaigns, real spend, real ROAS, pending decisions, recent AI actions, and external context (weather, news, calendar). You act like the head of their ad agency who reads the data before every meeting.
 
 ## How you think and respond
 
@@ -390,7 +392,7 @@ export async function chatRoutes(app: FastifyInstance) {
       const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes, ga4Res, protocolsRes, auditRes, newsRes] = await Promise.all([
         db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
         db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type').eq('tenant_id', tenantId).limit(30),
-        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct, geo_include, geo_exclude, preferred_platforms, strategy_plan, content_language, budget_currency').eq('tenant_id', tenantId).maybeSingle(),
+        db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct, geo_include, geo_exclude, preferred_platforms, strategy_plan, content_language, budget_currency, website_analysis, business_name').eq('tenant_id', tenantId).maybeSingle(),
         db.from('social_posts').select('id, platform, pillar, status, content, scheduled_for').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(20),
         db.from('social_settings').select('enabled, platforms, approval_mode, content_pillars, facebook_page_id, instagram_user_id').eq('tenant_id', tenantId).maybeSingle(),
         db.from('platform_tokens').select('account_id').eq('tenant_id', tenantId).eq('platform', 'meta').maybeSingle(),
@@ -459,18 +461,27 @@ export async function chatRoutes(app: FastifyInstance) {
       const preferredPlatforms = (settings as any)?.preferred_platforms as string[] | undefined;
       const strategyPlan = (settings as any)?.strategy_plan as Record<string, unknown> | null | undefined;
       const budgetCurrency = (settings as any)?.budget_currency as string | undefined;
+      const websiteAnalysis = (settings as any)?.website_analysis as string | null | undefined;
+      const businessName = (settings as any)?.business_name as string | null | undefined;
 
       const strategyNarrative = strategyPlan?.strategy_narrative as string | undefined;
       const strategyPlatforms = strategyPlan?.platforms as Array<{ name: string; budget_percentage: number; reasoning: string }> | undefined;
+      const targetAudience = strategyPlan?.target_audience as string | undefined;
 
       const clientContext = [
         '## Client',
         settings
-          ? `Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ${budgetCurrency ?? 'ILS'} ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
+          ? `${businessName ? `Business name: ${businessName} | ` : ''}Goal: ${settings.goal} | Business type: ${(settings as any).business_type ?? '—'} | Budget: ${budgetCurrency ?? 'ILS'} ${settings.budget_monthly_ils} (~$${Math.round(settings.budget_monthly_ils / 3.7)}/mo) | Vigmis manages: ${settings.management_percentage}% | Website: ${settings.website_url} | Risk: ${settings.risk_level}${(settings as any).margin_pct ? ` | Margin: ${(settings as any).margin_pct}%` : ''}${(settings as any).exclusions ? ` | Exclusions: ${(settings as any).exclusions}` : ''}${(settings as any).open_notes ? ` | Notes: ${(settings as any).open_notes}` : ''}`
           : 'No settings yet',
         geoInclude?.length ? `Target geographies: ${geoInclude.join(', ')}${geoExclude?.length ? ` | Excluded: ${geoExclude.join(', ')}` : ''}` : '',
         preferredPlatforms?.length ? `Preferred platforms: ${preferredPlatforms.join(', ')}` : '',
-        strategyNarrative ? `\n## Approved Strategy Narrative\n${strategyNarrative.slice(0, 600)}` : '',
+        targetAudience ? `Target audience: ${targetAudience}` : '',
+        websiteAnalysis
+          ? `\n## Website Analysis\n${websiteAnalysis.slice(0, 500)}`
+          : '\n## Website Analysis\n(not yet generated — guide user to complete onboarding)',
+        strategyNarrative
+          ? `\n## Approved Strategy Narrative\n${strategyNarrative.slice(0, 500)}`
+          : '\n## Approved Strategy Narrative\n(not yet generated — guide user to complete onboarding first)',
         strategyPlatforms?.length
           ? `\n## Platform Budget Allocation (Approved Strategy)\n${strategyPlatforms.map(p => `  ${p.name}: ${p.budget_percentage}% — ${p.reasoning.slice(0, 100)}`).join('\n')}`
           : '',

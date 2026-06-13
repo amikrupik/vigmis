@@ -371,6 +371,10 @@ Return ONLY valid JSON:
     if (!variants || variants.length !== 2) {
       return reply.code(400).send({ error: 'Exactly 2 variants required' });
     }
+    const VALID_PLATFORMS = ['google', 'meta', 'tiktok'];
+    if (platform !== undefined && !VALID_PLATFORMS.includes(platform)) {
+      return reply.code(400).send({ error: `Invalid platform "${platform}". Must be one of: ${VALID_PLATFORMS.join(', ')}` });
+    }
 
     // Build initial variant objects
     let enrichedVariants = variants.map((v: any, i: number) => ({
@@ -479,7 +483,7 @@ Return ONLY valid JSON:
     } catch { conclusion = null; }
 
     if (conclusion) {
-      await db.from('ab_tests').update({ status: 'concluded', conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id).eq('tenant_id', request.tenantId);
+      await db.from('ab_tests').update({ status: 'concluded', winner_announced: true, conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id).eq('tenant_id', request.tenantId);
     }
 
     return reply.send({ test_id, conclusion });

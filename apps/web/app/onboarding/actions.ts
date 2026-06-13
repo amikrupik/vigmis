@@ -145,10 +145,15 @@ export async function checkWebsite(websiteUrl: string): Promise<WebsiteCheck> {
 export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult | AnalysisError> {
   const token = await getToken();
 
+  // Read vigmis_lang cookie (set by the UI language switcher). Default to 'en'.
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const lang = cookieStore.get('vigmis_lang')?.value ?? 'en';
+
   const res = await fetch(`${API_URL}/onboarding/analyze`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ settings, feedback }),
+    body: JSON.stringify({ settings, feedback, lang }),
   });
 
   if (!res.ok) {

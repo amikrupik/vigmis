@@ -663,8 +663,9 @@ export async function onboardingRoutes(app: FastifyInstance) {
 
   // ── Full analysis pipeline ────────────────────────────────────────────────
   app.post('/onboarding/analyze', { preHandler: authenticate }, async (request, reply) => {
-    const { settings, feedback } = request.body as any;
+    const { settings, feedback, lang } = request.body as any;
     if (!settings) return reply.code(400).send({ error: 'settings required' });
+    const strategyLang: 'he' | 'en' = lang === 'he' ? 'he' : 'en';
 
     // Phase 1: Website scan + historical data + competitor ads (in parallel)
     let websiteAnalysis = 'Website could not be scanned.';
@@ -1066,7 +1067,7 @@ Return ONLY valid JSON (no extra text):
   ],
   "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
 }`,
-        systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
+        systemPrompt: `You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
         options: { maxTokens: 4000, temperature: 0.3 },
       }),
       new Promise<never>((_, reject) =>

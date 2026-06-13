@@ -112,7 +112,39 @@ export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string)
     report = match ? JSON.parse(match[0]) : null;
   } catch { report = null; }
 
-  if (!report) report = fallbackGeoReport(websiteUrl);
+  if (!report) {
+    report = fallbackGeoReport(websiteUrl);
+    // Try to generate real FAQ items from website_analysis if we have it
+    try {
+      const { data: cs } = await db.from('client_settings')
+        .select('website_analysis, business_type')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      if (cs?.website_analysis) {
+        const faqRes = await route({
+          task: 'analysis',
+          prompt: `You are a GEO (Generative Engine Optimization) specialist.
+Based on this business website analysis, generate 5 FAQ items that AI systems (ChatGPT, Gemini, Perplexity) would use to recommend this business.
+Business type: ${cs.business_type ?? 'unknown'}
+Website: ${websiteUrl}
+Website analysis:
+${cs.website_analysis.slice(0, 2000)}
+
+Return ONLY valid JSON array — no markdown, no explanation:
+[{"question":"...","answer":"..."},...]`,
+          systemPrompt: 'You are a GEO specialist. Return only a valid JSON array. No markdown. No explanation.',
+          options: { maxTokens: 1000, temperature: 0.3 },
+        });
+        const faqMatch = faqRes.output.match(/\[[\s\S]*\]/);
+        if (faqMatch) {
+          const faqs = JSON.parse(faqMatch[0]);
+          if (Array.isArray(faqs) && faqs.length > 0) {
+            report.faq = faqs;
+          }
+        }
+      }
+    } catch { /* leave faq as [] — non-fatal */ }
+  }
 
   // Upsert current report (latest always available)
   const { data: existing } = await db.from('geo_reports').select('id, score').eq('tenant_id', tenantId).maybeSingle();
