@@ -87,7 +87,8 @@ async function addBrandOverlayToVideo(
 
     // Centered text bar at the bottom: semi-transparent black box + white bold text
     const filter =
-      `drawtext=text='${safeLabel}':fontcolor=white:fontsize=36:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:` +
+      // Alpine ttf-dejavu installs fonts under /usr/share/fonts/dejavu/
+      `drawtext=text='${safeLabel}':fontcolor=white:fontsize=36:fontfile=/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf:` +
       `box=1:boxcolor=black@0.70:boxborderw=14:x=(w-text_w)/2:y=h-text_h-24`;
 
     await execFileAsync('ffmpeg', [
