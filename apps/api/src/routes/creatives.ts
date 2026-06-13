@@ -708,7 +708,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       .single();
 
     if (insertErr) {
-      return reply.code(500).send({ error: 'Failed to create job' });
+      console.error('[creatives] DB insert failed:', insertErr.message, insertErr.details, insertErr.hint);
+      return reply.code(500).send({ error: 'Failed to create job', detail: insertErr.message });
     }
 
     if (!providerReady) {
