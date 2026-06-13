@@ -176,9 +176,24 @@ function buildImagePrompt(input: SocialContentInput, postText: string): string {
 
 export async function generateSocialContent(input: SocialContentInput): Promise<SocialContentOutput> {
   // Prefer the stored AI analysis (richer, already extracted), fall back to live scrape if missing.
-  const websiteContent =
+  let websiteContent =
     input.websiteAnalysis?.trim()
       ?? (input.websiteUrl ? await fetchWebsiteContent(input.websiteUrl) : '');
+
+  // Augment with strategy_plan context when available.
+  // SPAs (Next.js, React) can't be scraped — strategy_narrative is authoritative.
+  // Even when scraped content exists, strategy_plan adds product/audience context.
+  if (input.strategyPlan) {
+    const parts: string[] = [];
+    if (input.strategyPlan.strategy_narrative) parts.push(input.strategyPlan.strategy_narrative);
+    if (input.strategyPlan.market_insights) parts.push(input.strategyPlan.market_insights);
+    if (input.strategyPlan.target_audience) parts.push(`Target audience: ${input.strategyPlan.target_audience}`);
+    if (input.strategyPlan.recommendations) parts.push(input.strategyPlan.recommendations);
+    const strategyText = parts.join('\n\n');
+    websiteContent = websiteContent
+      ? `${websiteContent}\n\n--- STRATEGY CONTEXT ---\n${strategyText}`
+      : strategyText;
+  }
 
   // Refuse to generate without grounding. Previous behavior was to confabulate
   // ("indoor plants" posts for a dates seller). Better to fail loudly.
