@@ -875,8 +875,7 @@ async function generateWeeklyPostsForTenant(
     const { platform } = platformConfig;
 
     // Don't generate if already have a post scheduled this week for this platform
-    const weekStart = new Date(nextMonday);
-    weekStart.setDate(weekStart.getDate() - 1);
+    const weekStart = new Date(nextMonday); // window starts ON Monday, not Sunday before
     const weekEnd = new Date(nextMonday);
     weekEnd.setDate(weekEnd.getDate() + 7);
 
@@ -910,7 +909,7 @@ async function generateWeeklyPostsForTenant(
       const scheduledFor = getOptimalPostTime(platform, nextMonday);
       const costUsd = platform === 'tiktok' ? 3.00 : 1.00;
 
-      const { data: post } = await db.from('social_posts').insert({
+      const { data: post, error: insertErr } = await db.from('social_posts').insert({
         tenant_id: tenantId,
         platform,
         pillar: thisPillar,
@@ -922,6 +921,12 @@ async function generateWeeklyPostsForTenant(
         scheduled_for: scheduledFor.toISOString(),
         cost_usd: costUsd,
       }).select('id').single();
+
+      if (insertErr) {
+        errors++;
+        lastError = insertErr.message;
+        continue;
+      }
 
       if (post && settings.approval_mode !== 'auto') {
         await sendTenantNotification(
@@ -941,11 +946,13 @@ async function generateWeeklyPostsForTenant(
     }
   }
 
-  // Advance pillar index for next week
-  await db.from('social_settings').update({
-    active_pillar_index: (pillarIndex + 1) % pillars.length,
-    updated_at: new Date().toISOString(),
-  }).eq('tenant_id', tenantId);
+  // Advance pillar index only when posts were actually generated
+  if (generated > 0) {
+    await db.from('social_settings').update({
+      active_pillar_index: (pillarIndex + 1) % pillars.length,
+      updated_at: new Date().toISOString(),
+    }).eq('tenant_id', tenantId);
+  }
 
   return { generated, skipped, errors, lastError };
 }

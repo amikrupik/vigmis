@@ -290,7 +290,10 @@ export async function generateSocialContent(input: SocialContentInput): Promise<
 
   if (input.platform === 'facebook' || input.platform === 'instagram') {
     const imgPrompt = buildImagePrompt(input, text);
-    imageUrl = await generateImage(imgPrompt);
+    imageUrl = await generateImage(imgPrompt).catch(err => {
+      console.warn('[social-content] Image generation failed, posting without image:', err?.message);
+      return undefined;
+    });
   }
 
   // TikTok video generation is asynchronous (HeyGen/Pika job queue).

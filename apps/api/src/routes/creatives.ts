@@ -202,7 +202,7 @@ async function submitHeyGenJob(brief: {
   return { jobId: json.data.video_id };
 }
 
-async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; url?: string }> {
+async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; url?: string; reason?: string }> {
   const apiKey = process.env.HEYGEN_API_KEY!;
   const res = await fetch(`https://api.heygen.com/v1/video_status.get?video_id=${jobId}`, {
     headers: { 'X-Api-Key': apiKey },
@@ -216,7 +216,7 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
 
   const s = json.data?.status;
   if (s === 'completed') return { status: 'completed', url: json.data?.video_url };
-  if (s === 'failed') return { status: 'failed' };
+  if (s === 'failed') return { status: 'failed', reason: 'HeyGen reported video generation failed' };
   return { status: 'processing' };
 }
 
@@ -256,7 +256,7 @@ async function submitReplicateJob(
   return { jobId: json.id };
 }
 
-async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus; url?: string }> {
+async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus; url?: string; reason?: string }> {
   const token = process.env.REPLICATE_API_TOKEN!;
 
   const res = await fetch(`${REPLICATE_API}/predictions/${jobId}`, {
@@ -276,7 +276,7 @@ async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus;
     return { status: 'completed', url: url ?? undefined };
   }
   if (json.status === 'failed' || json.status === 'canceled') {
-    return { status: 'failed' };
+    return { status: 'failed', reason: json.error ?? `Replicate job ${json.status}` };
   }
   return { status: 'processing' };
 }
@@ -460,6 +460,22 @@ function currentCreditsPeriod(): string {
 }
 
 // Returns true if credit was consumed (free), false if should charge
+async function restoreScaleCredit(tenantId: string, creditType: 'video' | 'image'): Promise<void> {
+  const { data: billing } = await db
+    .from('billing_customers')
+    .select('plan, scale_video_credits_used, scale_image_credits_used')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  if (!billing || (billing as any).plan !== 'pro') return;
+  if (creditType === 'video') {
+    const used = Math.max(0, ((billing as any).scale_video_credits_used ?? 1) - 1);
+    await db.from('billing_customers').update({ scale_video_credits_used: used, updated_at: new Date().toISOString() }).eq('tenant_id', tenantId);
+  } else {
+    const used = Math.max(0, ((billing as any).scale_image_credits_used ?? 1) - 1);
+    await db.from('billing_customers').update({ scale_image_credits_used: used, updated_at: new Date().toISOString() }).eq('tenant_id', tenantId);
+  }
+}
+
 async function consumeScaleCredit(
   tenantId: string,
   creditType: 'video' | 'image',
@@ -582,7 +598,10 @@ export async function creativeRoutes(app: FastifyInstance) {
       : '';
 
     // Enrich the brief — normalize string briefs to avoid char-indexed spread (P1-2)
-    const rawBrief: Record<string, any> = typeof brief === 'string' ? { prompt: brief } : (brief ?? {});
+    // Avatar uses `script`, not `prompt` — map accordingly so HeyGen gets input_text
+    const rawBrief: Record<string, any> = typeof brief === 'string'
+      ? (type === 'avatar' ? { script: brief } : { prompt: brief })
+      : (brief ?? {});
     const enrichedBrief = { ...rawBrief };
 
     if (type === 'avatar' && typeof enrichedBrief.script === 'string') {
@@ -774,6 +793,7 @@ export async function creativeRoutes(app: FastifyInstance) {
           .from('creative_jobs')
           .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
           .eq('id', job.id);
+        if (creditConsumed) await restoreScaleCredit(request.tenantId, 'image').catch(() => {});
         return reply.code(500).send({ error: message, job_id: job.id });
       }
     }
@@ -817,6 +837,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         .from('creative_jobs')
         .update({ status: 'failed', error_message: message, updated_at: new Date().toISOString() })
         .eq('id', job.id);
+      if (creditConsumed) await restoreScaleCredit(request.tenantId, 'video').catch(() => {});
 
       return reply.code(500).send({ error: message, job_id: job.id });
     }
@@ -881,9 +902,10 @@ export async function creativeRoutes(app: FastifyInstance) {
       }
 
       if (result.status === 'failed') {
+        const pollReason = (result as any).reason ?? 'Provider reported failure';
         await db
           .from('creative_jobs')
-          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .update({ status: 'failed', error_message: pollReason, updated_at: new Date().toISOString() })
           .eq('id', job.id);
       }
 
