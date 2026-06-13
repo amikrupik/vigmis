@@ -10,8 +10,8 @@
 //
 // Supported providers:
 //   avatar    → HeyGen       (HEYGEN_API_KEY)       $15/video
-//   cinematic → Replicate    (REPLICATE_API_TOKEN)  $12/video
-//   animation → Replicate    (REPLICATE_API_TOKEN)  $8/video
+//   cinematic → Replicate HappyHorse-1.0 (REPLICATE_API_TOKEN)  $12/video  1080p 16:9
+//   animation → Replicate HappyHorse-1.0 (REPLICATE_API_TOKEN)  $8/video   720p  9:16
 //   image     → gpt-image-1  (OPENAI_API_KEY)       $5/image
 //
 // Revision pricing (A1):
@@ -225,8 +225,8 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
 const REPLICATE_API = 'https://api.replicate.com/v1';
 
 const REPLICATE_MODELS = {
-  cinematic: 'minimax/video-01',
-  animation: 'lucataco/animate-diff-v2',
+  cinematic: 'alibaba/happyhorse-1.0',
+  animation: 'alibaba/happyhorse-1.0',
 };
 
 async function submitReplicateJob(
@@ -281,24 +281,27 @@ async function checkReplicateStatus(jobId: string): Promise<{ status: JobStatus;
   return { status: 'processing' };
 }
 
-async function submitCinematicJob(brief: { prompt: string }): Promise<{ jobId: string }> {
+async function submitCinematicJob(brief: { prompt: string; aspect_ratio?: string; duration?: number }): Promise<{ jobId: string }> {
   return submitReplicateJob(REPLICATE_MODELS.cinematic, {
     prompt: brief.prompt,
-    prompt_optimizer: true,
+    resolution: '1080p',
+    aspect_ratio: brief.aspect_ratio ?? '16:9',
+    duration: brief.duration ?? 5,
   });
 }
 
 async function submitAnimationJob(brief: {
   prompt: string;
-  negative_prompt?: string;
-  num_frames?: number;
+  image?: string;
+  aspect_ratio?: string;
+  duration?: number;
 }): Promise<{ jobId: string }> {
   return submitReplicateJob(REPLICATE_MODELS.animation, {
     prompt: brief.prompt,
-    negative_prompt: brief.negative_prompt ?? 'low quality, blurry, jitter, watermark',
-    num_frames: brief.num_frames ?? 16,
-    num_inference_steps: 25,
-    guidance_scale: 7.5,
+    ...(brief.image ? { image: brief.image } : {}),
+    resolution: '720p',
+    aspect_ratio: brief.aspect_ratio ?? '9:16',
+    duration: brief.duration ?? 5,
   });
 }
 
