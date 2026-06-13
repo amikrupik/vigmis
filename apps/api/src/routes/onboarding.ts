@@ -22,8 +22,8 @@ import { getWinningThemes } from '../services/creative-performance.js';
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
 // Approximate ILS/USD exchange rate — update periodically, no live API needed
-// approximate rate, updated 2026-06
-const ILS_USD_RATE = 3.65;
+// approximate rate, updated 2026-06 (market rate as of June 2026)
+const ILS_USD_RATE = 3.75;
 
 // Content policy — categories blocked at MVP. Refusal is final, no exceptions.
 const CONTENT_POLICY_BLOCKED = [
@@ -134,7 +134,7 @@ You MUST cover these topics before concluding:
 3. budget — monthly advertising budget.
    CURRENCY RULES:
    - User says "₪X" or "X שקל/שקלים" → ILS, accept directly. Confirm: "Got it — ₪X/month." Set budget_currency="ILS", budget_original_amount=X.
-   - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.65 internally.
+   - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.75 internally.
    - User says "X AED" or "X درهم" → AED (UAE dirham). Confirm in AED: "Got it — X AED/month." Set budget_currency="AED", budget_original_amount=X. Store budget_monthly_ils = X × 1.05 internally.
    - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ask ONCE: "Is that ILS (₪), USD ($), AED, or another currency?"
    - If you have ALREADY asked for currency clarification in this conversation AND the client gives another bare number without a symbol — stop asking and ASSUME ILS. Confirm: "Got it — ₪X/month." Do NOT ask again.
@@ -166,7 +166,7 @@ You MUST cover these topics before concluding:
 
 CRITICAL ACCURACY RULES — copy these values EXACTLY from the conversation, never approximate:
 - website_url: copy the EXACT URL the user typed. If they said "https://www.goodland.co.il", write exactly that. NEVER use a placeholder like "https://example.com".
-- budget_monthly_ils: if user said "$X" (USD), compute X × 3.65 and write the exact integer result. $2000 → 7300. $3000 → 10950. NEVER round to nearest thousand.
+- budget_monthly_ils: if user said "$X" (USD), compute X × 3.75 and write the exact integer result. $2000 → 7500. $3000 → 11250. NEVER round to nearest thousand.
 - margin_pct: copy the EXACT number. User said "37%" → write 37. User said "40%" → write 40. Never round.
 - geo_include: list ALL geographic areas the user mentioned. "ישראל ויהודים בארה\"ב" → ["Israel", "Jewish communities in USA"]. Never drop any area.
 - exclusions: copy the user's exact words about what to avoid. NEVER set to null if they stated any constraint.

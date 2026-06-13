@@ -65,7 +65,43 @@ export async function sendEmail(
   });
 }
 
-// Send a notification to a tenant via all their enabled channels
+// Format a short WhatsApp message (max 450 chars) from a potentially long notification.
+// Critical alerts always use 🚨; warnings use ⚠️. Message body is truncated with ellipsis
+// if it would push the total over the limit.
+export function formatForWhatsApp(
+  title: string,
+  message: string,
+  severity: NotifySeverity,
+  actionText?: string,
+): string {
+  const emoji = severity === 'critical' ? '🚨' : '⚠️';
+  const footer = `\n\n→ ${WEB_URL}/dashboard`;
+  const action = actionText ? `\n${actionText}` : '';
+
+  // Use only the first line/paragraph of the message to keep it brief
+  const firstParagraph = message.split(/\n\n/)[0]?.trim() ?? message.trim();
+
+  const prefix = `${emoji} Vigmis Alert: ${title}\n\n`;
+  const suffix = `${action}${footer}`;
+
+  const maxBody = 450 - prefix.length - suffix.length;
+  const body = firstParagraph.length <= maxBody
+    ? firstParagraph
+    : firstParagraph.slice(0, maxBody - 1) + '…';
+
+  return `${prefix}${body}${suffix}`;
+}
+
+// Send a raw WhatsApp message to any phone number (exported for use outside notify.ts).
+export async function sendWhatsAppRaw(to: string, message: string): Promise<void> {
+  return sendWhatsApp(to, message);
+}
+
+// Send a notification to a tenant via all their enabled channels.
+// Critical severity: WhatsApp fires as long as the tenant has a phone number on record
+//   (opt-out model — they must actively disable to stop critical alerts).
+// Warning severity: WhatsApp only fires when whatsapp_enabled is true (opt-in model).
+// Info severity: silently dropped.
 export async function sendTenantNotification(
   tenantId: string,
   title: string,
@@ -83,8 +119,7 @@ export async function sendTenantNotification(
 
   if (!settings) return;
 
-  const emoji = severity === 'critical' ? '🚨' : '⚠️';
-  const whatsappMsg = `${emoji} Vigmis Alert: ${title}\n\n${message}${actionText ? `\n\n→ ${actionText}` : ''}`;
+  const whatsappMsg = formatForWhatsApp(title, message, severity, actionText);
 
   const borderColor = severity === 'critical' ? '#fecaca' : '#fde68a';
   const bgColor = severity === 'critical' ? '#fef2f2' : '#fffbeb';
@@ -102,8 +137,14 @@ export async function sendTenantNotification(
 
   const promises: Promise<void>[] = [];
 
-  if (settings.whatsapp_enabled && settings.whatsapp) {
-    promises.push(sendWhatsApp(settings.whatsapp, whatsappMsg));
+  // Critical: send WhatsApp if number exists (opt-out model).
+  // Warning: send WhatsApp only if explicitly enabled (opt-in model).
+  const shouldWhatsApp = settings.whatsapp && (
+    severity === 'critical' ? true : settings.whatsapp_enabled
+  );
+
+  if (shouldWhatsApp) {
+    promises.push(sendWhatsApp(settings.whatsapp as string, whatsappMsg));
   }
 
   if (settings.email_enabled && settings.email) {

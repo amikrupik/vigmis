@@ -750,6 +750,14 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
           .update({ status: 'paused', updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
         result.actionsApplied++;
+        // Critical alert: campaign was auto-paused — user must know immediately.
+        await sendTenantNotification(
+          tenantId,
+          `Campaign "${campaign.name}" auto-paused`,
+          `Vigmis automatically paused "${campaign.name}" on ${campaign.platform}. Reason: ${action.reason}`,
+          'critical',
+          'Review and resume in dashboard',
+        ).catch(() => {});
       }
 
       if (action.type === 'resume' && campaign.external_id) {
@@ -768,6 +776,16 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
           .update({ daily_budget_usd: newBudget, updated_at: new Date().toISOString() })
           .eq('id', campaign.id);
         result.actionsApplied++;
+        // Critical alert for scale_down: budget was cut automatically — inform user.
+        if (action.type === 'scale_down') {
+          await sendTenantNotification(
+            tenantId,
+            `Budget reduced for "${campaign.name}"`,
+            `Vigmis reduced the daily budget for "${campaign.name}" on ${campaign.platform} from $${campaign.daily_budget_usd} to $${newBudget}. Reason: ${action.reason}`,
+            'critical',
+            'Review in dashboard',
+          ).catch(() => {});
+        }
       }
 
       // ── Advisory actions: always create a protocol regardless of mode ─────────

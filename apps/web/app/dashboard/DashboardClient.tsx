@@ -372,7 +372,7 @@ export default function DashboardClient() {
           />
         )}
         {tab === 'creative' && <CreativeTab settings={settings} />}
-        {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} />}
+        {tab === 'intelligence' && <IntelligenceTab settings={settings} connected={connected} campaigns={campaigns} onNavigate={setTab} />}
         {tab === 'geo' && <GeoTab settings={settings} />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'protocols' && <ProtocolsTab />}
@@ -1682,13 +1682,13 @@ function CreativeTab({ settings }: any) {
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${platformBadgeColor}`}>{concept.platform}</span>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">{concept.concept}</p>
+                      <p dir="auto" className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">{concept.concept}</p>
                     </div>
                     <div className="text-xs text-slate-500 leading-relaxed flex-1">
-                      <p className="italic">"{scriptPreview}"</p>
+                      <p dir="auto" className="italic">"{scriptPreview}"</p>
                     </div>
                     {concept.rationale && (
-                      <p className="text-xs text-indigo-600 font-medium leading-snug">{concept.rationale}</p>
+                      <p dir="auto" className="text-xs text-indigo-600 font-medium leading-snug">{concept.rationale}</p>
                     )}
                     <button
                       onClick={() => useConceptScript(concept)}
@@ -1706,11 +1706,11 @@ function CreativeTab({ settings }: any) {
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Brand Voice</p>
-                  <p className="text-sm text-slate-700">{creativeBrief.tone_guide.voice}</p>
+                  <p dir="auto" className="text-sm text-slate-700">{creativeBrief.tone_guide.voice}</p>
                   {creativeBrief.tone_guide.examples.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {creativeBrief.tone_guide.examples.map((ex, i) => (
-                        <span key={i} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-lg italic">"{ex}"</span>
+                        <span key={i} dir="auto" className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-lg italic">"{ex}"</span>
                       ))}
                     </div>
                   )}
@@ -1747,9 +1747,9 @@ function CreativeTab({ settings }: any) {
           <p className="text-sm text-slate-500 mt-0.5">AI generates your ad video — 1 free revision included</p>
         </div>
 
-        {/* Step 1: Choose video type */}
+        {/* Step 1: Choose a creative type */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 1: Choose video type</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 1: Choose a creative type</p>
           {/* Video type cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {VIDEO_OPTIONS.map(opt => (
@@ -1772,11 +1772,12 @@ function CreativeTab({ settings }: any) {
           </div>
         </div>
 
-        {/* Step 2: Write script */}
+        {/* Step 2: Write your script or description */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 2: Write script or use AI suggestion above</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 2: Write your script or description</p>
           {/* Script / prompt input */}
           <textarea
+            dir="auto"
             value={videoScript}
             onChange={e => { setVideoScript(e.target.value); setBriefApproved(false); }}
             placeholder={
@@ -1791,10 +1792,10 @@ function CreativeTab({ settings }: any) {
           />
         </div>
 
-        {/* Step 3: Preview & generate */}
+        {/* Step 3: Preview & Generate */}
         {!briefApproved ? (
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 3: Preview &amp; generate</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 3: Preview &amp; Generate</p>
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">
                 {selectedVideoType === 'avatar' ? 'Estimated 3 min · 16:9 · 720p' : selectedVideoType === 'cinematic' ? 'Estimated 5 min · 5–10 sec clip · 16:9' : 'Estimated 4 min · 3 sec loop · 16:9'}
@@ -1806,6 +1807,7 @@ function CreativeTab({ settings }: any) {
                 <button
                   onClick={() => setBriefApproved(true)}
                   disabled={!videoScript.trim()}
+                  title={!videoScript.trim() ? 'Write a script in Step 2 to continue' : undefined}
                   className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors"
                 >
                   Preview Brief →
@@ -1832,7 +1834,7 @@ function CreativeTab({ settings }: any) {
               </div>
               <div className="pt-2 border-t border-slate-100">
                 <p className="text-xs text-slate-400 mb-1">Your {selectedVideoType === 'avatar' ? 'script' : 'prompt'}</p>
-                <p className="text-sm text-slate-700 italic">"{videoScript}"</p>
+                <p dir="auto" className="text-sm text-slate-700 italic">"{videoScript}"</p>
               </div>
             </div>
             <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
@@ -1999,7 +2001,7 @@ function CreativeTab({ settings }: any) {
                               {s.tips?.length > 0 && (
                                 <ul className="space-y-0.5">
                                   {s.tips.map((tip: string, i: number) => (
-                                    <li key={i} className="text-xs text-slate-600 flex gap-1.5">
+                                    <li key={i} dir="auto" className="text-xs text-slate-600 flex gap-1.5">
                                       <span className="text-amber-500 flex-shrink-0">→</span>{tip}
                                     </li>
                                   ))}
@@ -2044,9 +2046,9 @@ function CreativeTab({ settings }: any) {
                     </span>
                   </div>
                 </div>
-                {v.headline_1 && <p className="text-sm font-semibold text-slate-900">"{v.headline_1}{v.headline_2 ? ` | ${v.headline_2}` : ''}"</p>}
-                {v.description_1 && <p className="text-sm text-slate-600">{v.description_1}</p>}
-                {v.body && <p className="text-xs text-slate-500 italic">{v.body}</p>}
+                {v.headline_1 && <p dir="auto" className="text-sm font-semibold text-slate-900">"{v.headline_1}{v.headline_2 ? ` | ${v.headline_2}` : ''}"</p>}
+                {v.description_1 && <p dir="auto" className="text-sm text-slate-600">{v.description_1}</p>}
+                {v.body && <p dir="auto" className="text-xs text-slate-500 italic">{v.body}</p>}
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">{v.cta}</span>
                   <div className="ml-auto flex items-center gap-2">
@@ -2109,7 +2111,7 @@ function CreativeTab({ settings }: any) {
                   <span className={`text-4xl font-black ${scoreResult.score >= 80 ? 'text-emerald-600' : scoreResult.score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{scoreResult.score}</span>
                   <span className={`text-2xl font-bold ${scoreResult.score >= 80 ? 'text-emerald-600' : scoreResult.score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{scoreResult.grade}</span>
                 </div>
-                <p className="text-sm text-slate-500 mt-1">{scoreResult.verdict}</p>
+                <p dir="auto" className="text-sm text-slate-500 mt-1">{scoreResult.verdict}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-400">Predicted CTR</p>
@@ -2132,11 +2134,11 @@ function CreativeTab({ settings }: any) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="font-semibold text-emerald-700 mb-1.5">Strengths</p>
-                {scoreResult.strengths?.map((s: string, i: number) => <p key={i} className="text-slate-600 flex gap-1.5"><span className="text-emerald-500">✓</span>{s}</p>)}
+                {scoreResult.strengths?.map((s: string, i: number) => <p key={i} dir="auto" className="text-slate-600 flex gap-1.5"><span className="text-emerald-500">✓</span>{s}</p>)}
               </div>
               <div>
                 <p className="font-semibold text-amber-700 mb-1.5">Improve</p>
-                {scoreResult.improvements?.map((s: string, i: number) => <p key={i} className="text-slate-600 flex gap-1.5"><span className="text-amber-500">→</span>{s}</p>)}
+                {scoreResult.improvements?.map((s: string, i: number) => <p key={i} dir="auto" className="text-slate-600 flex gap-1.5"><span className="text-amber-500">→</span>{s}</p>)}
               </div>
             </div>
           </div>
@@ -2151,7 +2153,7 @@ function CreativeTab({ settings }: any) {
 
 // ── Intelligence Tab ──────────────────────────────────────────────────────────
 
-function IntelligenceTab({ settings, connected, campaigns }: any) {
+function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
   const t = useTranslations('dashboard');
   const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro' | 'themes'>('territory');
   const [audiences, setAudiences] = useState<any[]>([]);
@@ -2211,7 +2213,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
       const stored = JSON.parse(localStorage.getItem(key) ?? '[]') as string[];
       localStorage.setItem(key, JSON.stringify([...new Set([...stored, id])]));
     } catch { /* localStorage unavailable */ }
-    setAudienceToast('Audience segment saved — apply it in your next campaign brief');
+    setAudienceToast('Audience segment saved — redirecting to Campaigns...');
+    setTimeout(() => { onNavigate('campaigns'); }, 1200);
     setTimeout(() => setAudienceToast(null), 3500);
   }
 
@@ -2252,10 +2255,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   }
 
   async function handleElementAnalysis() {
-    if (!campaigns?.length) {
-      alert('No performance data yet. Launch a campaign and approve creatives first.');
-      return;
-    }
+    if (!campaigns?.length) return;
     setElementLoading(true);
     const res = await analyzeCreativeElements(
       (campaigns ?? []).slice(0, 5).map((c: any) => ({
@@ -2350,7 +2350,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               </div>
             ))}
           </div>
-          {territory.market_insights && <p className="text-sm text-slate-600 leading-relaxed">{territory.market_insights}</p>}
+          {territory.market_insights && <p dir="ltr" className="text-sm text-slate-600 leading-relaxed text-left">{territory.market_insights}</p>}
           {territory.upcoming_events?.length > 0 && (
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Upcoming Events</p>
@@ -2368,7 +2368,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           {territory.localization_tips?.length > 0 && (
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Localization Tips</p>
-              {territory.localization_tips.map((tip: string, i: number) => <p key={i} className="text-sm text-slate-600 flex gap-2"><span className="text-indigo-400">→</span>{tip}</p>)}
+              {territory.localization_tips.map((tip: string, i: number) => <p key={i} dir="auto" className="text-sm text-slate-600 flex gap-2"><span className="text-indigo-400">→</span>{tip}</p>)}
             </div>
           )}
         </div>
@@ -2387,7 +2387,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-900">Audience Discovery</h3>
-              <p className="text-sm text-slate-500 mt-0.5">AI finds profitable segments you haven't tested yet</p>
+              <p className="text-sm text-slate-500 mt-0.5">These are audience segments not yet covered by your active campaigns. Select one to add it to your targeting.</p>
             </div>
             <button onClick={handleDiscoverAudiences} disabled={audiencesLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
               {audiencesLoading ? 'Discovering...' : 'Discover Audiences'}
@@ -2414,13 +2414,13 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                         <span className="text-xs text-slate-400">{a.size}</span>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500">{a.description}</p>
+                    <p dir="auto" className="text-xs text-slate-500">{a.description}</p>
                     {a.interests?.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {a.interests.slice(0, 3).map((int: string) => <span key={int} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{int}</span>)}
                       </div>
                     )}
-                    <p className="text-xs text-slate-400">{a.reasoning}</p>
+                    <p dir="auto" className="text-xs text-slate-400">{a.reasoning}</p>
                     <div className="flex items-center justify-between gap-2 pt-1">
                       <div className="flex gap-1">
                         {(a.platforms ?? []).map((p: string) => <span key={p} className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${PLATFORM_BADGE[p] ?? 'bg-slate-100 text-slate-500'}`}>{p}</span>)}
@@ -2433,9 +2433,10 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                       ) : (
                         <button
                           onClick={() => handleAddAudience(a.id)}
-                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-400 px-3 py-1 rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors shadow-sm"
                         >
-                          Add to Campaign →
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                          Add to Campaign
                         </button>
                       )}
                     </div>
@@ -2486,10 +2487,10 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                     )}
                   </div>
                   {ad.ad_creative_link_titles?.[0] && (
-                    <p className="text-sm font-semibold text-indigo-700">{ad.ad_creative_link_titles[0]}</p>
+                    <p dir="auto" className="text-sm font-semibold text-indigo-700">{ad.ad_creative_link_titles[0]}</p>
                   )}
                   {ad.ad_creative_bodies?.[0] && (
-                    <p className="text-sm text-slate-600 leading-relaxed">{ad.ad_creative_bodies[0].slice(0, 200)}{ad.ad_creative_bodies[0].length > 200 ? '...' : ''}</p>
+                    <p dir="auto" className="text-sm text-slate-600 leading-relaxed">{ad.ad_creative_bodies[0].slice(0, 200)}{ad.ad_creative_bodies[0].length > 200 ? '...' : ''}</p>
                   )}
                   <div className="flex items-center gap-3 pt-1">
                     {ad.impressions?.lower_bound && (
@@ -2538,17 +2539,17 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant A</p>
-                  <p className="text-xs font-semibold text-slate-700">{abRecommendation.variant_a?.name}</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_a?.description}</p>
+                  <p dir="auto" className="text-xs font-semibold text-slate-700">{abRecommendation.variant_a?.name}</p>
+                  <p dir="auto" className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_a?.description}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant B</p>
-                  <p className="text-xs font-semibold text-slate-700">{abRecommendation.variant_b?.name}</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_b?.description}</p>
+                  <p dir="auto" className="text-xs font-semibold text-slate-700">{abRecommendation.variant_b?.name}</p>
+                  <p dir="auto" className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_b?.description}</p>
                 </div>
               </div>
               {abRecommendation.rationale && (
-                <p className="text-xs text-slate-600 leading-relaxed border-t border-amber-100 pt-2">
+                <p dir="auto" className="text-xs text-slate-600 leading-relaxed border-t border-amber-100 pt-2">
                   <span className="font-semibold text-slate-700">Why: </span>{abRecommendation.rationale}
                 </p>
               )}
@@ -2576,8 +2577,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                   <option value="google">Google</option><option value="meta">Meta</option><option value="tiktok">TikTok</option>
                 </select>
               </div>
-              <textarea value={newTest.variantA} onChange={e => setNewTest(n => ({ ...n, variantA: e.target.value }))} placeholder="Variant A — describe the ad creative or copy..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-              <textarea value={newTest.variantB} onChange={e => setNewTest(n => ({ ...n, variantB: e.target.value }))} placeholder="Variant B — describe the alternative..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <textarea dir="auto" value={newTest.variantA} onChange={e => setNewTest(n => ({ ...n, variantA: e.target.value }))} placeholder="Variant A — describe the ad creative or copy..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <textarea dir="auto" value={newTest.variantB} onChange={e => setNewTest(n => ({ ...n, variantB: e.target.value }))} placeholder="Variant B — describe the alternative..." rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               <button onClick={handleCreateAbTest} disabled={abLoading || !newTest.variantA || !newTest.variantB} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
                 {abLoading ? 'Creating...' : 'Create Test'}
               </button>
@@ -2605,9 +2606,9 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                     </div>
                     {test.conclusion && (
                       <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs space-y-1">
-                        <p className="font-bold text-emerald-800">Winner: {test.conclusion.winner_name} · {test.conclusion.ctr_lift} CTR lift</p>
-                        <p className="text-emerald-700">{test.conclusion.key_reason}</p>
-                        <p className="text-emerald-600">{test.conclusion.recommendation}</p>
+                        <p dir="auto" className="font-bold text-emerald-800">Winner: {test.conclusion.winner_name} · {test.conclusion.ctr_lift} CTR lift</p>
+                        <p dir="auto" className="text-emerald-700">{test.conclusion.key_reason}</p>
+                        <p dir="auto" className="text-emerald-600">{test.conclusion.recommendation}</p>
                       </div>
                     )}
                   </div>
@@ -2626,16 +2627,27 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               <h3 className="font-bold text-slate-900">Creative Element Analytics</h3>
               <p className="text-sm text-slate-500 mt-0.5">What's working — hook, CTA, color, length, tone</p>
             </div>
-            <button onClick={handleElementAnalysis} disabled={elementLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
-              {elementLoading ? 'Analyzing...' : 'Analyze Elements'}
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button onClick={handleElementAnalysis} disabled={elementLoading || !campaigns?.length} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors flex items-center gap-2">
+                {elementLoading && (
+                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {elementLoading ? 'Analyzing...' : 'Analyze Elements'}
+              </button>
+              {!campaigns?.length && (
+                <p className="text-xs text-slate-400 text-right max-w-xs">No performance data yet. Launch campaigns and approve creatives to see what's working.</p>
+              )}
+            </div>
           </div>
           {elementAnalysis && (
             <div className="space-y-4">
               {elementAnalysis.winning_formula && (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
                   <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">Winning Formula</p>
-                  <p className="text-sm text-slate-800">{elementAnalysis.winning_formula}</p>
+                  <p dir="auto" className="text-sm text-slate-800">{elementAnalysis.winning_formula}</p>
                 </div>
               )}
               {elementAnalysis.element_scores && (
@@ -2663,7 +2675,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               {elementAnalysis.next_test && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
                   <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Next Test to Run</p>
-                  <p className="text-sm text-slate-700">{elementAnalysis.next_test}</p>
+                  <p dir="auto" className="text-sm text-slate-700">{elementAnalysis.next_test}</p>
                 </div>
               )}
             </div>
@@ -2700,13 +2712,13 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               {creativeThemes.topPerforming && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                   <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Top Performing Pattern</p>
-                  <p className="text-sm text-slate-800">{creativeThemes.topPerforming}</p>
+                  <p dir="auto" className="text-sm text-slate-800">{creativeThemes.topPerforming}</p>
                 </div>
               )}
               {creativeThemes.toAvoid && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                   <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Pattern to Avoid</p>
-                  <p className="text-sm text-slate-800">{creativeThemes.toAvoid}</p>
+                  <p dir="auto" className="text-sm text-slate-800">{creativeThemes.toAvoid}</p>
                 </div>
               )}
               {creativeThemes.insights?.length > 0 && (
@@ -2714,9 +2726,9 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Theme Insights</p>
                   {creativeThemes.insights.map((ins: any, i: number) => (
                     <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-1 hover:border-indigo-200 transition-colors">
-                      <p className="text-sm font-semibold text-slate-900">{ins.theme}</p>
-                      <p className="text-xs text-slate-500">{ins.performance}</p>
-                      <p className="text-xs text-indigo-600 font-medium">→ {ins.recommendation}</p>
+                      <p dir="auto" className="text-sm font-semibold text-slate-900">{ins.theme}</p>
+                      <p dir="auto" className="text-xs text-slate-500">{ins.performance}</p>
+                      <p dir="auto" className="text-xs text-indigo-600 font-medium">→ {ins.recommendation}</p>
                     </div>
                   ))}
                 </div>
@@ -2743,7 +2755,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           )}
           {budgetRec && (
             <div className="space-y-4">
-              {budgetRec.summary && <p className="text-sm text-slate-600 leading-relaxed">{budgetRec.summary}</p>}
+              {budgetRec.summary && <p dir="auto" className="text-sm text-slate-600 leading-relaxed">{budgetRec.summary}</p>}
               {budgetRec.expected_improvement && (
                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                   <p className="text-sm font-semibold text-emerald-800">Expected improvement: {budgetRec.expected_improvement}</p>
@@ -2754,8 +2766,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                   {budgetRec.recommended_shifts.map((s: any, i: number) => (
                     <div key={i} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{s.campaign_name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{s.reason}</p>
+                        <p dir="auto" className="text-sm font-semibold text-slate-900 truncate">{s.campaign_name}</p>
+                        <p dir="auto" className="text-xs text-slate-400 mt-0.5">{s.reason}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm text-slate-400 line-through">${s.current_budget}/day</p>
@@ -2822,7 +2834,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
               {croAudit.quick_wins?.length > 0 && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-2">
                   <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Quick Wins</p>
-                  {croAudit.quick_wins.map((w: string, i: number) => <p key={i} className="text-sm text-slate-700 flex gap-2"><span className="text-amber-500">→</span>{w}</p>)}
+                  {croAudit.quick_wins.map((w: string, i: number) => <p key={i} dir="auto" className="text-sm text-slate-700 flex gap-2"><span className="text-amber-500">→</span>{w}</p>)}
                 </div>
               )}
               {croAudit.issues?.length > 0 && (
@@ -2834,8 +2846,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${issue.severity === 'critical' ? 'bg-red-200 text-red-700' : issue.severity === 'warning' ? 'bg-amber-200 text-amber-700' : 'bg-slate-200 text-slate-600'}`}>{issue.severity}</span>
                         <span className="text-sm font-semibold text-slate-900">{issue.element}</span>
                       </div>
-                      <p className="text-xs text-slate-600">{issue.problem}</p>
-                      <p className="text-xs font-semibold text-indigo-600">→ Fix: {issue.fix}</p>
+                      <p dir="auto" className="text-xs text-slate-600">{issue.problem}</p>
+                      <p dir="auto" className="text-xs font-semibold text-indigo-600">→ Fix: {issue.fix}</p>
                     </div>
                   ))}
                 </div>
@@ -2993,7 +3005,7 @@ function ProtocolsTab() {
                     {p.status.replace('_', ' ')}
                   </span>
                 </div>
-                <p className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{p.title}</p>
+                <p dir="auto" className="text-xs font-semibold text-slate-800 leading-snug line-clamp-2">{p.title}</p>
                 <p className="text-xs text-slate-400 mt-1">{PROTOCOL_TYPE_LABELS[p.type] ?? p.type} · {new Date(p.created_at).toLocaleDateString()}</p>
               </button>
             ))}
@@ -3017,7 +3029,7 @@ function ProtocolsTab() {
                     <span className="text-xs text-slate-400">{PROTOCOL_TYPE_LABELS[selected.type] ?? selected.type}</span>
                     {selected.platform && <span className="text-xs text-slate-400 capitalize">· {selected.platform}</span>}
                   </div>
-                  <h3 className="font-bold text-slate-900">{selected.title}</h3>
+                  <h3 dir="auto" className="font-bold text-slate-900">{selected.title}</h3>
                   <p className="text-xs text-slate-400 mt-0.5">Created {new Date(selected.created_at).toLocaleString()} · Expires {new Date(selected.expires_at).toLocaleDateString()}</p>
                   {(selected.status === 'pending' || selected.status === 'in_discussion') && (new Date(selected.expires_at).getTime() - Date.now()) < 4 * 3600_000 && (
                     <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-semibold">
@@ -3038,7 +3050,7 @@ function ProtocolsTab() {
                         <p className={`text-xs font-semibold mb-1 ${msg.role === 'client' ? 'text-indigo-200' : 'text-slate-500'}`}>
                           {msg.role === 'vigmis' ? 'Vigmis' : 'You'}
                         </p>
-                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <p dir="auto" className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                         <p className={`text-xs mt-1.5 ${msg.role === 'client' ? 'text-indigo-300' : 'text-slate-400'}`}>
                           {new Date(msg.timestamp).toLocaleString()}
                         </p>
@@ -3071,7 +3083,7 @@ function ProtocolsTab() {
                     {/* Formal approval */}
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
                       <p className="text-xs font-semibold text-emerald-800">Formal approval</p>
-                      <p className="text-sm text-emerald-900 italic">"{selected.approval_text}"</p>
+                      <p dir="auto" className="text-sm text-emerald-900 italic">"{selected.approval_text}"</p>
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={handleApprove}
@@ -3379,7 +3391,7 @@ function StrategyTab({ settings: _settings }: any) {
                           <span className="text-xs text-slate-500 ml-2">({p.campaign_types.join(', ')})</span>
                         )}
                         {p.reasoning && (
-                          <p className="text-xs text-slate-500 mt-0.5">{p.reasoning}</p>
+                          <p dir="ltr" className="text-xs text-slate-500 mt-0.5 text-left">{p.reasoning}</p>
                         )}
                       </div>
                       <span className="text-sm font-bold text-slate-900 flex-shrink-0">{p.budget_percentage}%</span>
@@ -3423,7 +3435,7 @@ function StrategyTab({ settings: _settings }: any) {
                         <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
                         </div>
-                        {note && <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{note}</p>}
+                        {note && <p dir="ltr" className="text-[11px] text-slate-400 mt-0.5 leading-snug text-left">{note}</p>}
                       </div>
                     );
                   })}
@@ -3482,7 +3494,7 @@ function StrategyTab({ settings: _settings }: any) {
             {plan.icp_confidence_gap && (
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                 <span className="text-amber-500 text-base leading-none mt-0.5">&#9888;</span>
-                <p className="text-xs text-amber-800 leading-relaxed">
+                <p dir="ltr" className="text-xs text-amber-800 leading-relaxed text-left">
                   <span className="font-semibold">To improve accuracy: </span>{plan.icp_confidence_gap}
                 </p>
               </div>
@@ -4034,7 +4046,7 @@ function SettingsTab({ settings, connected }: any) {
                     >Approve</button>
                   </div>
                 </div>
-                {req.reason && <p className="text-xs text-slate-500">{req.reason}</p>}
+                {req.reason && <p dir="auto" className="text-xs text-slate-500">{req.reason}</p>}
                 {req.factor && <p className="text-xs text-slate-400">Budget factor: ×{req.factor}</p>}
               </div>
             ))}
@@ -4265,9 +4277,9 @@ function AlertCard({ alert, onDismiss }: { alert: any; onDismiss: () => void }) 
   return (
     <div className={`border rounded-xl p-4 flex items-start justify-between gap-4 ${styles[alert.severity] ?? styles.info}`}>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold">{alert.title}</p>
-        <p className="text-xs mt-0.5 opacity-80">{alert.message}</p>
-        {alert.action && <p className="text-xs mt-1 font-medium opacity-70">→ {alert.action}</p>}
+        <p dir="auto" className="text-sm font-bold">{alert.title}</p>
+        <p dir="auto" className="text-xs mt-0.5 opacity-80">{alert.message}</p>
+        {alert.action && <p dir="auto" className="text-xs mt-1 font-medium opacity-70">→ {alert.action}</p>}
       </div>
       <button onClick={onDismiss} className="text-lg leading-none opacity-50 hover:opacity-100 flex-shrink-0">×</button>
     </div>
@@ -4518,8 +4530,8 @@ function GeoTab({ settings }: any) {
                             <span className="text-xs font-bold uppercase tracking-wide opacity-70">{issue.element}</span>
                             <span className="text-xs font-semibold uppercase tracking-wide bg-white/60 px-2 py-0.5 rounded-full">{issue.severity}</span>
                           </div>
-                          <p className="text-sm font-semibold mt-1">{issue.problem}</p>
-                          <p className="text-sm mt-1 opacity-80"><span className="font-semibold">Fix:</span> {issue.fix}</p>
+                          <p dir="auto" className="text-sm font-semibold mt-1">{issue.problem}</p>
+                          <p dir="auto" className="text-sm mt-1 opacity-80"><span className="font-semibold">Fix:</span> {issue.fix}</p>
                         </div>
                       </div>
                     </div>
@@ -4569,8 +4581,8 @@ function GeoTab({ settings }: any) {
                     <div className="space-y-3">
                       {(report.faq ?? []).map((f: any, i: number) => (
                         <div key={i} className="border border-slate-200 rounded-xl p-4">
-                          <p className="text-sm font-semibold text-slate-800">Q: {f.question}</p>
-                          <p className="text-sm text-slate-600 mt-1.5">A: {f.answer}</p>
+                          <p dir="auto" className="text-sm font-semibold text-slate-800">Q: {f.question}</p>
+                          <p dir="auto" className="text-sm text-slate-600 mt-1.5">A: {f.answer}</p>
                         </div>
                       ))}
                     </div>
@@ -4589,7 +4601,7 @@ function GeoTab({ settings }: any) {
                     <CopyButton text={report.business_description ?? ''} label="Copy text" />
                   </div>
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-                    <p className="text-sm text-slate-700 leading-relaxed">{report.business_description}</p>
+                    <p dir="auto" className="text-sm text-slate-700 leading-relaxed">{report.business_description}</p>
                   </div>
                 </div>
               )}
@@ -4771,7 +4783,7 @@ function HistoryTab() {
                   {month.market_notes && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                       <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Market notes</p>
-                      <p className="text-sm text-amber-800">{month.market_notes}</p>
+                      <p dir="auto" className="text-sm text-amber-800">{month.market_notes}</p>
                     </div>
                   )}
                 </div>
@@ -4842,6 +4854,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
       {mode === 'edit' && (
         <div className="space-y-2">
           <textarea
+            dir="auto"
             value={text}
             onChange={e => setText(e.target.value)}
             rows={4}
@@ -5520,7 +5533,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       </div>
                       {/* Post text */}
                       <div className="px-3 py-2">
-                        <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line line-clamp-4">{editPost?.id === post.id ? editPost!.content : post.content}</p>
+                        <p dir="auto" className="text-xs text-slate-800 leading-relaxed whitespace-pre-line line-clamp-4">{editPost?.id === post.id ? editPost!.content : post.content}</p>
                         {post.hashtags?.length > 0 && (
                           <p className="text-[10px] text-indigo-500 mt-1">{(post.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
                         )}
@@ -5589,6 +5602,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                 {/* Text edit mode — only shown when explicitly editing */}
                 {editPost?.id === post.id && (
                   <textarea
+                    dir="auto"
                     value={editPost!.content}
                     onChange={e => setEditPost({ id: post.id, content: e.target.value })}
                     rows={4}
@@ -5715,7 +5729,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         : '—'}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-600 mt-2 leading-relaxed line-clamp-2">{post.client_edit || post.content}</p>
+                  <p dir="auto" className="text-sm text-slate-600 mt-2 leading-relaxed line-clamp-2">{post.client_edit || post.content}</p>
                   {postAnalytics && (
                     <div className="mt-2 flex gap-4">
                       {[
@@ -6123,10 +6137,10 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   </div>
                   <div className="px-5 py-4 space-y-3">
                     <div className="bg-slate-50 rounded-lg px-3 py-2.5">
-                      <p className="text-sm text-slate-700 leading-relaxed">"{comment.text}"</p>
+                      <p dir="auto" className="text-sm text-slate-700 leading-relaxed">"{comment.text}"</p>
                     </div>
                     {comment.ai_recommendation && (
-                      <p className="text-xs text-slate-500 leading-relaxed">
+                      <p dir="auto" className="text-xs text-slate-500 leading-relaxed">
                         <span className="font-semibold text-indigo-600">Vigmis: </span>
                         {comment.ai_recommendation}
                       </p>
@@ -6136,13 +6150,14 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         <p className="text-xs font-semibold text-slate-500">Suggested reply</p>
                         {editReply?.id === comment.id ? (
                           <textarea
+                            dir="auto"
                             value={editReply!.text}
                             onChange={e => setEditReply({ id: comment.id, text: e.target.value })}
                             rows={3}
                             className="w-full border border-indigo-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                           />
                         ) : (
-                          <p className="text-sm text-slate-700 bg-indigo-50 rounded-lg px-3 py-2.5 leading-relaxed">
+                          <p dir="auto" className="text-sm text-slate-700 bg-indigo-50 rounded-lg px-3 py-2.5 leading-relaxed">
                             {comment.ai_draft_reply || <span className="text-slate-400 italic">No draft</span>}
                           </p>
                         )}
