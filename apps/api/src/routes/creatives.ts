@@ -31,6 +31,7 @@
 // Best-of-3 (C6): image-only, generate 3 DALL-E images, return highest-scoring
 
 import type { FastifyInstance } from 'fastify';
+import sharp from 'sharp';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
@@ -88,32 +89,77 @@ async function uploadVideoToStorage(
   }
 }
 
+// Adds a brand name + website bar at the bottom of the image using sharp.
+// This is a HARD GUARANTEE: regardless of what the AI rendered, the brand
+// identity will always appear correctly in the final image.
+async function addBrandOverlay(
+  imageBuffer: Buffer,
+  brandName: string,
+  websiteUrl: string,
+): Promise<Buffer> {
+  try {
+    const { width = 1024, height = 1024 } = await sharp(imageBuffer).metadata();
+
+    const barH = Math.max(48, Math.round(height * 0.055));
+    const fontSize = Math.round(barH * 0.52);
+    const domain = websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const label = domain ? `${brandName}  ·  ${domain}` : brandName;
+
+    // Escape XML special characters
+    const safeLabel = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const svgOverlay = Buffer.from(
+      `<svg width="${width}" height="${barH}" xmlns="http://www.w3.org/2000/svg">` +
+      `<rect x="0" y="0" width="${width}" height="${barH}" fill="rgba(0,0,0,0.72)" rx="0"/>` +
+      `<text x="${Math.round(width / 2)}" y="${Math.round(barH * 0.72)}" ` +
+      `font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="bold" ` +
+      `fill="white" text-anchor="middle" letter-spacing="1">${safeLabel}</text>` +
+      `</svg>`,
+    );
+
+    return await sharp(imageBuffer)
+      .composite([{ input: svgOverlay, top: height - barH, left: 0 }])
+      .png()
+      .toBuffer();
+  } catch (err) {
+    // Never fail the upload because of overlay — return original image
+    console.error('[creatives] addBrandOverlay failed, using original image:', err);
+    return imageBuffer;
+  }
+}
+
 async function uploadImageToStorage(
   imageUrl: string,
   jobId: string,
   tenantId: string,
+  brand?: { name: string; website: string },
 ): Promise<string | null> {
   try {
-    let buffer: ArrayBuffer;
+    let rawBuffer: Buffer;
 
     if (imageUrl.startsWith('data:')) {
       // gpt-image-1 returns base64 data URLs — decode directly without HTTP fetch
       const commaIdx = imageUrl.indexOf(',');
       if (commaIdx === -1) return null;
       const b64 = imageUrl.slice(commaIdx + 1);
-      const binary = Buffer.from(b64, 'base64');
-      buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+      rawBuffer = Buffer.from(b64, 'base64');
     } else {
       const res = await fetch(imageUrl);
       if (!res.ok) return null;
-      buffer = await res.arrayBuffer();
+      rawBuffer = Buffer.from(await res.arrayBuffer());
     }
+
+    // Apply programmatic brand overlay — this is the hard guarantee that the
+    // brand name and website always appear correctly, regardless of AI rendering.
+    const finalBuffer = brand
+      ? await addBrandOverlay(rawBuffer, brand.name, brand.website)
+      : rawBuffer;
 
     const path = `${tenantId}/${jobId}.png`;
 
     const { error } = await db.storage
       .from('creatives')
-      .upload(path, buffer, {
+      .upload(path, finalBuffer, {
         contentType: 'image/png',
         upsert: true,
       });
@@ -801,8 +847,11 @@ export async function creativeRoutes(app: FastifyInstance) {
           }
         }
 
-        // Store to Supabase Storage
-        const storedUrl = await uploadImageToStorage(finalUrl, job.id, request.tenantId);
+        // Store to Supabase Storage — brand overlay is applied here as a hard guarantee
+        const storedUrl = await uploadImageToStorage(finalUrl, job.id, request.tenantId, {
+          name: brandNameToken,
+          website: websiteToken,
+        });
         const outputUrl = storedUrl ?? finalUrl;
 
         // Strip internal pipeline metadata before persisting — _all_candidate_urls must not
