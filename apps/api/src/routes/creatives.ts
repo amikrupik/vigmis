@@ -171,13 +171,13 @@ async function submitHeyGenJob(brief: {
         {
           character: {
             type: 'avatar',
-            avatar_id: brief.avatar_id ?? 'Anna_public_3_20240108',
+            avatar_id: brief.avatar_id ?? 'Abigail_expressive_2024112501',
             avatar_style: 'normal',
           },
           voice: {
             type: 'text',
             input_text: brief.script,
-            voice_id: brief.voice_id ?? 'en-US-AriaNeural',
+            voice_id: brief.voice_id ?? 'f8c69e517f424cafaecde32dde57096b',
           },
           background: brief.background
             ? { type: 'image', url: brief.background }
@@ -708,8 +708,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       .single();
 
     if (insertErr) {
-      console.error('[creatives] DB insert failed:', insertErr.message, insertErr.details, insertErr.hint);
-      return reply.code(500).send({ error: 'Failed to create job', detail: insertErr.message });
+      console.error('[creatives] DB insert failed:', insertErr.message, insertErr.details, insertErr.hint, JSON.stringify(insertErr));
+      return reply.code(500).send({ error: 'Failed to create job' });
     }
 
     if (!providerReady) {
