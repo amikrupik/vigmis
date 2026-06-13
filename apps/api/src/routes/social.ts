@@ -143,7 +143,7 @@ export async function socialRoutes(app: FastifyInstance) {
       await db.from('social_posts').update({
         status: 'blocked_by_policy',
         updated_at: new Date().toISOString(),
-      }).eq('id', id);
+      }).eq('id', id).eq('tenant_id', request.tenantId);
       return reply.code(422).send({
         error: 'policy_blocked',
         decision_id: gate.decision_id,
@@ -183,7 +183,7 @@ export async function socialRoutes(app: FastifyInstance) {
       await db.from('social_posts').update({
         status: 'blocked_by_policy',
         updated_at: new Date().toISOString(),
-      }).eq('id', id);
+      }).eq('id', id).eq('tenant_id', request.tenantId);
       return reply.code(422).send({
         error: 'two_key_blocked',
         trigger: twoKey.trigger_reason,
@@ -255,7 +255,7 @@ export async function socialRoutes(app: FastifyInstance) {
       update.cooling_off_until = coolingUntil;
       update.cooling_off_labels = highStakes.labels;
       update.cooling_off_cancelled = false;
-      await db.from('social_posts').update(update).eq('id', id);
+      await db.from('social_posts').update(update).eq('id', id).eq('tenant_id', request.tenantId);
 
       await db.from('audit_log').insert({
         tenant_id: request.tenantId,
@@ -274,7 +274,7 @@ export async function socialRoutes(app: FastifyInstance) {
       });
     }
 
-    await db.from('social_posts').update(update).eq('id', id);
+    await db.from('social_posts').update(update).eq('id', id).eq('tenant_id', request.tenantId);
 
     // ── Scale post credits (A5) ───────────────────────────────────────────────
     // Scale plan: 5 posts/month free. Additional posts charged $1 each.
@@ -331,9 +331,9 @@ export async function socialRoutes(app: FastifyInstance) {
             published_at: now,
             billed: true,
             updated_at: now,
-          }).eq('id', id);
+          }).eq('id', id).eq('tenant_id', request.tenantId);
         } else {
-          await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', id);
+          await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', id).eq('tenant_id', request.tenantId);
         }
       } catch (err) {
         request.log.error({ err }, 'publish_now failed');
@@ -391,7 +391,7 @@ export async function socialRoutes(app: FastifyInstance) {
       update.scheduled_for = dt.toISOString();
     }
 
-    await db.from('social_posts').update(update).eq('id', id);
+    await db.from('social_posts').update(update).eq('id', id).eq('tenant_id', request.tenantId);
     await db.from('audit_log').insert({
       tenant_id: request.tenantId,
       action: 'social.post_edited',
@@ -410,7 +410,7 @@ export async function socialRoutes(app: FastifyInstance) {
       .eq('id', id).eq('tenant_id', request.tenantId).single();
     if (!post) return reply.code(404).send({ error: 'Not found' });
 
-    await db.from('social_posts').delete().eq('id', id);
+    await db.from('social_posts').delete().eq('id', id).eq('tenant_id', request.tenantId);
     // Cascade also removes analytics row via FK.
 
     await db.from('audit_log').insert({

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -73,29 +74,48 @@ const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-blue-100 text-blue-700', error: 'bg-red-100 text-red-700',
 };
 const STATUS_LABELS: Record<string, string> = {
-  active: 'active', paused: 'paused', pending: 'activating…', error: 'error',
+  active: 'active', paused: 'paused', pending: 'activating', error: 'error',
 };
 const PLATFORM_BADGE: Record<string, string> = {
   google: 'text-blue-600 bg-blue-50', meta: 'text-violet-600 bg-violet-50', tiktok: 'text-slate-700 bg-slate-100',
 };
 
-const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-  { key: 'overview', label: 'Overview', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-  { key: 'strategy', label: 'Strategy', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
-  { key: 'analytics', label: 'Analytics', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
-  { key: 'campaigns', label: 'Campaigns', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
-  { key: 'creative', label: 'Creative', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
-  { key: 'intelligence', label: 'Intelligence', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
-  { key: 'geo', label: 'AI Visibility', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg> },
-  { key: 'history', label: 'History', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-  { key: 'protocols', label: 'Decisions', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
-  { key: 'social', label: 'Social', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> },
-  { key: 'settings', label: 'Settings', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+type NavItem = { key: Tab; labelKey: string; icon: React.ReactNode };
+type NavGroup = { heading: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    heading: 'MAIN',
+    items: [
+      { key: 'overview', labelKey: 'tabs.overview', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
+      { key: 'campaigns', labelKey: 'tabs.campaigns', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
+      { key: 'social', labelKey: 'tabs.social', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg> },
+      { key: 'creative', labelKey: 'tabs.creative', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg> },
+    ],
+  },
+  {
+    heading: 'INTELLIGENCE',
+    items: [
+      { key: 'strategy', labelKey: 'tabs.strategy', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
+      { key: 'analytics', labelKey: 'tabs.analytics', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+      { key: 'intelligence', labelKey: 'tabs.intelligence', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
+      { key: 'geo', labelKey: 'tabs.geo', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg> },
+    ],
+  },
+  {
+    heading: 'ACCOUNT',
+    items: [
+      { key: 'history', labelKey: 'tabs.history', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+      { key: 'protocols', labelKey: 'tabs.protocols', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
+      { key: 'settings', labelKey: 'tabs.settings', icon: <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+    ],
+  },
 ];
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function DashboardClient() {
+  const t = useTranslations('dashboard');
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('overview');
@@ -108,6 +128,7 @@ export default function DashboardClient() {
   const [showStopModal, setShowStopModal] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [pendingProtocolCount, setPendingProtocolCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -181,16 +202,28 @@ export default function DashboardClient() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3 sticky top-0 z-30">
+      <header className="bg-white border-b border-slate-200 px-6 py-3 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <Image src="/logo_nav.png" alt="Vigmis" width={180} height={40} priority />
+          <div className="flex items-center gap-3">
+            {/* Hamburger — mobile only */}
+            <button
+              className="md:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+              aria-label="Toggle navigation"
+              onClick={() => setSidebarOpen(o => !o)}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <Image src="/logo_nav.png" alt="Vigmis" width={180} height={40} priority />
+          </div>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-2">
               <PlatformBadge name="Google" connected={connected.google} />
               <PlatformBadge name="Meta" connected={connected.meta} />
               {connected.tiktok
               ? <PlatformBadge name="TikTok" connected={true} />
-              : <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-400 font-medium">TikTok — soon</span>
+              : <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-400 font-medium">{t('status.tiktokSoon')}</span>
             }
             </div>
             <div className="flex items-center gap-4 text-sm">
@@ -208,9 +241,9 @@ export default function DashboardClient() {
                   </span>
                 )}
               </button>
-              <a href="/studio" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Creative Studio</a>
-              <a href="/settings/general" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Settings</a>
-              <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">Billing</a>
+              <a href="/studio" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">{t('buttons.creativeStudio')}</a>
+              <a href="/settings/general" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">{t('tabs.settings')}</a>
+              <a href="/billing" className="text-slate-500 hover:text-slate-800 font-medium transition-colors">{t('buttons.billing')}</a>
               <LanguageSelector />
               <ClerkSignOutButton />
             </div>
@@ -221,7 +254,7 @@ export default function DashboardClient() {
       {/* Platform status bar */}
       <div className="bg-white border-b border-slate-100 px-6 py-2">
         <div className="max-w-6xl mx-auto flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">Connections</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide mr-1">{t('status.connections')}</span>
           {[
             { name: 'Google Ads', key: 'google' as const, connected: connected.google },
             { name: 'Meta Ads', key: 'meta' as const, connected: connected.meta },
@@ -249,7 +282,7 @@ export default function DashboardClient() {
                   }}
                   className="ml-0.5 underline underline-offset-2 hover:no-underline text-amber-600"
                 >
-                  Connect
+                  {t('buttons.connect')}
                 </button>
               )}
             </span>
@@ -257,33 +290,61 @@ export default function DashboardClient() {
         </div>
       </div>
 
-      {/* Tab nav */}
-      <div className="bg-white border-b border-slate-200 px-6">
-        <div className="max-w-6xl mx-auto flex gap-0 overflow-x-auto">
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
-                tab === t.key
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-              {t.key === 'protocols' && pendingProtocolCount > 0 && (
-                <span className="ml-1 bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {pendingProtocolCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-      {/* Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      {/* Body: sidebar + content */}
+      <div className="flex min-h-[calc(100vh-112px)]" dir="auto">
+
+        {/* Vertical sidebar */}
+        <aside
+          className={[
+            'fixed md:sticky top-[112px] z-30 h-[calc(100vh-112px)] w-[220px] bg-white border-slate-200 overflow-y-auto flex-shrink-0 flex flex-col py-4 transition-transform duration-200',
+            'ltr:border-r rtl:border-l',
+            sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full md:translate-x-0',
+            'ltr:left-0 rtl:right-0',
+          ].join(' ')}
+        >
+          {NAV_GROUPS.map(group => (
+            <div key={group.heading} className="mb-4">
+              <p className="px-4 mb-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase select-none">
+                {group.heading}
+              </p>
+              {group.items.map(item => {
+                const isActive = tab === item.key;
+                return (
+                  <div key={item.key} className="px-2">
+                  <button
+                    onClick={() => { setTab(item.key); setSidebarOpen(false); }}
+                    className={[
+                      'w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors text-start rounded-lg',
+                      isActive
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                    ].join(' ')}
+                  >
+                    {item.icon}
+                    <span className="truncate">{t(item.labelKey)}</span>
+                    {item.key === 'protocols' && pendingProtocolCount > 0 && (
+                      <span className="ms-auto bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">
+                        {pendingProtocolCount}
+                      </span>
+                    )}
+                  </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </aside>
+
+        {/* Content */}
+        <main className="flex-1 min-w-0 px-6 py-8">
         {error && <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">{error}</div>}
 
         {tab === 'overview' && (
@@ -318,6 +379,7 @@ export default function DashboardClient() {
         {tab === 'protocols' && <ProtocolsTab />}
         {tab === 'social' && <SocialTab metaConnected={connected.meta} googleConnected={connected.google} />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
+        </main>
       </div>
 
       <FeedbackModal />
@@ -332,17 +394,17 @@ export default function DashboardClient() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                 </svg>
               </div>
-              <h3 className="font-bold text-slate-900 text-lg">Emergency Stop</h3>
+              <h3 className="font-bold text-slate-900 text-lg">{t('buttons.emergencyStop')}</h3>
             </div>
             <p className="text-sm text-slate-600">
-              This will immediately pause <strong>{activeCampaigns} active campaign{activeCampaigns !== 1 ? 's' : ''}</strong> across all platforms. All advertising will stop.
+              {t('status.emergencyStopBody', { count: activeCampaigns })}
             </p>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowStopModal(false)} className="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
-                Cancel
+                {t('buttons.cancel')}
               </button>
               <button onClick={handleEmergencyStop} disabled={stopping} className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl transition-colors">
-                {stopping ? 'Stopping...' : 'Pause All Now'}
+                {stopping ? t('status.stopping') : t('buttons.pauseAllNow')}
               </button>
             </div>
           </div>
@@ -467,6 +529,7 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab, onSocialTab, onCreativeTab }: any) {
+  const t = useTranslations('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
   const [convIntel, setConvIntel] = useState<any>(null);
@@ -496,14 +559,14 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
       {/* Platform health bar */}
       {campaigns.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-slate-500 mr-1">Platform Status</span>
+          <span className="text-xs font-semibold text-slate-500 mr-1">{t('status.platformStatus')}</span>
           {(['google', 'meta', 'tiktok'] as const).map(p => (
             platformHealth[p] ? <PlatformDot key={p} platform={p} health={platformHealth[p]} /> : null
           ))}
           {activeCampaigns > 0 && (
             <button onClick={onEmergencyStop} className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-              Emergency Stop
+              {t('buttons.emergencyStop')}
             </button>
           )}
         </div>
@@ -718,8 +781,8 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
             <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
           <div>
-            <p className="text-sm font-bold text-indigo-900">Welcome to Vigmis</p>
-            <p className="text-xs text-indigo-700 mt-1 leading-relaxed">Your campaigns are ready to launch. Once live, this screen will show real-time spend, ROAS, platform health, and AI actions. Have questions? Use the chat button in the bottom-right corner — I'm here 24/7.</p>
+            <p className="text-sm font-bold text-indigo-900">{t('empty.welcomeTitle')}</p>
+            <p className="text-xs text-indigo-700 mt-1 leading-relaxed">{t('empty.welcomeBody')}</p>
           </div>
         </div>
       )}
@@ -731,11 +794,11 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
             <svg className="w-7 h-7 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Campaigns ready to launch</h2>
-            <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">Vigmis analyzed your site and built a campaign plan. Click Launch to create your campaigns on Google, Meta, and TikTok.</p>
+            <h2 className="text-xl font-bold text-slate-900">{t('empty.readyToLaunchTitle')}</h2>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">{t('empty.readyToLaunchBody')}</p>
           </div>
           <button onClick={onLaunch} disabled={launching} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-8 py-3 rounded-xl transition-colors shadow-sm">
-            {launching ? 'Launching...' : 'Launch Campaigns →'}
+            {launching ? t('status.launching') : t('buttons.launchCampaigns')}
           </button>
         </div>
       )}
@@ -771,8 +834,8 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
       {campaigns.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-bold text-slate-900">Campaigns</h2>
-            <button onClick={onViewAll} className="text-xs text-indigo-600 font-medium">View all →</button>
+            <h2 className="font-bold text-slate-900">{t('tabs.campaigns')}</h2>
+            <button onClick={onViewAll} className="text-xs text-indigo-600 font-medium">{t('buttons.viewAll')}</button>
           </div>
           <div className="divide-y divide-slate-50">
             {campaigns.slice(0, 5).map((c: Campaign) => {
@@ -801,6 +864,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
 // ── Analytics Tab ─────────────────────────────────────────────────────────────
 
 function AnalyticsTab() {
+  const t = useTranslations('dashboard');
   const [period, setPeriod] = useState<7 | 30 | 90>(30);
   const [compare, setCompare] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -818,8 +882,8 @@ function AnalyticsTab() {
       <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto">
         <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
       </div>
-      <p className="text-slate-700 font-semibold">No analytics data yet</p>
-      <p className="text-sm text-slate-400 max-w-xs mx-auto">Data will appear once your campaigns are live and running. Launch campaigns from the Overview tab.</p>
+      <p className="text-slate-700 font-semibold">{t('empty.noAnalytics')}</p>
+      <p className="text-sm text-slate-400 max-w-xs mx-auto">{t('empty.noAnalyticsBody')}</p>
     </div>
   );
 
@@ -1065,6 +1129,7 @@ function AnalyticsTab() {
 // ── Campaigns Tab ─────────────────────────────────────────────────────────────
 
 function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaigns, pausedCampaigns, errorCampaigns }: any) {
+  const t = useTranslations('dashboard');
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [budgetInput, setBudgetInput] = useState('');
   const [budgetSaving, setBudgetSaving] = useState(false);
@@ -1100,24 +1165,24 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
       {budgetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4 space-y-4">
-            <h3 className="font-bold text-slate-900">Confirm budget change</h3>
-            <p className="text-sm text-slate-600">Daily budget: <span className="line-through text-slate-400">${budgetConfirm.oldVal}</span> → <strong className={budgetConfirm.newVal > budgetConfirm.oldVal ? 'text-emerald-600' : 'text-amber-600'}>${budgetConfirm.newVal}/day</strong></p>
-            <p className="text-xs text-slate-400">This will take effect immediately on your ad platform.</p>
+            <h3 className="font-bold text-slate-900">{t('buttons.confirmBudgetChange')}</h3>
+            <p className="text-sm text-slate-600">{t('status.dailyBudgetLabel')}: <span className="line-through text-slate-400">${budgetConfirm.oldVal}</span> → <strong className={budgetConfirm.newVal > budgetConfirm.oldVal ? 'text-emerald-600' : 'text-amber-600'}>${budgetConfirm.newVal}/day</strong></p>
+            <p className="text-xs text-slate-400">{t('status.budgetEffectImmediate')}</p>
             <div className="flex gap-2">
-              <button onClick={() => setBudgetConfirm(null)} className="flex-1 border border-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancel</button>
-              <button onClick={() => confirmBudgetSave(budgetConfirm.id, budgetConfirm.newVal)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">Confirm</button>
+              <button onClick={() => setBudgetConfirm(null)} className="flex-1 border border-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-sm hover:bg-slate-50 transition-colors">{t('buttons.cancel')}</button>
+              <button onClick={() => confirmBudgetSave(budgetConfirm.id, budgetConfirm.newVal)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">{t('buttons.confirm')}</button>
             </div>
           </div>
         </div>
       )}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="font-bold text-slate-900 text-lg">All Campaigns</h2>
+        <h2 className="font-bold text-slate-900 text-lg">{t('buttons.allCampaigns')}</h2>
         <div className="flex items-center gap-3">
           <div className="flex gap-3 text-xs text-slate-400">
-            <span className="text-emerald-600 font-semibold">{activeCampaigns} active</span>
-            {pausedCampaigns > 0 && <span>{pausedCampaigns} paused</span>}
-            {campaigns.filter((c: any) => c.status === 'pending').length > 0 && <span className="text-blue-600 font-semibold">{campaigns.filter((c: any) => c.status === 'pending').length} activating</span>}
-            {errorCampaigns > 0 && <span className="text-red-500 font-semibold">{errorCampaigns} error</span>}
+            <span className="text-emerald-600 font-semibold">{t('status.countActive', { count: activeCampaigns })}</span>
+            {pausedCampaigns > 0 && <span>{t('status.countPaused', { count: pausedCampaigns })}</span>}
+            {campaigns.filter((c: any) => c.status === 'pending').length > 0 && <span className="text-blue-600 font-semibold">{t('status.countActivating', { count: campaigns.filter((c: any) => c.status === 'pending').length })}</span>}
+            {errorCampaigns > 0 && <span className="text-red-500 font-semibold">{t('status.countError', { count: errorCampaigns })}</span>}
           </div>
           <ExportMenu items={[
             { label: '⬇ Download CSV (Excel)', action: async () => { const r = await exportCampaignsCSV(); if (r) downloadCSV(r.content, 'vigmis-campaigns.csv'); } },
@@ -1132,8 +1197,8 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
           <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto">
             <svg className="w-6 h-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           </div>
-          <p className="text-slate-700 font-semibold">No campaigns yet</p>
-          <p className="text-sm text-slate-400">Go to the Overview tab and click "Launch Campaigns" to get started.</p>
+          <p className="text-slate-700 font-semibold">{t('empty.noCampaigns')}</p>
+          <p className="text-sm text-slate-400">{t('empty.noCampaignsBody')}</p>
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -1162,9 +1227,9 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                         />
                         <span className="text-xs text-slate-400">/day</span>
                         <button onClick={() => requestBudgetSave(c.id, c.daily_budget_usd)} disabled={budgetSaving} className="text-xs text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 rounded font-medium disabled:opacity-50">
-                          {budgetSaving ? '...' : 'Save'}
+                          {budgetSaving ? '...' : t('buttons.save')}
                         </button>
-                        <button onClick={() => setEditingBudget(null)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+                        <button onClick={() => setEditingBudget(null)} className="text-xs text-slate-400 hover:text-slate-600">{t('buttons.cancel')}</button>
                       </div>
                     ) : (
                       <button
@@ -1177,15 +1242,15 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                     )}
                     {c.error_message && (
                       <span className="text-xs text-red-500 truncate" title={c.error_message}>
-                        {c.error_message} · <a href="mailto:support@vigmis.com" className="underline hover:text-red-700">Contact support</a>
+                        {c.error_message} · <a href="mailto:support@vigmis.com" className="underline hover:text-red-700">{t('buttons.contactSupport')}</a>
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_STYLES[c.status] ?? 'bg-slate-100 text-slate-500'}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
-                  {c.status === 'active' && <button onClick={() => onAction(c.id, 'pause')} disabled={isPending} aria-label={`Pause ${c.name}`} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Pause</button>}
-                  {c.status === 'paused' && <button onClick={() => onAction(c.id, 'resume')} disabled={isPending} aria-label={`Resume ${c.name}`} className="text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">Resume</button>}
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_STYLES[c.status] ?? 'bg-slate-100 text-slate-500'}`}>{STATUS_LABELS[c.status] ? t(`status.${STATUS_LABELS[c.status]}`) : c.status}</span>
+                  {c.status === 'active' && <button onClick={() => onAction(c.id, 'pause')} disabled={isPending} aria-label={`Pause ${c.name}`} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">{t('buttons.pause')}</button>}
+                  {c.status === 'paused' && <button onClick={() => onAction(c.id, 'resume')} disabled={isPending} aria-label={`Resume ${c.name}`} className="text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50">{t('buttons.resume')}</button>}
                 </div>
               </div>
             ))}
@@ -1350,6 +1415,7 @@ function CreativeBriefDialog({
 }
 
 function CreativeTab({ settings }: any) {
+  const t = useTranslations('dashboard');
   const [platform, setPlatform] = useState('google');
   const [copyResult, setCopyResult] = useState<any>(null);
   const [copyLoading, setCopyLoading] = useState(false);
@@ -1806,9 +1872,9 @@ function CreativeTab({ settings }: any) {
 
         {/* Job list */}
         <div className="pt-2 border-t border-slate-100">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Recent Jobs</p>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">{t('buttons.recentJobs')}</p>
           {jobs.length === 0 ? (
-            <p className="text-sm text-slate-400 py-3 text-center">No videos generated yet — write a script above and click "Preview Brief →"</p>
+            <p className="text-sm text-slate-400 py-3 text-center">{t('empty.noVideos')}</p>
           ) : (
             <div className="space-y-4">
               {jobs.slice(0, 5).map(job => {
@@ -2015,8 +2081,8 @@ function CreativeTab({ settings }: any) {
           <p className="text-sm text-slate-500 mt-0.5">Get a 0-100 score and improvement tips before you spend</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {['avatar', 'cinematic', 'animation', 'image', 'text'].map(t => (
-            <button key={t} onClick={() => setScoreForm(f => ({ ...f, type: t }))} className={`py-2 text-sm font-semibold rounded-xl capitalize transition-colors ${scoreForm.type === t ? 'bg-indigo-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{t}</button>
+          {['avatar', 'cinematic', 'animation', 'image', 'text'].map(opt => (
+            <button key={opt} onClick={() => setScoreForm(f => ({ ...f, type: opt }))} className={`py-2 text-sm font-semibold rounded-xl capitalize transition-colors ${scoreForm.type === opt ? 'bg-indigo-600 text-white' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{opt}</button>
           ))}
         </div>
         <textarea
@@ -2087,6 +2153,7 @@ function CreativeTab({ settings }: any) {
 // ── Intelligence Tab ──────────────────────────────────────────────────────────
 
 function IntelligenceTab({ settings, connected, campaigns }: any) {
+  const t = useTranslations('dashboard');
   const [subTab, setSubTab] = useState<'territory' | 'audiences' | 'competitors' | 'ab' | 'elements' | 'budget' | 'cro' | 'themes'>('territory');
   const [audiences, setAudiences] = useState<any[]>([]);
   const [audiencesLoading, setAudiencesLoading] = useState(false);
@@ -2182,7 +2249,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
 
   async function handleConcludeTest(id: string) {
     const res = await concludeAbTest(id);
-    if (res?.conclusion) setAbTests(prev => prev.map(t => t.id === id ? { ...t, status: 'concluded', conclusion: res.conclusion } : t));
+    if (res?.conclusion) setAbTests(prev => prev.map(test => test.id === id ? { ...test, status: 'concluded', conclusion: res.conclusion } : test));
   }
 
   async function handleElementAnalysis() {
@@ -2240,22 +2307,22 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
   }
 
   const SUB_TABS = [
-    { key: 'territory', label: 'Territory' },
-    { key: 'audiences', label: 'Audiences' },
-    { key: 'competitors', label: 'Competitors' },
-    { key: 'ab', label: 'A/B Testing' },
-    { key: 'elements', label: 'Creative Elements' },
-    { key: 'themes', label: 'Creative Themes' },
-    { key: 'budget', label: 'Budget Shift' },
-    { key: 'cro', label: 'CRO Audit' },
+    { key: 'territory', labelKey: 'tabs.subTerritory' },
+    { key: 'audiences', labelKey: 'tabs.subAudiences' },
+    { key: 'competitors', labelKey: 'tabs.subCompetitors' },
+    { key: 'ab', labelKey: 'tabs.subAbTesting' },
+    { key: 'elements', labelKey: 'tabs.subCreativeElements' },
+    { key: 'themes', labelKey: 'tabs.subCreativeThemes' },
+    { key: 'budget', labelKey: 'tabs.subBudgetShift' },
+    { key: 'cro', labelKey: 'tabs.subCroAudit' },
   ] as const;
 
   return (
     <div className="space-y-6">
       {/* Sub-tab nav */}
       <div className="flex gap-1 flex-wrap bg-slate-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto">
-        {SUB_TABS.map(t => (
-          <button key={t.key} onClick={() => setSubTab(t.key)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${subTab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t.label}</button>
+        {SUB_TABS.map(st => (
+          <button key={st.key} onClick={() => setSubTab(st.key)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${subTab === st.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{t(st.labelKey)}</button>
         ))}
       </div>
 
@@ -2302,7 +2369,7 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           {territory.localization_tips?.length > 0 && (
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Localization Tips</p>
-              {territory.localization_tips.map((t: string, i: number) => <p key={i} className="text-sm text-slate-600 flex gap-2"><span className="text-indigo-400">→</span>{t}</p>)}
+              {territory.localization_tips.map((tip: string, i: number) => <p key={i} className="text-sm text-slate-600 flex gap-2"><span className="text-indigo-400">→</span>{tip}</p>)}
             </div>
           )}
         </div>
@@ -2329,8 +2396,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
           </div>
           {audiences.length === 0 && !audiencesLoading && (
             <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
-              <p className="text-sm font-semibold text-slate-600">No audiences discovered yet</p>
-              <p className="text-xs text-slate-400">Click "Discover Audiences" to find profitable segments for your campaigns.</p>
+              <p className="text-sm font-semibold text-slate-600">{t('empty.noAudiences')}</p>
+              <p className="text-xs text-slate-400">{t('empty.noAudiencesBody')}</p>
             </div>
           )}
           {audiences.length > 0 && (
@@ -2528,20 +2595,20 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-slate-100"><p className="font-bold text-slate-900 text-sm">Active Tests</p></div>
               <div className="divide-y divide-slate-50">
-                {abTests.map((t: any) => (
-                  <div key={t.id} className="px-6 py-4 space-y-2">
+                {abTests.map((test: any) => (
+                  <div key={test.id} className="px-6 py-4 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-900 text-sm">{t.name}</span>
+                      <span className="font-semibold text-slate-900 text-sm">{test.name}</span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${t.status === 'running' ? 'bg-blue-100 text-blue-700' : t.status === 'concluded' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{t.status}</span>
-                        {t.status === 'running' && <button onClick={() => handleConcludeTest(t.id)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-3 py-1 rounded-lg">Conclude →</button>}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${test.status === 'running' ? 'bg-blue-100 text-blue-700' : test.status === 'concluded' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{test.status}</span>
+                        {test.status === 'running' && <button onClick={() => handleConcludeTest(test.id)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-3 py-1 rounded-lg">Conclude →</button>}
                       </div>
                     </div>
-                    {t.conclusion && (
+                    {test.conclusion && (
                       <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs space-y-1">
-                        <p className="font-bold text-emerald-800">Winner: {t.conclusion.winner_name} · {t.conclusion.ctr_lift} CTR lift</p>
-                        <p className="text-emerald-700">{t.conclusion.key_reason}</p>
-                        <p className="text-emerald-600">{t.conclusion.recommendation}</p>
+                        <p className="font-bold text-emerald-800">Winner: {test.conclusion.winner_name} · {test.conclusion.ctr_lift} CTR lift</p>
+                        <p className="text-emerald-700">{test.conclusion.key_reason}</p>
+                        <p className="text-emerald-600">{test.conclusion.recommendation}</p>
                       </div>
                     )}
                   </div>
@@ -2624,8 +2691,8 @@ function IntelligenceTab({ settings, connected, campaigns }: any) {
 
           {!creativeThemes && !themesLoading && (
             <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
-              <p className="text-sm font-semibold text-slate-600">No theme analysis yet</p>
-              <p className="text-xs text-slate-400">Click "Analyze Themes" to surface patterns across your published posts.</p>
+              <p className="text-sm font-semibold text-slate-600">{t('empty.noThemes')}</p>
+              <p className="text-xs text-slate-400">{t('empty.noThemesBody')}</p>
             </div>
           )}
 
@@ -2805,6 +2872,7 @@ const PROTOCOL_STATUS_STYLES: Record<string, string> = {
 };
 
 function ProtocolsTab() {
+  const t = useTranslations('dashboard');
   const [protocols, setProtocols] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
@@ -2903,10 +2971,10 @@ function ProtocolsTab() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-400">Loading...</p>
+        <p className="text-sm text-slate-400">{t('status.loading')}</p>
       ) : protocols.length === 0 ? (
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
-          <p className="text-sm font-semibold text-slate-600">No protocols yet.</p>
+          <p className="text-sm font-semibold text-slate-600">{t('empty.noProtocols')}</p>
           <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
             When Vigmis takes an action on your behalf — pausing a campaign, shifting budget, concluding an A/B test — it documents every decision here with full reasoning.
           </p>
@@ -3066,6 +3134,7 @@ function ProtocolsTab() {
 // Lets the client see what Vigmis decided, on what basis, and what has changed since.
 
 function ReadinessWidget() {
+  const t = useTranslations('dashboard');
   const [readiness, setReadiness] = useState<Awaited<ReturnType<typeof getReadinessScore>> | null | 'not_found'>(null);
   const [loading, setLoading] = useState(true);
   const [auditing, setAuditing] = useState(false);
@@ -3106,7 +3175,7 @@ function ReadinessWidget() {
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="font-bold text-slate-900">Conversion Readiness</h3>
-            <p className="text-sm text-slate-500 mt-1">No audit has been run yet. Click Re-check to scan your landing page.</p>
+            <p className="text-sm text-slate-500 mt-1">{t('empty.noAudit')}</p>
           </div>
           <button
             onClick={handleRecheck}
@@ -3171,6 +3240,7 @@ function ReadinessWidget() {
 }
 
 function StrategyTab({ settings: _settings }: any) {
+  const t = useTranslations('dashboard');
   const [data, setData] = useState<Awaited<ReturnType<typeof getStrategy>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -3214,7 +3284,7 @@ function StrategyTab({ settings: _settings }: any) {
   if (!data?.settings) {
     return (
       <div className="max-w-xl mx-auto py-16 text-center text-sm text-slate-500">
-        No strategy saved yet. Complete onboarding to build one.
+        {t('empty.noStrategy')}
       </div>
     );
   }
@@ -3531,9 +3601,9 @@ function StrategyTab({ settings: _settings }: any) {
 
       {/* Change history */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-slate-900 mb-3">Change history</h3>
+        <h3 className="font-bold text-slate-900 mb-3">{t('buttons.changeHistory')}</h3>
         {data.history.length === 0 ? (
-          <p className="text-sm text-slate-500">No optimization changes yet — campaigns are still in their learning period or have not run optimization cycles.</p>
+          <p className="text-sm text-slate-500">{t('empty.noOptimizationChanges')}</p>
         ) : (
           <ol className="space-y-2 text-sm">
             {data.history.map(h => (
@@ -3563,6 +3633,7 @@ function StrategyTab({ settings: _settings }: any) {
 // Used in Settings tab and as a picker in Social posts.
 
 function BrandAssetLibrary() {
+  const t = useTranslations('dashboard');
   const [assets, setAssets] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -3622,7 +3693,7 @@ function BrandAssetLibrary() {
         <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>
       ) : assets && assets.length === 0 ? (
         <div className="text-center py-10 text-sm text-slate-400">
-          No assets yet. Upload images or videos to build your library.
+          {t('empty.noAssets')}
         </div>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
@@ -3654,6 +3725,7 @@ function BrandAssetLibrary() {
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 
 function SettingsTab({ settings, connected }: any) {
+  const t = useTranslations('dashboard');
   const [alertEmail, setAlertEmail] = useState('');
   const [alertWhatsApp, setAlertWhatsApp] = useState('');
   const [emailEnabled, setEmailEnabled] = useState(false);
@@ -3865,7 +3937,7 @@ function SettingsTab({ settings, connected }: any) {
           </button>
         </div>
 
-        {optLoading ? <p className="text-sm text-slate-400">Loading...</p> : (
+        {optLoading ? <p className="text-sm text-slate-400">{t('status.loading')}</p> : (
           <div className="space-y-2">
             {RISK_OPTIONS.map(opt => (
               <button
@@ -3975,7 +4047,7 @@ function SettingsTab({ settings, connected }: any) {
         <h3 className="font-bold text-slate-900 mb-1">Alert Channels</h3>
         <p className="text-sm text-slate-500 mb-5">Get notified via email or WhatsApp when campaigns need attention</p>
         {alertLoading ? (
-          <p className="text-sm text-slate-400">Loading...</p>
+          <p className="text-sm text-slate-400">{t('status.loading')}</p>
         ) : (
           <div className="space-y-5">
             <div className="space-y-2">
@@ -4559,6 +4631,7 @@ function GeoTab({ settings }: any) {
 // ── History Tab ───────────────────────────────────────────────────────────────
 
 function HistoryTab() {
+  const t = useTranslations('dashboard');
   const [timeline, setTimeline] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -4571,7 +4644,7 @@ function HistoryTab() {
 
   if (!timeline.length) return (
     <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-      <p className="text-slate-400 text-sm">No history yet — data accumulates month by month.</p>
+      <p className="text-slate-400 text-sm">{t('empty.noHistory')}</p>
     </div>
   );
 
@@ -4815,6 +4888,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
 }
 
 function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean; googleConnected: boolean }) {
+  const t = useTranslations('dashboard');
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
@@ -5439,7 +5513,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       <div className="px-3 py-2">
                         <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line line-clamp-4">{editPost?.id === post.id ? editPost!.content : post.content}</p>
                         {post.hashtags?.length > 0 && (
-                          <p className="text-[10px] text-indigo-500 mt-1">{(post.hashtags as string[]).map(t => `#${t}`).join(' ')}</p>
+                          <p className="text-[10px] text-indigo-500 mt-1">{(post.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
                         )}
                       </div>
                       {/* Image */}
@@ -5498,7 +5572,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       </div>
                     )}
                     {brandAssets && brandAssets.length === 0 && (
-                      <p className="text-xs text-slate-400">No images in library yet. Upload from computer to add.</p>
+                      <p className="text-xs text-slate-400">{t('empty.noImages')}</p>
                     )}
                   </div>
                 )}
@@ -5610,7 +5684,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
         </div>
         {posts.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-slate-400">
-            No posts yet. Click "Generate this week's posts" to create content.
+            {t('empty.noPosts')}
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
@@ -5701,7 +5775,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         )}
                       </>
                     ) : (
-                      <p className="text-sm text-amber-600 mt-0.5">No Page selected yet</p>
+                      <p className="text-sm text-amber-600 mt-0.5">{t('empty.noPageSelected')}</p>
                     )}
                   </div>
                   <button
@@ -5753,7 +5827,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         <bdi>{adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'Connected'}</bdi>
                       </p>
                     ) : (
-                      <p className="text-sm text-amber-600 mt-0.5">No Ad Account selected yet</p>
+                      <p className="text-sm text-amber-600 mt-0.5">{t('empty.noAdAccountSelected')}</p>
                     )}
                   </div>
                   <button
@@ -5880,7 +5954,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   {googleAccountSelected ? (
                     <p className="text-base font-bold text-slate-900 mt-0.5">Account {googleAccountSelected}</p>
                   ) : (
-                    <p className="text-sm text-amber-600 mt-0.5">No ad account selected yet</p>
+                    <p className="text-sm text-amber-600 mt-0.5">{t('empty.noAdAccountSelected')}</p>
                   )}
                 </div>
                 <button

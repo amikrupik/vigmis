@@ -479,7 +479,7 @@ Return ONLY valid JSON:
     } catch { conclusion = null; }
 
     if (conclusion) {
-      await db.from('ab_tests').update({ status: 'concluded', conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id);
+      await db.from('ab_tests').update({ status: 'concluded', conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id).eq('tenant_id', request.tenantId);
     }
 
     return reply.send({ test_id, conclusion });

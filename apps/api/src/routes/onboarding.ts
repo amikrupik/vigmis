@@ -3,6 +3,8 @@
 // POST /onboarding/chat      — AI intake interview message
 // POST /onboarding/analyze   — full website + market + strategy analysis
 
+export const maxDuration = 300;
+
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db, decryptToken } from '@vigmis/db';
@@ -878,10 +880,13 @@ Be sharp, specific, and commercially honest. Avoid generic marketing clichés.`,
     });
     const marketResearch = research.output;
 
-    // Phase 3: Strategy generation
-    const strategyRes = await route({
-      task: 'analysis',
-      prompt: `You are a senior media planner and Chief Strategy Officer at a world-class agency. A new client has come to you. Based on the deep research below, produce a COMPLETE, SPECIFIC strategic plan — not generic frameworks, but the real strategic thinking a $50M agency would deliver: the WHY behind every decision, the WHO with psychological precision, the HOW with specific execution steps, and what's at stake.
+    // Phase 3: Strategy generation — capped at 240s so we stay under Vercel's 300s limit
+    const STRATEGY_TIMEOUT_MS = 240_000;
+    let strategyTimedOut = false;
+    const strategyRes = await Promise.race([
+      route({
+        task: 'analysis',
+        prompt: `You are a senior media planner and Chief Strategy Officer at a world-class agency. A new client has come to you. Based on the deep research below, produce a COMPLETE, SPECIFIC strategic plan — not generic frameworks, but the real strategic thinking a $50M agency would deliver: the WHY behind every decision, the WHO with psychological precision, the HOW with specific execution steps, and what's at stake.
 
 ## BUSINESS ANALYSIS
 ${websiteAnalysis}
@@ -908,7 +913,7 @@ Always explain the split reasoning in budget_split_rationale — not just the nu
 
 ICP CONFIDENCE GAP RULE: If website analysis does not clearly identify the business type (Shopify store vs. SaaS vs. service vs. local), include "icp_confidence_gap" field with one sentence stating what specific information would improve ICP accuracy (e.g. "Knowing whether customers are B2B buyers or individual consumers would allow sharper audience targeting"). If the business type is clearly identified from the website, set this field to null or omit it.
 
-STATISTICS SOURCE RULE — CRITICAL: For any statistic, benchmark, or specific numeric claim in your output (e.g. "CTR improves by 30%", "average CPC $1.50", "conversion rate 2–5%"), you MUST cite a real, named source. Add all cited statistics to the "cited_stats" array as { "claim": "...", "source": "WordStream 2024 / Meta Business Insights 2025 / Google Ads Industry Benchmarks 2024 / Statista 2025", "confidence": "high" | "medium" }. Use "high" when the source is authoritative and recent (within 2 years). Use "medium" when the source is plausible but less precise. If you cannot name a real source for a statistic, DO NOT include that statistic. Remove all unverifiable numeric claims from the strategy.
+STATISTICS SOURCE RULE: Cite real sources for benchmarks in the "cited_stats" array as { "claim": "...", "source": "WordStream 2024 / Meta Business Insights 2025 / Google Ads Benchmarks 2024", "confidence": "high" | "medium" }. Omit unverifiable numeric claims.
 
 PLATFORM SELECTION RULES (apply strictly — do not include platforms that don't fit):
 - Google Search: only if there is clear search intent for this product/service
@@ -931,38 +936,23 @@ Generate realistic performance thresholds for THIS specific business, in THIS ma
 Consider: vertical (B2B vs B2C), country (Israel CPC ≠ US), product price point, competition level, brand recognition, audience size.
 For each platform the client will use, set minCtr (underperforming threshold), goodCtr (scale-up threshold), and optionally maxCpc/maxCpa.
 
-SOCIAL MEDIA ORGANIC POSTING — Vigmis can also post organic content (Facebook Page, Instagram, TikTok) on behalf of the client. $1/post (FB/IG) or $3/post (TikTok, includes AI video). Once weekly per platform.
-Assess whether this client would benefit, which platforms, and which content pillars.
+SOCIAL MEDIA ORGANIC POSTING — Vigmis posts organic content (FB/IG $1/post, TikTok $3/post). Assess whether this client benefits and which platforms/pillars.
 
-STRATEGIC DELIVERABLES — write with the depth and specificity of a world-class agency brief:
+STRATEGIC DELIVERABLES (all specific to THIS business, no generic filler):
 
-strategy_narrative: 3 precise paragraphs — (1) the strategic insight and why THIS approach for THIS business, not a generic approach; (2) the exact customer psychographic profile and what moves them to buy; (3) the execution logic and sequencing rationale for THIS market right now. No filler.
-
-competitive_advantage: What can this business credibly claim that competitors cannot? If nothing, say so honestly and explain the implications for creative strategy.
-
-funnel_strategy: What we run at each funnel stage for THIS business. Specific ad formats, messages, audience layers, and the connection between stages.
-
-creative_brief: For EACH platform — specific formats, number of assets needed, 3 message hooks based on the research (name the specific angle: pain point / social proof / transformation / fear of missing out / etc.), CTA, and what makes this creative direction right for THIS audience.
-
-first_30_days: Week-by-week launch plan. What we test first, what signals we look for, what triggers moving to scale.
-
-message_testing_matrix: 4 distinct creative angles to A/B test in the first month. For each: the hypothesis, the hook, the expected audience segment it will resonate with, and what a "win" looks like.
-
-missing_platforms: Platforms NOT connected that would significantly help THIS business — with specific reasoning tied to the research.
-
-INTELLECTUAL HONESTY — this separates a real strategist from a yes-man. Be candid about the limits of your own analysis:
-
-confidence_scores: Rate your own confidence (0-100 integers) in four dimensions — icp (how well you understand the ideal customer profile from the available data), channel (how confident the platform selection is correct), budget (how confident the budget allocation is right), and overall. A strategy built on a thin website with no historical data should NOT score 90+. Be realistic: 50-70 is honest when data is sparse, 80-95 when you have rich signals. Never default everything to a single number.
-
-confidence_notes: For at least icp and channel (add budget/overall if useful), one sentence explaining WHY the score is what it is and what specific data would raise it.
-
-risk_factors: 3-5 concrete risks to THIS plan. For each: the risk, probability ("low"|"medium"|"high"), impact ("low"|"medium"|"high"), and a specific mitigation we will actually take. Real risks — CPC volatility, thin audience, weak landing page, seasonality, single-channel dependency, attribution blind spots — not platitudes.
-
-budget_split_rationale: Explain WHY this specific platform split (the percentages), not just restate the numbers. What does each dollar buy and why this ratio over alternatives.
-
-what_we_dont_know: 2-5 honest unknowns that would change the plan if known — e.g. "No historical performance data", "Competitor spend unknown", "Landing page conversion rate unverified". This builds trust by naming the gaps.
-
-counter_argument: Steelman the road not taken. Name the most credible alternative approach (e.g. adding Meta, going broad instead of narrow, a different primary channel), give the strongest case FOR it, then explain precisely why we still chose the recommended path. Format: "Here is why NOT to do X: ... Here is why we still chose Y: ..."
+strategy_narrative: 3 paragraphs — (1) strategic insight; (2) exact customer psychographic and purchase trigger; (3) execution logic and sequencing. No filler.
+competitive_advantage: What this business can credibly claim vs. competitors — or honest assessment if none.
+funnel_strategy: What runs at each funnel stage — formats, messages, audience layers.
+creative_brief: Per platform — formats, asset count, 3 specific hooks (name the angle), CTA, creative direction.
+first_30_days: Week-by-week plan — what to test, what signals to look for, what triggers scale.
+message_testing_matrix: 4 A/B angles — hypothesis, hook, target segment, win signal.
+missing_platforms: Unconnected platforms that would help, with specific reasoning.
+confidence_scores: 0-100 integers for icp/channel/budget/overall. Be realistic — sparse data = 50-70, rich signals = 80-95.
+confidence_notes: One sentence per dimension explaining the score and what data would raise it.
+risk_factors: 3-5 concrete risks — probability/impact/mitigation. Real risks, not platitudes.
+budget_split_rationale: WHY this ratio — what each dollar buys and why over alternatives.
+what_we_dont_know: 2-5 honest unknowns that would change the plan.
+counter_argument: Steelman the best alternative, then explain why we still chose this path.
 
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 
@@ -1076,9 +1066,32 @@ Return ONLY valid JSON (no extra text):
   ],
   "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
 }`,
-      systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
-      options: { maxTokens: 8000, temperature: 0.3 },
+        systemPrompt: 'You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.',
+        options: { maxTokens: 4000, temperature: 0.3 },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => {
+          strategyTimedOut = true;
+          reject(new Error('strategy_timeout'));
+        }, STRATEGY_TIMEOUT_MS),
+      ),
+    ]).catch((err: unknown) => {
+      if (strategyTimedOut) return null;
+      throw err;
     });
+
+    // If strategy timed out, return partial results immediately so the client
+    // gets websiteAnalysis + marketResearch and can retry the strategy step.
+    if (strategyTimedOut || strategyRes === null) {
+      request.log.warn('Strategy generation timed out after 240s — returning partial results');
+      return reply.send({
+        websiteAnalysis,
+        marketResearch,
+        strategy: null,
+        strategy_complete: false,
+        timeout: true,
+      });
+    }
 
     let strategy: object;
     try {
