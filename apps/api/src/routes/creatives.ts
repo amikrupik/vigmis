@@ -581,12 +581,13 @@ export async function creativeRoutes(app: FastifyInstance) {
     // Fetch brand DNA from client_settings
     const { data: clientSettings } = await db
       .from('client_settings')
-      .select('logo_url, website_url, brand_colors, do_not_change_elements, approved_creative_styles')
+      .select('logo_url, website_url, brand_colors, do_not_change_elements, approved_creative_styles, business_name')
       .eq('tenant_id', request.tenantId)
       .maybeSingle();
 
     const logoUrl: string | null = (clientSettings as any)?.logo_url ?? null;
     const websiteUrl: string | null = (clientSettings as any)?.website_url ?? null;
+    const businessName: string | null = (clientSettings as any)?.business_name ?? null;
 
     // Build Brand DNA string
     const brandDNA = buildBrandDNA({
@@ -607,39 +608,84 @@ export async function creativeRoutes(app: FastifyInstance) {
       : (brief ?? {});
     const enrichedBrief = { ...rawBrief };
 
-    if (type === 'avatar' && typeof enrichedBrief.script === 'string') {
-      if (logoUrl && !enrichedBrief.background) {
-        enrichedBrief._logo_url = logoUrl;
+    // ── Brand Identity Injection ─────────────────────────────────────────────
+    // Every creative MUST contain the brand name and website URL.
+    // If the user's brief omits them, we inject them before sending to any provider.
+    // This prevents publishing creatives that don't mention the business.
+    const brandNameToken = businessName ?? 'Vigmis';
+    const websiteToken = websiteUrl ?? '';
+
+    // Helper: check if text already contains the brand name (case-insensitive)
+    const hasBrandName = (text: string) =>
+      text.toLowerCase().includes(brandNameToken.toLowerCase());
+    const hasWebsite = (text: string) =>
+      !websiteToken || text.toLowerCase().includes(websiteToken.toLowerCase().replace(/^https?:\/\//, ''));
+
+    if (type === 'avatar') {
+      if (logoUrl && !enrichedBrief.background) enrichedBrief._logo_url = logoUrl;
+      if (brandDNA) enrichedBrief._brand_dna = brandDNA;
+      if (keepChangeInstruction) enrichedBrief.script = `${keepChangeInstruction} ${enrichedBrief.script ?? ''}`;
+
+      // Ensure avatar script says the brand name and URL
+      const script: string = enrichedBrief.script ?? '';
+      let finalScript = script;
+      if (!hasBrandName(finalScript)) {
+        finalScript = `${brandNameToken} — ${finalScript}`;
       }
-      if (websiteUrl && !enrichedBrief.script.includes(websiteUrl)) {
-        enrichedBrief.script = `${enrichedBrief.script} Visit us at ${websiteUrl}.`;
+      if (!hasWebsite(finalScript) && websiteToken) {
+        finalScript = `${finalScript.trimEnd()} Visit ${websiteToken}.`;
       }
-      if (brandDNA) {
-        enrichedBrief._brand_dna = brandDNA;
-      }
-      if (keepChangeInstruction) {
-        enrichedBrief.script = `${keepChangeInstruction} ${enrichedBrief.script}`;
-      }
+      enrichedBrief.script = finalScript;
     }
 
-    if ((type === 'cinematic' || type === 'animation') && typeof enrichedBrief.prompt === 'string') {
+    if (type === 'cinematic' || type === 'animation') {
       const additions: string[] = [];
       if (brandDNA) additions.push(brandDNA);
       if (keepChangeInstruction) additions.push(keepChangeInstruction);
       if (logoUrl) additions.push(`Incorporate the brand identity and logo style from ${logoUrl}.`);
-      if (websiteUrl) additions.push(`End with a call-to-action: visit ${websiteUrl}.`);
-      if (additions.length > 0) {
-        enrichedBrief.prompt = `${enrichedBrief.prompt} ${additions.join(' ')}`;
+
+      let prompt: string = enrichedBrief.prompt ?? '';
+      // Inject brand name into scene description if missing
+      if (!hasBrandName(prompt)) {
+        prompt = `${prompt.trimEnd()} The brand is ${brandNameToken}.`;
       }
+      // Inject website as on-screen CTA
+      if (!hasWebsite(prompt) && websiteToken) {
+        prompt = `${prompt.trimEnd()} End with bold on-screen text: "${websiteToken}".`;
+      } else if (websiteToken) {
+        prompt = `${prompt.trimEnd()} Show "${websiteToken}" as on-screen text at the end.`;
+      }
+      if (additions.length > 0) prompt = `${prompt} ${additions.join(' ')}`;
+      enrichedBrief.prompt = prompt;
     }
 
-    if (type === 'image' && typeof enrichedBrief.prompt === 'string') {
+    if (type === 'image') {
       const additions: string[] = [];
       if (brandDNA) additions.push(brandDNA);
       if (keepChangeInstruction) additions.push(keepChangeInstruction);
-      if (additions.length > 0) {
-        enrichedBrief.prompt = `${enrichedBrief.prompt} ${additions.join(' ')}`;
+
+      let prompt: string = enrichedBrief.prompt ?? '';
+      // Inject brand name as visible text in the image
+      if (!hasBrandName(prompt)) {
+        prompt = `${prompt.trimEnd()} Brand name "${brandNameToken}" clearly visible in the design.`;
       }
+      // Inject website as text overlay
+      if (!hasWebsite(prompt) && websiteToken) {
+        prompt = `${prompt.trimEnd()} Include text overlay "${websiteToken}" at the bottom.`;
+      }
+      if (additions.length > 0) prompt = `${prompt} ${additions.join(' ')}`;
+      enrichedBrief.prompt = prompt;
+    }
+
+    // ── Brand Presence Validation ────────────────────────────────────────────
+    // Final guard: verify the outgoing brief actually contains the brand name.
+    // Log a warning if somehow still missing after injection.
+    const outgoingText = enrichedBrief.script ?? enrichedBrief.prompt ?? '';
+    if (outgoingText && !hasBrandName(outgoingText)) {
+      console.warn(`[creatives] Brand name "${brandNameToken}" missing from ${type} brief after injection — tenant=${request.tenantId}`);
+    }
+    if (outgoingText && !hasWebsite(outgoingText)) {
+      console.warn(`[creatives] Website "${websiteToken}" missing from ${type} brief after injection — tenant=${request.tenantId}`);
     }
 
     // Revision tracking
