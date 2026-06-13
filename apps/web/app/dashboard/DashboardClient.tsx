@@ -1556,7 +1556,7 @@ function CreativeTab({ settings }: any) {
       : videoScript;
 
     const videoBrief = selectedVideoType === 'avatar'
-      ? { script: scriptWithBrief, avatar_id: 'Anna_public_3_20240108', voice_id: 'en-US-AriaNeural' }
+      ? { script: scriptWithBrief }
       : selectedVideoType === 'cinematic'
       ? { prompt: scriptWithBrief, duration: 5, aspect_ratio: '16:9' }
       : { prompt: scriptWithBrief, style: 'cinematic', duration: 3 };
