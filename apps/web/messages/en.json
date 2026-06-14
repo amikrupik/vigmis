@@ -233,6 +233,12 @@
     },
     "creative": {
       "platformLabel": "Platform:",
+      "libraryTitle": "My Creatives",
+      "awaitingApproval": "awaiting approval",
+      "reviewNeeded": "Review",
+      "view": "View",
+      "failed": "Failed",
+      "processing": "Processing…",
       "aiRecsTitle": "AI Creative Recommendations",
       "agencyBrain": "Agency Brain",
       "aiRecsSubtitle": "Ready-to-use concepts built from your strategy analysis",

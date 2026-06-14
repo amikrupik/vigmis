@@ -411,7 +411,10 @@ export async function rerunAnalysisServer(): Promise<{ websiteAnalysis?: string;
   // Re-runs onboarding/analyze with the current saved settings.
   const status = await apiCall('/onboarding/status');
   if (!status?.settings) return { error: 'No settings saved yet' };
-  return apiCall('/onboarding/analyze', 'POST', { settings: status.settings });
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const lang = cookieStore.get('vigmis_lang')?.value ?? 'en';
+  return apiCall('/onboarding/analyze', 'POST', { settings: status.settings, lang });
 }
 
 export async function getStrategy(): Promise<{

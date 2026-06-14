@@ -175,6 +175,12 @@ async function publishToFacebook(post: any): Promise<PublishResult> {
     return { success: true, externalId: data.post_id ?? data.id };
   }
 
+  // Attach website URL as link preview for text-only posts
+  try {
+    const { data: cs } = await db.from('client_settings').select('website_url').eq('tenant_id', post.tenant_id).maybeSingle();
+    if (cs?.website_url) body.link = cs.website_url;
+  } catch { /* non-fatal */ }
+
   // Text-only post
   const res = await fetch(`${META_BASE}/${pageId}/feed`, {
     method: 'POST',

@@ -233,6 +233,12 @@
     },
     "creative": {
       "platformLabel": "פלטפורמה:",
+      "libraryTitle": "הקריאייטיב שלי",
+      "awaitingApproval": "ממתין לאישור",
+      "reviewNeeded": "בדוק",
+      "view": "צפה",
+      "failed": "נכשל",
+      "processing": "מעבד…",
       "aiRecsTitle": "המלצות קריאייטיב AI",
       "agencyBrain": "מוח הסוכנות",
       "aiRecsSubtitle": "קונספטים מוכנים לשימוש מבוססים על ניתוח האסטרטגיה שלך",
