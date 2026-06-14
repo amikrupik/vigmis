@@ -33,8 +33,71 @@ import { getTrustTier, actionGateForTier } from '../services/trust-tier.js';
 import { detectHighStakes } from '../services/high-stakes-detector.js';
 import { checkIndustryGate } from '../services/industry-gates.js';
 import { isFrozenFor } from './admin.js';
+import { route } from '@vigmis/ai-router';
 
 const COOLING_OFF_MINUTES = 60;
+
+// ── Territory → language resolution ──────────────────────────────────────────
+// Maps common territory names/codes to ISO 639-1 language codes.
+// When a business targets a specific country, posts are written in that country's
+// primary language so locals can read them naturally.
+const TERRITORY_LANG: Record<string, string> = {
+  il: 'he', israel: 'he', ישראל: 'he',
+  us: 'en', usa: 'en', 'united states': 'en', america: 'en',
+  uk: 'en', 'united kingdom': 'en', england: 'en', britain: 'en',
+  ca: 'en', canada: 'en',
+  au: 'en', australia: 'en',
+  ae: 'ar', uae: 'ar', 'united arab emirates': 'ar', dubai: 'ar', 'abu dhabi': 'ar',
+  sa: 'ar', 'saudi arabia': 'ar', ksa: 'ar',
+  jo: 'ar', jordan: 'ar',
+  eg: 'ar', egypt: 'ar',
+  de: 'de', germany: 'de', deutschland: 'de',
+  fr: 'fr', france: 'fr',
+  es: 'es', spain: 'es',
+  mx: 'es', mexico: 'es',
+  it: 'it', italy: 'it',
+  pt: 'pt', portugal: 'pt',
+  br: 'pt', brazil: 'pt',
+  ru: 'ru', russia: 'ru',
+  nl: 'nl', netherlands: 'nl', holland: 'nl',
+  pl: 'pl', poland: 'pl',
+  tr: 'tr', turkey: 'tr', türkiye: 'tr',
+  ro: 'ro', romania: 'ro',
+  hu: 'hu', hungary: 'hu',
+  cz: 'cs', 'czech republic': 'cs',
+  gr: 'el', greece: 'el',
+};
+
+/** Resolve the language posts should be written in for this tenant.
+ *  Priority: explicit content_language setting → primary geo_include → null (fall back to website detection) */
+function resolvePostLanguage(geoInclude: string[], explicitLang?: string | null): string | null {
+  if (explicitLang && explicitLang !== 'auto') return explicitLang;
+  if (!geoInclude?.length) return null;
+  // Use the first listed territory as the primary market
+  const key = geoInclude[0].toLowerCase().trim();
+  return TERRITORY_LANG[key] ?? null;
+}
+
+/** Generate a brief translation of a foreign-language post so the business owner
+ *  (who may not speak the post language) can review and approve it.
+ *  Returns null on any error — caller decides whether to skip or retry. */
+async function generateTranslation(
+  postText: string,
+  fromLang: string,
+  toLang: 'he' | 'en',
+): Promise<string | null> {
+  try {
+    const toLangName = toLang === 'he' ? 'Hebrew' : 'English';
+    const res = await route({
+      task: 'analysis',
+      prompt: `Translate this social media post to ${toLangName} in 1-3 sentences. Keep the meaning accurate but be concise — this is just so the business owner can understand what was written in ${fromLang} before approving it.\n\nPost:\n${postText.slice(0, 600)}`,
+      options: { maxTokens: 300, temperature: 0.1 },
+    });
+    return res.output.trim().replace(/^(Translation:|Here is|Here's|This is):?\s*/i, '') || null;
+  } catch {
+    return null;
+  }
+}
 
 export async function socialRoutes(app: FastifyInstance) {
 
@@ -848,6 +911,11 @@ async function generateWeeklyPostsForTenant(
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
+  // Determine the language posts should be written in.
+  // Territory takes precedence over website language detection.
+  const geoInclude: string[] = (clientSettings?.strategy_plan as any)?.geo_include ?? [];
+  const resolvedLang = resolvePostLanguage(geoInclude, (clientSettings as any)?.content_language);
+
   // Build the active-platforms list. Prefer the explicit JSONB array; fall back to
   // the top-level facebook_page_id / instagram_user_id columns when the array is
   // missing or empty (older tenants set up before the JSONB array was populated).
@@ -910,10 +978,21 @@ async function generateWeeklyPostsForTenant(
         strategyPlan: clientSettings?.strategy_plan ?? undefined,
         brandVoice: settings.brand_voice ?? undefined,
         logoUrl: (clientSettings as any)?.logo_url ?? undefined,
-        contentLanguage: (clientSettings as any)?.content_language ?? undefined,
+        contentLanguage: resolvedLang ?? ((clientSettings as any)?.content_language ?? undefined),
         brief: brief ?? undefined,
         campaignIntelligence,
       });
+
+      // Generate a translation for the business owner if the post is in a non-Hebrew language.
+      // This allows Israeli business owners to review and approve foreign-language posts.
+      const postLang = resolvedLang ?? null;
+      let contentTranslation: string | null = null;
+      if (postLang && postLang !== 'he' && content.text.length > 0) {
+        contentTranslation = await generateTranslation(content.text, postLang, 'he');
+      } else if (postLang === 'he' || !postLang) {
+        // Hebrew post targeted at Hebrew speakers — no translation needed
+        contentTranslation = null;
+      }
 
       const scheduledFor = getOptimalPostTime(platform, nextMonday);
       const costUsd = platform === 'tiktok' ? 3.00 : 1.00;
@@ -929,6 +1008,8 @@ async function generateWeeklyPostsForTenant(
         video_url: content.videoUrl ?? null,
         scheduled_for: scheduledFor.toISOString(),
         cost_usd: costUsd,
+        content_language: postLang,
+        content_translation: contentTranslation,
       }).select('id').single();
 
       if (insertErr) {

@@ -5610,9 +5610,18 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       </div>
                       {/* Post text */}
                       <div className="px-3 py-2">
+                        {post.content_language && (
+                          <span className="inline-block text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mb-1 mr-1">{post.content_language}</span>
+                        )}
                         <p dir="auto" className="text-xs text-slate-800 leading-relaxed whitespace-pre-line line-clamp-4">{editPost?.id === post.id ? editPost!.content : post.content}</p>
                         {post.hashtags?.length > 0 && (
                           <p className="text-[10px] text-indigo-500 mt-1">{(post.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
+                        )}
+                        {post.content_translation && (
+                          <div className="mt-1.5 border-t border-slate-100 pt-1.5">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">תרגום לעברית</p>
+                            <p dir="rtl" className="text-[11px] text-slate-600 leading-relaxed">{post.content_translation}</p>
+                          </div>
                         )}
                       </div>
                       {/* Image */}
