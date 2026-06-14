@@ -1348,7 +1348,7 @@ function CreativeBriefDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-5">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-5">
         <div>
           <h2 className="text-lg font-bold text-slate-900">Tell Vigmis what you need</h2>
           <p className="text-sm text-slate-500 mt-0.5">All fields are optional — Vigmis will fill in any gaps automatically.</p>
@@ -1397,18 +1397,27 @@ function CreativeBriefDialog({
         </div>
         <div className="flex flex-col sm:flex-row gap-2 pt-1">
           <button
+            type="button"
             onClick={() => submit(true)}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
           >
             Generate with my inputs →
           </button>
           <button
+            type="button"
             onClick={() => submit(false)}
             className="flex-1 border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
           >
             Generate automatically (Vigmis decides)
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => { setProduct(''); setMessage(''); setStyle(''); setCta(''); onClose(); }}
+          className="w-full text-sm text-slate-400 hover:text-slate-600 py-1 transition-colors"
+        >
+          Cancel
+        </button>
         <button
           onClick={() => { setProduct(''); setMessage(''); setStyle(''); setCta(''); onClose(); }}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -1855,7 +1864,13 @@ function CreativeTab({ settings }: any) {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setBriefApproved(false)}
+                type="button"
+                onClick={() => {
+                  setBriefApproved(false);
+                  setTimeout(() => {
+                    document.getElementById('video-production-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 50);
+                }}
                 className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
               >
                 Edit Brief
