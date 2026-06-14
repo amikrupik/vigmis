@@ -39,6 +39,7 @@ import { webhookRoutes } from './routes/webhooks.js';
 import { websiteRecrawlRoutes } from './routes/cron-website-recrawl.js';
 import { creativePerformanceCronRoutes } from './routes/cron-creative-performance.js';
 import { benchmarkCronRoutes } from './routes/cron-benchmarks.js';
+import { startScheduler } from './scheduler.js';
 
 const app = Fastify({
   logger: {
@@ -175,3 +176,4 @@ const host = process.env.HOST ?? '0.0.0.0';
 
 await app.listen({ port, host });
 console.log(`API running on http://${host}:${port}`);
+startScheduler();

@@ -815,7 +815,7 @@ Return ONLY valid JSON:
 
   // POST /intelligence/cron/strategic-weekly — cron: run for ALL tenants
   app.post('/intelligence/cron/strategic-weekly', async (request, reply) => {
-    assertCronSecret(request, reply);
+    if (!assertCronSecret(request, reply)) return;
     const { data: tenants } = await db.from('client_settings').select('tenant_id').not('strategy_plan', 'is', null);
     if (!tenants?.length) return reply.send({ processed: 0 });
 
