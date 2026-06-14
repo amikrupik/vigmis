@@ -43,6 +43,7 @@ import { fetchLogoForTenant } from '../services/logo-fetcher.js';
 import { extractCreativeContext } from '../services/creative-context.js';
 import { buildCreativeDirectorBrief } from '../services/creative-director.js';
 import { runReviewBoard } from '../services/review-board.js';
+import { recordApprovedCreative } from '../services/learning-loop.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
 import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
@@ -1369,6 +1370,23 @@ export async function creativeRoutes(app: FastifyInstance) {
         .update({ status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('tenant_id', request.tenantId);
+
+      // Learning Loop — fire-and-forget: record what worked for future briefs
+      const { data: jobFull } = await db
+        .from('creative_jobs')
+        .select('brief, review_board_iterations')
+        .eq('id', id)
+        .maybeSingle();
+      if (jobFull) {
+        recordApprovedCreative(
+          request.tenantId,
+          id,
+          job.type as 'avatar' | 'cinematic' | 'animation' | 'image',
+          (jobFull as any).brief ?? {},
+          revisionNumber,
+          (jobFull as any).review_board_iterations ?? 0,
+        ).catch(err => console.error('[learning-loop] failed:', err instanceof Error ? err.message : err));
+      }
 
       return reply.send({ success: true, charged: false });
     }

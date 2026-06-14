@@ -15,6 +15,7 @@ import type { StrategyPlan } from '@vigmis/db';
 import { getDefaultBrief } from './creative-brief.js';
 import type { CreativeBrief } from './creative-brief.js';
 import type { BrandVoiceProfile } from './brand-voice.js';
+import { formatWinningPatternsForContext } from './learning-loop.js';
 
 export interface CreativeContext {
   // Audience
@@ -42,6 +43,8 @@ export interface CreativeContext {
   // Brand identity
   brandName: string;
   websiteUrl: string;
+  // Learning Loop — prior winning patterns for this client
+  winningPatternsContext?: string;
   // Extended brief data (optional — present when creative_brief_extended exists)
   messagingPillars?: Array<{
     pillar: string;
@@ -74,6 +77,15 @@ export async function extractCreativeContext(
 ): Promise<CreativeContext> {
   // Fetch the creative brief (separate table — pain/promise/proof/objection)
   const brief: CreativeBrief | null = await getDefaultBrief(tenantId).catch(() => null);
+
+  // Fetch winning_patterns from Learning Loop
+  const { data: settingsForPatterns } = await db
+    .from('client_settings')
+    .select('winning_patterns')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  const winningPatterns = (settingsForPatterns as any)?.winning_patterns ?? null;
+  const winningPatternsContext = formatWinningPatternsForContext(winningPatterns, format as 'avatar' | 'cinematic' | 'animation' | 'image') || undefined;
 
   const extended = strategyPlan?.creative_brief_extended ?? null;
 
@@ -180,5 +192,6 @@ export async function extractCreativeContext(
     messagingPillars,
     existingConcepts,
     platformHooks,
+    winningPatternsContext,
   };
 }

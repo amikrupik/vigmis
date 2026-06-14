@@ -53,6 +53,9 @@ function formatContext(ctx: CreativeContext): string {
       lines.push(`  [${p.pillar}] headline: "${p.headline}" | hook: "${p.hook}"`);
     });
   }
+  if (ctx.winningPatternsContext) {
+    lines.push(ctx.winningPatternsContext);
+  }
   return lines.join('\n');
 }
 
