@@ -240,7 +240,7 @@ export default function DashboardClient() {
               <button
                 onClick={() => switchTab('overview')}
                 className="relative text-slate-400 hover:text-slate-700 transition-colors"
-                title={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}` : 'Alerts'}
+                aria-label={unreadCount > 0 ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}` : 'Alerts'}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -304,6 +304,7 @@ export default function DashboardClient() {
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-20 bg-black/40 md:hidden"
+          aria-hidden="true"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -394,7 +395,7 @@ export default function DashboardClient() {
       <FeedbackModal />
 
       {showStopModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="stop-modal-title">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -403,7 +404,7 @@ export default function DashboardClient() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                 </svg>
               </div>
-              <h3 className="font-bold text-slate-900 text-lg">{t('buttons.emergencyStop')}</h3>
+              <h3 id="stop-modal-title" className="font-bold text-slate-900 text-lg">{t('buttons.emergencyStop')}</h3>
             </div>
             <p className="text-sm text-slate-600">
               {t('status.emergencyStopBody', { count: activeCampaigns })}
@@ -511,20 +512,22 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
       <button
         onClick={() => setOpen(o => !o)}
         disabled={busy}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50"
       >
-        {busy ? <span className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" /> : (
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        {busy ? <span className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" /> : (
+          <svg className="w-3.5 h-3.5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         )}
         Export
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        <svg className="w-3 h-3" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+          <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div role="menu" className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[180px]">
             {items.map(item => (
-              <button key={item.label} onClick={() => run(item.action)} className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              <button key={item.label} role="menuitem" onClick={() => run(item.action)} className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors">
                 {item.label}
               </button>
             ))}
@@ -939,9 +942,9 @@ function AnalyticsTab() {
             <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} className="rounded" />
             {t('analytics.comparePrior')}
           </label>
-          <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div role="group" aria-label="Select time period" className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             {([7, 30, 90] as const).map(p => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 text-sm font-semibold transition-colors ${period === p ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+              <button key={p} onClick={() => setPeriod(p)} aria-pressed={period === p} className={`px-4 py-2 text-sm font-semibold transition-colors ${period === p ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
                 {p}d
               </button>
             ))}
@@ -1172,9 +1175,9 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
     <div className="space-y-4">
       {/* Budget change confirmation modal */}
       {budgetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="budget-confirm-title">
           <div className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full mx-4 space-y-4">
-            <h3 className="font-bold text-slate-900">{t('buttons.confirmBudgetChange')}</h3>
+            <h3 id="budget-confirm-title" className="font-bold text-slate-900">{t('buttons.confirmBudgetChange')}</h3>
             <p className="text-sm text-slate-600">{t('status.dailyBudgetLabel')}: <span className="line-through text-slate-400">${budgetConfirm.oldVal}</span> → <strong className={budgetConfirm.newVal > budgetConfirm.oldVal ? 'text-emerald-600' : 'text-amber-600'}>${budgetConfirm.newVal}/day</strong></p>
             <p className="text-xs text-slate-400">{t('status.budgetEffectImmediate')}</p>
             <div className="flex gap-2">
@@ -1230,6 +1233,7 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
                           onChange={e => setBudgetInput(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') requestBudgetSave(c.id, c.daily_budget_usd); if (e.key === 'Escape') setEditingBudget(null); }}
                           className="w-20 text-xs border border-indigo-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          aria-label="Edit daily budget in USD"
                           min={1}
                           step={1}
                           autoFocus
@@ -1347,16 +1351,17 @@ function CreativeBriefDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="quick-capture-title">
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 space-y-5">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Tell Vigmis what you need</h2>
+          <h2 id="quick-capture-title" className="text-lg font-bold text-slate-900">Tell Vigmis what you need</h2>
           <p className="text-sm text-slate-500 mt-0.5">All fields are optional — Vigmis will fill in any gaps automatically.</p>
         </div>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">What product or service is this for?</label>
+            <label htmlFor="qc-product" className="block text-xs font-semibold text-slate-600 mb-1">What product or service is this for?</label>
             <input
+              id="qc-product"
               type="text"
               value={product}
               onChange={e => setProduct(e.target.value)}
@@ -1365,8 +1370,9 @@ function CreativeBriefDialog({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Key message or offer?</label>
+            <label htmlFor="qc-message" className="block text-xs font-semibold text-slate-600 mb-1">Key message or offer?</label>
             <input
+              id="qc-message"
               type="text"
               value={message}
               onChange={e => setMessage(e.target.value)}
@@ -1375,8 +1381,9 @@ function CreativeBriefDialog({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Any style preferences?</label>
+            <label htmlFor="qc-style" className="block text-xs font-semibold text-slate-600 mb-1">Any style preferences?</label>
             <input
+              id="qc-style"
               type="text"
               value={style}
               onChange={e => setStyle(e.target.value)}
@@ -1385,8 +1392,9 @@ function CreativeBriefDialog({
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Contact info / CTA to include?</label>
+            <label htmlFor="qc-cta" className="block text-xs font-semibold text-slate-600 mb-1">Contact info / CTA to include?</label>
             <input
+              id="qc-cta"
               type="text"
               value={cta}
               onChange={e => setCta(e.target.value)}
@@ -1625,10 +1633,12 @@ function CreativeTab({ settings }: any) {
 
       {/* Platform selector */}
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-slate-600">{t('creative.platformLabel')}</span>
+        <span id="platform-selector-label" className="text-sm font-semibold text-slate-600">{t('creative.platformLabel')}</span>
+        <div role="group" aria-labelledby="platform-selector-label" className="flex items-center gap-2">
         {['google', 'meta', 'tiktok'].map(p => (
-          <button key={p} onClick={() => setPlatform(p)} className={`px-3 py-1.5 text-sm font-semibold rounded-lg capitalize transition-colors ${platform === p ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{p}</button>
+          <button key={p} onClick={() => setPlatform(p)} aria-pressed={platform === p} className={`px-3 py-1.5 text-sm font-semibold rounded-lg capitalize transition-colors ${platform === p ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{p}</button>
         ))}
+        </div>
       </div>
 
       {/* ── AI Creative Recommendations ──────────────────────────────────── */}
@@ -4240,9 +4250,9 @@ function SettingsTab({ settings, connected }: any) {
 
         {/* Delete confirmation modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h3 className="font-bold text-slate-900 text-lg mb-2">Delete your account?</h3>
+              <h3 id="delete-account-title" className="font-bold text-slate-900 text-lg mb-2">Delete your account?</h3>
               <p className="text-sm text-slate-600 mb-3">
                 All campaigns will be paused immediately. Your account data will be permanently and irreversibly deleted. This action <strong>cannot be undone</strong>.
               </p>
@@ -6245,9 +6255,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       )}
 
       {reconnectModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="reconnect-modal-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-900">Reconnect Facebook</h3>
+            <h3 id="reconnect-modal-title" className="text-lg font-bold text-slate-900">Reconnect Facebook</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
               Your Facebook permissions for Vigmis are out of date. One click will reconnect — approve every permission on Facebook's screen and you're done.
             </p>

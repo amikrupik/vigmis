@@ -66,6 +66,7 @@ export default function IntelligenceClient() {
                 <ul className="space-y-2">
                   {readiness.report.issues.map((iss: any, i: number) => (
                     <li key={i} className={`text-xs leading-relaxed border-l-2 pl-3 ${iss.severity === 'blocking' ? 'border-rose-400' : iss.severity === 'warning' ? 'border-amber-400' : 'border-slate-300'}`}>
+                      <span className={`inline-block text-[10px] font-bold uppercase tracking-wide mr-1.5 ${iss.severity === 'blocking' ? 'text-rose-600' : iss.severity === 'warning' ? 'text-amber-600' : 'text-slate-400'}`}>[{iss.severity}]</span>
                       <strong className="text-slate-700">{iss.category}: </strong>
                       <span className="text-slate-600">{iss.finding}</span>
                       <br />
@@ -119,6 +120,7 @@ export default function IntelligenceClient() {
                 <button
                   onClick={async () => { await dismissInsight(ins.id); setInsights((p) => p.filter((x) => x.id !== ins.id)); }}
                   className="text-xs text-slate-400 hover:text-slate-700"
+                  aria-label={`${t('intelligence.dismiss')}: ${ins.theme}`}
                 >
                   {t('intelligence.dismiss')}
                 </button>
