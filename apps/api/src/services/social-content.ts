@@ -29,6 +29,8 @@ export interface SocialContentInput {
     cta?: string;
     restrictions?: string;
   } | null;
+  /** Posts Intelligence — live campaign context to align organic with paid. */
+  campaignIntelligence?: string | null;
 }
 
 export interface SocialContentOutput {
@@ -103,6 +105,8 @@ function buildPrompt(input: SocialContentInput, websiteContent: string, contentS
     ? `<the full post copy in ${lang.name} — based on the business context and strategy above>`
     : `<the full post copy in ${lang.name} — reference the actual products/services from the website>`;
 
+  const campaignBlock = input.campaignIntelligence ?? '';
+
   return `You are a social media copywriter. Generate a ${input.platform} post for the following business.
 
 LANGUAGE: write the post in ${lang.name}. The website is in ${lang.name} — the post MUST match. Do not switch languages. Hashtags can stay in English/transliteration when the platform expects it (Instagram), but the body text must be ${lang.name}.
@@ -110,7 +114,7 @@ LANGUAGE: write the post in ${lang.name}. The website is in ${lang.name} — the
 ${contentLabel}
 ${websiteContent || '(website content unavailable — see URL: ' + (input.websiteUrl ?? 'unknown') + ')'}
 
-${marketInsights ? `MARKET INSIGHTS:\n${marketInsights.slice(0, 600)}\n` : ''}${briefBlock}${logoBlock}
+${marketInsights ? `MARKET INSIGHTS:\n${marketInsights.slice(0, 600)}\n` : ''}${campaignBlock}${briefBlock}${logoBlock}
 Business goal: ${input.goal}
 Target audience: ${audience}
 Brand voice: ${voice}

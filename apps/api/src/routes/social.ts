@@ -28,6 +28,7 @@ import { fetchCommentsForTenant, sendCommentReply, hideComment } from '../servic
 import { classifyAndLog } from '../services/policy-gate.js';
 import { captureApprovalSnapshot } from '../services/approval-snapshot.js';
 import { evaluateTwoKey } from '../services/two-key.js';
+import { buildPostsIntelligence } from '../services/posts-intelligence.js';
 import { getTrustTier, actionGateForTier } from '../services/trust-tier.js';
 import { detectHighStakes } from '../services/high-stakes-detector.js';
 import { checkIndustryGate } from '../services/industry-gates.js';
@@ -866,6 +867,13 @@ async function generateWeeklyPostsForTenant(
   // Next Monday at optimal time per platform
   const nextMonday = getNextMonday();
 
+  // Posts Intelligence — fetch once and share across all platform generations
+  const postsIntelligence = await buildPostsIntelligence(tenantId);
+  const campaignIntelligence = postsIntelligence?.contextBlock ?? null;
+  if (postsIntelligence && postsIntelligence.activeCampaignCount > 0) {
+    console.log(`[posts-intelligence] phase=${postsIntelligence.strategicPhase} campaigns=${postsIntelligence.activeCampaignCount} tenant=${tenantId}`);
+  }
+
   let generated = 0;
   let skipped = 0;
   let errors = 0;
@@ -904,6 +912,7 @@ async function generateWeeklyPostsForTenant(
         logoUrl: (clientSettings as any)?.logo_url ?? undefined,
         contentLanguage: (clientSettings as any)?.content_language ?? undefined,
         brief: brief ?? undefined,
+        campaignIntelligence,
       });
 
       const scheduledFor = getOptimalPostTime(platform, nextMonday);
