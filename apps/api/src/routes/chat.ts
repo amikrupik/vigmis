@@ -467,6 +467,11 @@ export async function chatRoutes(app: FastifyInstance) {
       const strategyNarrative = strategyPlan?.strategy_narrative as string | undefined;
       const strategyPlatforms = strategyPlan?.platforms as Array<{ name: string; budget_percentage: number; reasoning: string }> | undefined;
       const targetAudience = strategyPlan?.target_audience as string | undefined;
+      const marketInsights = strategyPlan?.market_insights as string | undefined;
+      const positioning = strategyPlan?.positioning as string | undefined;
+      const mainOffer = strategyPlan?.main_offer as string | undefined;
+      const topObjections = strategyPlan?.top_objections as string[] | undefined;
+      const competitiveAdvantage = strategyPlan?.competitive_advantage as string | undefined;
 
       const clientContext = [
         '## Client',
@@ -475,13 +480,12 @@ export async function chatRoutes(app: FastifyInstance) {
           : 'No settings yet',
         geoInclude?.length ? `Target geographies: ${geoInclude.join(', ')}${geoExclude?.length ? ` | Excluded: ${geoExclude.join(', ')}` : ''}` : '',
         preferredPlatforms?.length ? `Preferred platforms: ${preferredPlatforms.join(', ')}` : '',
-        targetAudience ? `Target audience: ${targetAudience}` : '',
         websiteAnalysis
-          ? `\n## Website Analysis\n${websiteAnalysis.slice(0, 500)}`
+          ? `\n## Website Analysis\n${websiteAnalysis.slice(0, 800)}`
           : '\n## Website Analysis\n(not yet generated — guide user to complete onboarding)',
         strategyNarrative
-          ? `\n## Approved Strategy Narrative\n${strategyNarrative.slice(0, 500)}`
-          : '\n## Approved Strategy Narrative\n(not yet generated — guide user to complete onboarding first)',
+          ? `\n## Approved Strategy\nNarrative: ${strategyNarrative.slice(0, 1200)}${targetAudience ? `\nTarget audience: ${targetAudience}` : ''}${mainOffer ? `\nMain offer: ${mainOffer}` : ''}${positioning ? `\nPositioning: ${positioning}` : ''}${competitiveAdvantage ? `\nCompetitive advantage: ${competitiveAdvantage}` : ''}${marketInsights ? `\nMarket insights: ${marketInsights.slice(0, 300)}` : ''}${topObjections?.length ? `\nTop objections to address: ${topObjections.slice(0, 5).join('; ')}` : ''}`
+          : `\n## Approved Strategy\n(not yet generated)${targetAudience ? `\nTarget audience (partial): ${targetAudience}` : ''}`,
         strategyPlatforms?.length
           ? `\n## Platform Budget Allocation (Approved Strategy)\n${strategyPlatforms.map(p => `  ${p.name}: ${p.budget_percentage}% — ${p.reasoning.slice(0, 100)}`).join('\n')}`
           : '',

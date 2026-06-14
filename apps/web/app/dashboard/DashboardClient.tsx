@@ -1969,12 +1969,15 @@ function CreativeTab({ settings }: any) {
                       </div>
                     )}
 
-                    {/* View link after approval */}
+                    {/* View link + AI disclosure reminder after approval */}
                     {job.status === 'completed' && job.output_url && job.approved && (
-                      <div className="px-3 pb-2">
+                      <div className="px-3 pb-2 space-y-1.5">
                         <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
                           View creative
                         </a>
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                          <strong>Meta policy:</strong> When uploading to Ads Manager, check the &quot;AI-generated content&quot; box. Required for all AI-generated images and videos.
+                        </p>
                       </div>
                     )}
 
