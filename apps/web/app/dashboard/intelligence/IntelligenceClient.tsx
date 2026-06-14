@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   getInsights, dismissInsight, refreshInsights,
   getReadiness, runReadinessAudit,
@@ -15,6 +16,7 @@ export default function IntelligenceClient() {
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
+  const t = useTranslations('dashboard');
 
   async function load() {
     setLoading(true);
@@ -26,7 +28,7 @@ export default function IntelligenceClient() {
   }
   useEffect(() => { load(); }, []);
 
-  if (loading) return <div className="py-20 text-center text-slate-400">Loading…</div>;
+  if (loading) return <div className="py-20 text-center text-slate-400">{t('status.loading')}</div>;
 
   return (
     <div className="space-y-8">
@@ -35,21 +37,21 @@ export default function IntelligenceClient() {
       {/* ─── Conversion Readiness ──────────────────────────────────────── */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-slate-900">Conversion Readiness</h2>
+          <h2 className="text-base font-bold text-slate-900">{t('intelligence.convReadiness')}</h2>
           <button
             onClick={() => startTransition(async () => {
-              setStatus('Auditing your landing page…');
+              setStatus(t('intelligence.auditing'));
               await runReadinessAudit();
               await load();
-              setStatus('Audit refreshed.');
+              setStatus(t('intelligence.auditRefreshed'));
             })}
             className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg"
           >
-            Re-audit
+            {t('intelligence.reaudit')}
           </button>
         </div>
         {!readiness ? (
-          <p className="text-sm text-slate-400">No audit yet. Click Re-audit to run one.</p>
+          <p className="text-sm text-slate-400">{t('intelligence.noAudit')}</p>
         ) : (
           <div className="space-y-3">
             <div className="flex items-baseline gap-3">
@@ -60,7 +62,7 @@ export default function IntelligenceClient() {
             {readiness.report?.reasoning && <p className="text-sm text-slate-600 leading-relaxed">{readiness.report.reasoning}</p>}
             {readiness.report?.issues?.length > 0 && (
               <div className="space-y-1.5">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Issues</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('intelligence.issues')}</p>
                 <ul className="space-y-2">
                   {readiness.report.issues.map((iss: any, i: number) => (
                     <li key={i} className={`text-xs leading-relaxed border-l-2 pl-3 ${iss.severity === 'blocking' ? 'border-rose-400' : iss.severity === 'warning' ? 'border-amber-400' : 'border-slate-300'}`}>
@@ -80,21 +82,21 @@ export default function IntelligenceClient() {
       {/* ─── Insights ──────────────────────────────────────────────────── */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-slate-900">Recurring Insights</h2>
+          <h2 className="text-base font-bold text-slate-900">{t('intelligence.recurringInsights')}</h2>
           <button
             onClick={() => startTransition(async () => {
-              setStatus('Mining recurring themes from your comments…');
+              setStatus(t('intelligence.miningThemes'));
               await refreshInsights();
               await load();
-              setStatus('Insights refreshed.');
+              setStatus(t('intelligence.insightsRefreshed'));
             })}
             className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg"
           >
-            Refresh
+            {t('common.refresh')}
           </button>
         </div>
         {insights.length === 0 ? (
-          <p className="text-sm text-slate-400">No recurring patterns yet. Vigmis needs more comment volume to surface insights.</p>
+          <p className="text-sm text-slate-400">{t('intelligence.noInsights')}</p>
         ) : (
           <ul className="space-y-2.5">
             {insights.map((ins) => (
@@ -118,7 +120,7 @@ export default function IntelligenceClient() {
                   onClick={async () => { await dismissInsight(ins.id); setInsights((p) => p.filter((x) => x.id !== ins.id)); }}
                   className="text-xs text-slate-400 hover:text-slate-700"
                 >
-                  Dismiss
+                  {t('intelligence.dismiss')}
                 </button>
               </li>
             ))}
@@ -129,16 +131,16 @@ export default function IntelligenceClient() {
       {/* ─── Briefings ─────────────────────────────────────────────────── */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-slate-900">Proactive Briefings (WhatsApp + Email)</h2>
+          <h2 className="text-base font-bold text-slate-900">{t('intelligence.briefingsTitle')}</h2>
           <button
             onClick={() => startTransition(async () => {
-              setStatus('Sending a briefing now…');
+              setStatus(t('intelligence.sendingBriefing'));
               const r = await sendBriefingNow();
-              setStatus(r?.sent ? 'Briefing sent.' : `Skipped: ${r?.reason ?? 'no signal'}`);
+              setStatus(r?.sent ? t('intelligence.briefingSent') : `${t('intelligence.skipped')}: ${r?.reason ?? t('intelligence.noSignal')}`);
             })}
             className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg"
           >
-            Send now
+            {t('intelligence.sendNow')}
           </button>
         </div>
         <BriefingPrefsForm initial={briefings} onSave={async (next) => {
@@ -151,22 +153,22 @@ export default function IntelligenceClient() {
       {/* ─── Crisis check ──────────────────────────────────────────────── */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-slate-900">Sentiment Velocity (Crisis Check)</h2>
+          <h2 className="text-base font-bold text-slate-900">{t('intelligence.crisisTitle')}</h2>
           <button
             onClick={() => startTransition(async () => {
               const r = await getCrisisCheck();
               if (r?.decision?.is_crisis) {
-                setStatus(`⚠ Crisis: ${r.decision.reason}`);
+                setStatus(`⚠ ${t('intelligence.crisis')}: ${r.decision.reason}`);
               } else {
-                setStatus(`OK — ${r?.decision?.reason ?? 'no significant deviation'}`);
+                setStatus(`${t('intelligence.ok')} — ${r?.decision?.reason ?? t('intelligence.noDeviation')}`);
               }
             })}
             className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg"
           >
-            Run check
+            {t('intelligence.runCheck')}
           </button>
         </div>
-        <p className="text-xs text-slate-500 leading-relaxed">Vigmis tracks your daily comment sentiment against a 7-day baseline. If negative comments spike beyond 2.5σ, you get a critical alert.</p>
+        <p className="text-xs text-slate-500 leading-relaxed">{t('intelligence.crisisDesc')}</p>
       </section>
     </div>
   );
@@ -178,6 +180,7 @@ function BriefingPrefsForm({ initial, onSave }: { initial: any; onSave: (next: R
   const [channels, setChannels] = useState<string[]>(p.channels ?? ['email']);
   const [language, setLanguage] = useState(p.language ?? 'en');
   const [enabled, setEnabled] = useState(p.enabled ?? true);
+  const t = useTranslations('dashboard');
 
   function toggle(c: string) {
     setChannels((curr) => curr.includes(c) ? curr.filter((x) => x !== c) : [...curr, c]);
@@ -187,22 +190,22 @@ function BriefingPrefsForm({ initial, onSave }: { initial: any; onSave: (next: R
     <div className="space-y-3">
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        Briefings enabled
+        {t('intelligence.briefingsEnabled')}
       </label>
       <div className="flex gap-2 flex-wrap items-center">
-        <label className="text-xs text-slate-500">Cadence:</label>
+        <label className="text-xs text-slate-500">{t('intelligence.cadence')}:</label>
         {(['daily', 'weekly', 'never'] as const).map((c) => (
           <button key={c} onClick={() => setCadence(c)} className={`text-xs px-2.5 py-1 rounded-full border ${cadence === c ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'}`}>{c}</button>
         ))}
       </div>
       <div className="flex gap-2 flex-wrap items-center">
-        <label className="text-xs text-slate-500">Channels:</label>
+        <label className="text-xs text-slate-500">{t('intelligence.channels')}:</label>
         {(['email', 'whatsapp'] as const).map((c) => (
           <button key={c} onClick={() => toggle(c)} className={`text-xs px-2.5 py-1 rounded-full border ${channels.includes(c) ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'}`}>{c}</button>
         ))}
       </div>
       <div className="flex gap-2 flex-wrap items-center">
-        <label className="text-xs text-slate-500">Language:</label>
+        <label className="text-xs text-slate-500">{t('settings.language')}:</label>
         {(['en', 'he', 'ar', 'ru'] as const).map((c) => (
           <button key={c} onClick={() => setLanguage(c)} className={`text-xs px-2.5 py-1 rounded-full border ${language === c ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'}`}>{c.toUpperCase()}</button>
         ))}
@@ -211,7 +214,7 @@ function BriefingPrefsForm({ initial, onSave }: { initial: any; onSave: (next: R
         onClick={() => onSave({ cadence, channels, language, enabled })}
         className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl"
       >
-        Save preferences
+        {t('intelligence.savePrefs')}
       </button>
     </div>
   );

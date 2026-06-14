@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useTransition } from 'react';
@@ -562,7 +562,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
       {/* Disclaimer */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 flex items-start gap-2">
         <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        <span><strong>Disclaimer:</strong> Vigmis provides AI-driven campaign management on a best-effort basis. Results are not guaranteed. You retain full control and can pause all campaigns at any time.</span>
+        <span><strong>{t('overview.disclaimerLabel')}</strong> {t('overview.disclaimerText')}</span>
       </div>
 
       {/* Platform health bar */}
@@ -586,19 +586,19 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Today at a Glance</p>
-              <p className="text-sm text-slate-500 mt-0.5">vs yesterday · {daily.is_mock && <span className="italic">simulated</span>}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t('overview.todayGlance')}</p>
+              <p className="text-sm text-slate-500 mt-0.5">{t('overview.vsYesterday')} · {daily.is_mock && <span className="italic">simulated</span>}</p>
             </div>
             {pacing && <BurnGauge pctSpent={pacing.pct_spent} pctElapsed={pacing.pct_elapsed} status={pacing.status} />}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
-              { label: 'Spend', val: `$${daily.today.spend.toFixed(0)}`, chg: daily.changes?.spend },
-              { label: 'ROAS', val: `${daily.today.roas.toFixed(1)}x`, chg: daily.changes?.roas },
-              { label: 'Conv.', val: String(daily.today.conversions), chg: daily.changes?.conversions },
-              { label: 'CPA', val: `$${daily.today.conversions > 0 ? (daily.today.spend / daily.today.conversions).toFixed(0) : '—'}`, chg: daily.changes?.cpa, inv: true },
-              { label: 'CTR', val: `${daily.today.ctr.toFixed(1)}%`, chg: daily.changes?.ctr },
-              { label: 'Impr.', val: daily.today.impressions > 0 ? `${(daily.today.impressions / 1000).toFixed(1)}k` : '—', chg: daily.changes?.impressions },
+              { label: t('overview.kpiSpend'), val: `$${daily.today.spend.toFixed(0)}`, chg: daily.changes?.spend },
+              { label: t('overview.kpiRoas'), val: `${daily.today.roas.toFixed(1)}x`, chg: daily.changes?.roas },
+              { label: t('overview.kpiConv'), val: String(daily.today.conversions), chg: daily.changes?.conversions },
+              { label: t('overview.kpiCpa'), val: `$${daily.today.conversions > 0 ? (daily.today.spend / daily.today.conversions).toFixed(0) : '—'}`, chg: daily.changes?.cpa, inv: true },
+              { label: t('overview.kpiCtr'), val: `${daily.today.ctr.toFixed(1)}%`, chg: daily.changes?.ctr },
+              { label: t('overview.kpiImpr'), val: daily.today.impressions > 0 ? `${(daily.today.impressions / 1000).toFixed(1)}k` : '—', chg: daily.changes?.impressions },
             ].map(({ label, val, chg, inv }) => (
               <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
@@ -609,7 +609,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
           </div>
           {pacing && (
             <p className="text-xs text-slate-400 mt-3">
-              <span className="font-semibold">Burn rate:</span> ${pacing.spend_today?.toFixed(2)} spent of ${pacing.budget_today?.toFixed(0)} daily budget ({pacing.pct_elapsed?.toFixed(0)}% of day elapsed)
+              <span className="font-semibold">{t('overview.burnRate')}:</span> ${pacing.spend_today?.toFixed(2)} spent of ${pacing.budget_today?.toFixed(0)} daily budget ({pacing.pct_elapsed?.toFixed(0)}% of day elapsed)
             </p>
           )}
         </div>
@@ -626,11 +626,11 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
                 <span className={`text-lg font-black ${(geoReport.score ?? 0) >= 80 ? 'text-emerald-600' : (geoReport.score ?? 0) >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{geoReport.grade ?? 'F'}</span>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">AI Visibility Score</p>
-                <p className="text-base font-bold text-slate-900 mt-0.5">{geoReport.score ?? 0}/100 — How AI systems find your business</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{t('overview.aiVisibilityScore')}</p>
+                <p className="text-base font-bold text-slate-900 mt-0.5">{geoReport.score ?? 0}/100 — {t('overview.aiVisibilityDesc')}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {(geoReport.issues ?? []).filter((i: any) => i.severity === 'critical').length} critical issues ·{' '}
-                  {(geoReport.issues ?? []).filter((i: any) => i.severity === 'warning').length} warnings · Tap to view full report
+                  {t('overview.criticalIssues', { count: (geoReport.issues ?? []).filter((i: any) => i.severity === 'critical').length })} ·{' '}
+                  {t('overview.warnings', { count: (geoReport.issues ?? []).filter((i: any) => i.severity === 'warning').length })} · {t('overview.tapReport')}
                 </p>
               </div>
             </div>
@@ -648,20 +648,20 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
         }`}>
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Conversion Intelligence — last 30 days</p>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{t('overview.convIntelTitle')}</p>
               <p className="text-sm text-slate-500 mt-0.5">
                 {convIntel.data_source === 'shopify'
-                  ? 'Source: Shopify orders (most accurate)'
+                  ? t('overview.sourceShopify')
                   : convIntel.data_source === 'pixel'
-                  ? 'Source: Vigmis pixel events'
-                  : 'Install tracking pixel to see real conversion data'}
+                  ? t('overview.sourcePixel')
+                  : t('overview.installPixel')}
               </p>
             </div>
             {convIntel.data_source !== 'none' && (
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                 convIntel.data_source === 'shopify' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
               }`}>
-                {convIntel.conversions_tracked} orders tracked
+                {t('overview.ordersTracked', { count: convIntel.conversions_tracked })}
               </span>
             )}
           </div>
@@ -669,21 +669,21 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
           {convIntel.data_source === 'none' ? (
             <div className="flex items-center gap-4">
               <div className="flex-1 text-sm text-slate-500 leading-relaxed">
-                Without tracking, you're relying on what the ad platforms tell you — which is often <strong>2–3× inflated</strong> due to multi-platform attribution.
+                {t('overview.noTrackingWarning')}
               </div>
               <a
                 href="/onboarding?rethink=true"
                 className="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
               >
-                Install pixel →
+                {t('overview.installPixelBtn')}
               </a>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white rounded-xl p-4 border border-indigo-100 text-center">
-                <p className="text-xs text-slate-400 font-medium mb-1">Platform ROAS</p>
+                <p className="text-xs text-slate-400 font-medium mb-1">{t('overview.platformRoas')}</p>
                 <p className="text-2xl font-black text-slate-400">{convIntel.platform_roas.toFixed(1)}x</p>
-                <p className="text-xs text-slate-300 mt-1">What platforms claim</p>
+                <p className="text-xs text-slate-300 mt-1">{t('overview.whatPlatformsClaim')}</p>
               </div>
               <div className={`rounded-xl p-4 border text-center ${
                 convIntel.true_roas !== null
@@ -692,7 +692,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
                     : 'bg-red-50 border-red-200'
                   : 'bg-white border-slate-200'
               }`}>
-                <p className="text-xs text-slate-500 font-medium mb-1">True ROAS</p>
+                <p className="text-xs text-slate-500 font-medium mb-1">{t('overview.trueRoas')}</p>
                 <p className={`text-2xl font-black ${
                   convIntel.true_roas !== null
                     ? convIntel.true_roas >= convIntel.platform_roas * 0.7 ? 'text-emerald-700' : 'text-red-700'
@@ -700,33 +700,33 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
                 }`}>
                   {convIntel.true_roas !== null ? `${convIntel.true_roas.toFixed(1)}x` : '—'}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">Based on real orders</p>
+                <p className="text-xs text-slate-400 mt-1">{t('overview.basedOnRealOrders')}</p>
               </div>
               {convIntel.true_profit !== null ? (
                 <div className={`rounded-xl p-4 border text-center ${
                   convIntel.true_profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
                 }`}>
-                  <p className="text-xs text-slate-500 font-medium mb-1">True Profit</p>
+                  <p className="text-xs text-slate-500 font-medium mb-1">{t('overview.trueProfit')}</p>
                   <p className={`text-2xl font-black ${convIntel.true_profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {convIntel.true_profit >= 0 ? '+' : ''}{convIntel.true_profit >= 1000 ? `$${(convIntel.true_profit / 1000).toFixed(1)}k` : `$${convIntel.true_profit.toFixed(0)}`}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">{convIntel.margin_pct}% margin applied</p>
+                  <p className="text-xs text-slate-400 mt-1">{t('overview.marginApplied', { pct: convIntel.margin_pct })}</p>
                 </div>
               ) : (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center">
-                  <p className="text-xs text-amber-600 font-medium mb-1">True Profit</p>
+                  <p className="text-xs text-amber-600 font-medium mb-1">{t('overview.trueProfit')}</p>
                   <p className="text-xl font-black text-amber-400">—</p>
-                  <p className="text-xs text-amber-500 mt-1">Add margin% in settings</p>
+                  <p className="text-xs text-amber-500 mt-1">{t('overview.addMargin')}</p>
                 </div>
               )}
               <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-                <p className="text-xs text-slate-400 font-medium mb-1">Revenue Tracked</p>
+                <p className="text-xs text-slate-400 font-medium mb-1">{t('overview.revenueTracked')}</p>
                 <p className="text-2xl font-black text-slate-900">
                   {convIntel.revenue_tracked >= 1000
                     ? `$${(convIntel.revenue_tracked / 1000).toFixed(1)}k`
                     : `$${convIntel.revenue_tracked.toFixed(0)}`}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">vs ${convIntel.spend.toFixed(0)} spend</p>
+                <p className="text-xs text-slate-400 mt-1">{t('overview.vsSpend', { spend: convIntel.spend.toFixed(0) })}</p>
               </div>
             </div>
           )}
@@ -736,7 +736,7 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
       {/* Alerts */}
       {alerts.filter((a: any) => !a.dismissed).length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-slate-700">Active Alerts</p>
+          <p className="text-sm font-semibold text-slate-700">{t('overview.activeAlerts')}</p>
           {alerts.filter((a: any) => !a.dismissed).map((alert: any) => (
             <AlertCard key={alert.id} alert={alert} onDismiss={async () => {
               await dismissAlert(alert.id);
@@ -756,16 +756,16 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Active Campaigns" value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
-        <StatCard label="Daily Budget" value={`$${totalDailyBudget.toFixed(0)}`} sub="active spend" color="blue" />
-        <StatCard label="Managed / Month" value={`$${managedBudget}`} sub="of ad budget" color="purple" />
-        <StatCard label="Monthly Fee" value={`~$${feeEstimate}`} sub="7% of managed" color="gray" />
+        <StatCard label={t('overview.activeCampaigns')} value={String(activeCampaigns)} sub={pausedCampaigns ? `${pausedCampaigns} paused` : undefined} color="green" />
+        <StatCard label={t('overview.dailyBudget')} value={`$${totalDailyBudget.toFixed(0)}`} sub={t('overview.activeSpend')} color="blue" />
+        <StatCard label={t('overview.managedMonth')} value={`$${managedBudget}`} sub={t('overview.ofAdBudget')} color="purple" />
+        <StatCard label={t('overview.monthlyFee')} value={`~$${feeEstimate}`} sub={t('overview.feePercent')} color="gray" />
       </div>
 
       {/* Vigmis AI Actions (last 24h) */}
       {recentActions.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700 mb-3">Vigmis AI Actions — last 24h</p>
+          <p className="text-sm font-semibold text-slate-700 mb-3">{t('overview.aiActions')}</p>
           <div className="space-y-2">
             {recentActions.slice(0, 5).map((a: any, i: number) => (
               <div key={i} className="flex items-center gap-3 py-1.5 border-b border-slate-50 last:border-0">
@@ -815,15 +815,15 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
       {/* Next Steps — shown after campaigns are launched */}
       {campaigns.length > 0 && onSocialTab && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3">
-          <p className="text-sm font-bold text-indigo-900">Recommended next steps</p>
+          <p className="text-sm font-bold text-indigo-900">{t('overview.nextSteps')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={onSocialTab} className="flex items-center gap-3 bg-white border border-indigo-200 rounded-xl px-4 py-3 text-left hover:border-indigo-400 transition-colors group">
               <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
                 <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Generate Social Posts</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Create this week's Facebook & Instagram content</p>
+                <p className="text-xs font-bold text-slate-800">{t('overview.generateSocial')}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{t('overview.generateSocialDesc')}</p>
               </div>
             </button>
             <button onClick={onCreativeTab} className="flex items-center gap-3 bg-white border border-indigo-200 rounded-xl px-4 py-3 text-left hover:border-indigo-400 transition-colors group">
@@ -831,8 +831,8 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
                 <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-800">Create a Creative</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Generate an image or video ad for your campaigns</p>
+                <p className="text-xs font-bold text-slate-800">{t('overview.createCreative')}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{t('overview.createCreativeDesc')}</p>
               </div>
             </button>
           </div>
@@ -912,14 +912,14 @@ function AnalyticsTab() {
   const safeCpa = isFinite(summary.cpa) && summary.cpa > 0 ? summary.cpa : null;
   const safeCtr = isFinite(summary.ctr) ? summary.ctr : 0;
   const kpis = [
-    { label: 'Total Spend', val: `$${(summary.spend ?? 0).toFixed(0)}`, chg: changes?.spend },
-    { label: 'Conv. Value', val: `$${(summary.convValue ?? 0).toFixed(0)}`, chg: changes?.convValue },
-    { label: 'Conversions', val: String(summary.conversions ?? 0), chg: changes?.conversions },
-    { label: 'ROAS', val: safeRoas !== null ? `${safeRoas.toFixed(1)}x` : '—', chg: changes?.roas, good: safeRoas !== null && safeRoas >= 2 },
-    { label: 'CPA', val: safeCpa !== null ? `$${safeCpa.toFixed(0)}` : '—', chg: changes?.cpa, inv: true },
-    { label: 'CTR', val: `${safeCtr.toFixed(2)}%`, chg: changes?.ctr, good: safeCtr >= 1.5 },
-    { label: 'Clicks', val: (summary.clicks ?? 0).toLocaleString(), chg: changes?.clicks },
-    { label: 'Impressions', val: `${((summary.impressions ?? 0) / 1000).toFixed(1)}k`, chg: changes?.impressions },
+    { label: t('analytics.kpiTotalSpend'), val: `$${(summary.spend ?? 0).toFixed(0)}`, chg: changes?.spend },
+    { label: t('analytics.kpiConvValue'), val: `$${(summary.convValue ?? 0).toFixed(0)}`, chg: changes?.convValue },
+    { label: t('analytics.kpiConversions'), val: String(summary.conversions ?? 0), chg: changes?.conversions },
+    { label: t('analytics.kpiRoas'), val: safeRoas !== null ? `${safeRoas.toFixed(1)}x` : '—', chg: changes?.roas, good: safeRoas !== null && safeRoas >= 2 },
+    { label: t('analytics.kpiCpa'), val: safeCpa !== null ? `$${safeCpa.toFixed(0)}` : '—', chg: changes?.cpa, inv: true },
+    { label: t('analytics.kpiCtr'), val: `${safeCtr.toFixed(2)}%`, chg: changes?.ctr, good: safeCtr >= 1.5 },
+    { label: t('analytics.kpiClicks'), val: (summary.clicks ?? 0).toLocaleString(), chg: changes?.clicks },
+    { label: t('analytics.kpiImpressions'), val: `${((summary.impressions ?? 0) / 1000).toFixed(1)}k`, chg: changes?.impressions },
   ];
 
   return (
@@ -927,17 +927,17 @@ function AnalyticsTab() {
       {data.is_mock && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 flex items-center gap-2">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span><strong>Simulated data</strong> — projections based on your budget. Real ROAS/CPA will appear once Google and Meta API access is approved.</span>
+          <span><strong>{t('analytics.simulated')}</strong> — {t('analytics.simulatedDesc')}</span>
         </div>
       )}
 
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="font-bold text-slate-900 text-lg">Performance Analytics</h2>
+        <h2 className="font-bold text-slate-900 text-lg">{t('analytics.performanceTitle')}</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
             <input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)} className="rounded" />
-            Compare to prior period
+            {t('analytics.comparePrior')}
           </label>
           <div className="flex bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             {([7, 30, 90] as const).map(p => (
@@ -966,13 +966,13 @@ function AnalyticsTab() {
 
       {/* Conversion funnel */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <p className="text-sm font-semibold text-slate-700 mb-4">Conversion Funnel</p>
+        <p className="text-sm font-semibold text-slate-700 mb-4">{t('analytics.convFunnel')}</p>
         <div className="space-y-2">
           {[
-            { label: 'Impressions', val: summary.impressions, color: 'bg-slate-300', pct: 100 },
-            { label: 'Clicks', val: summary.clicks, color: 'bg-indigo-400', pct: summary.impressions > 0 ? (summary.clicks / summary.impressions * 100) : 0, rate: `${summary.ctr.toFixed(2)}% CTR` },
-            { label: 'Conversions', val: summary.conversions, color: 'bg-indigo-600', pct: summary.clicks > 0 ? (summary.conversions / summary.clicks * 100) : 0, rate: `${summary.clicks > 0 ? (summary.conversions / summary.clicks * 100).toFixed(1) : 0}% CVR` },
-            { label: 'Conv. Value', val: `$${summary.convValue.toFixed(0)}`, color: 'bg-emerald-500', pct: summary.conversions > 0 ? Math.min(100, summary.convValue / summary.spend * 20) : 0, rate: `$${summary.conversions > 0 ? (summary.convValue / summary.conversions).toFixed(0) : 0} avg` },
+            { label: t('analytics.kpiImpressions'), val: summary.impressions, color: 'bg-slate-300', pct: 100 },
+            { label: t('analytics.kpiClicks'), val: summary.clicks, color: 'bg-indigo-400', pct: summary.impressions > 0 ? (summary.clicks / summary.impressions * 100) : 0, rate: `${summary.ctr.toFixed(2)}% CTR` },
+            { label: t('analytics.kpiConversions'), val: summary.conversions, color: 'bg-indigo-600', pct: summary.clicks > 0 ? (summary.conversions / summary.clicks * 100) : 0, rate: `${summary.clicks > 0 ? (summary.conversions / summary.clicks * 100).toFixed(1) : 0}% CVR` },
+            { label: t('analytics.kpiConvValue'), val: `$${summary.convValue.toFixed(0)}`, color: 'bg-emerald-500', pct: summary.conversions > 0 ? Math.min(100, summary.convValue / summary.spend * 20) : 0, rate: `$${summary.conversions > 0 ? (summary.convValue / summary.conversions).toFixed(0) : 0} avg` },
           ].map((row, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="w-24 text-right">
@@ -1625,7 +1625,7 @@ function CreativeTab({ settings }: any) {
 
       {/* Platform selector */}
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-slate-600">Platform:</span>
+        <span className="text-sm font-semibold text-slate-600">{t('creative.platformLabel')}</span>
         {['google', 'meta', 'tiktok'].map(p => (
           <button key={p} onClick={() => setPlatform(p)} className={`px-3 py-1.5 text-sm font-semibold rounded-lg capitalize transition-colors ${platform === p ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>{p}</button>
         ))}
@@ -1636,10 +1636,10 @@ function CreativeTab({ settings }: any) {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-900">AI Creative Recommendations</h3>
-              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">Agency Brain</span>
+              <h3 className="font-bold text-slate-900">{t('creative.aiRecsTitle')}</h3>
+              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{t('creative.agencyBrain')}</span>
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">Ready-to-use concepts built from your strategy analysis</p>
+            <p className="text-sm text-slate-500 mt-0.5">{t('creative.aiRecsSubtitle')}</p>
           </div>
           {creativeBrief && !briefLoading && (
             <button
@@ -1647,7 +1647,7 @@ function CreativeTab({ settings }: any) {
               disabled={briefRegenerating}
               className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold disabled:opacity-50 border border-indigo-200 bg-white px-3 py-1.5 rounded-lg transition-colors"
             >
-              {briefRegenerating ? 'Regenerating...' : 'Regenerate'}
+              {briefRegenerating ? t('creative.regenerating') : t('creative.regenerate')}
             </button>
           )}
         </div>
@@ -1673,8 +1673,8 @@ function CreativeTab({ settings }: any) {
         {/* No strategy state */}
         {!briefLoading && briefNoStrategy && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center space-y-2">
-            <p className="text-sm font-semibold text-amber-800">Run your strategy analysis to unlock AI creative concepts</p>
-            <p className="text-xs text-amber-600">Go to the Strategy tab and click "Run Analysis" — this takes about 5 minutes and powers all AI recommendations.</p>
+            <p className="text-sm font-semibold text-amber-800">{t('creative.noStrategyTitle')}</p>
+            <p className="text-xs text-amber-600">{t('creative.noStrategyBody')}</p>
           </div>
         )}
 
@@ -1713,7 +1713,7 @@ function CreativeTab({ settings }: any) {
                       onClick={() => useConceptScript(concept)}
                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-sm transition-colors mt-auto"
                     >
-                      Use This →
+                      {t('creative.useThis')}
                     </button>
                   </div>
                 );
@@ -1724,7 +1724,7 @@ function CreativeTab({ settings }: any) {
             {creativeBrief.tone_guide && (
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Brand Voice</p>
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">{t('creative.brandVoice')}</p>
                   <p dir="auto" className="text-sm text-slate-700">{creativeBrief.tone_guide.voice}</p>
                   {creativeBrief.tone_guide.examples.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
@@ -1741,7 +1741,7 @@ function CreativeTab({ settings }: any) {
 
         {/* Generating state (brief exists but no concepts yet) */}
         {!briefLoading && briefRegenerating && !creativeBrief && (
-          <div className="text-center py-6 text-sm text-slate-500">Generating your creative brief...</div>
+          <div className="text-center py-6 text-sm text-slate-500">{t('creative.generatingBrief')}</div>
         )}
       </div>
 
@@ -1753,7 +1753,7 @@ function CreativeTab({ settings }: any) {
             className="text-sm text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1.5 transition-colors"
           >
             <span className={`transition-transform ${manualFormOpen ? 'rotate-90' : ''}`}>▶</span>
-            {manualFormOpen ? 'Hide manual form' : 'or write your own ↓'}
+            {manualFormOpen ? t('creative.hideManualForm') : t('creative.writeYourOwn')}
           </button>
         </div>
       )}
@@ -1762,13 +1762,13 @@ function CreativeTab({ settings }: any) {
       {(manualFormOpen || briefNoStrategy) && (
       <div id="video-production-section" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
         <div>
-          <h3 className="font-bold text-slate-900">Video Production</h3>
-          <p className="text-sm text-slate-500 mt-0.5">AI generates your ad video — 1 free revision included</p>
+          <h3 className="font-bold text-slate-900">{t('creative.videoProductionTitle')}</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{t('creative.videoProductionSubtitle')}</p>
         </div>
 
         {/* Step 1: Choose a creative type */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 1: Choose a creative type</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('creative.step1')}</p>
           {/* Video type cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {VIDEO_OPTIONS.map(opt => (
@@ -1793,7 +1793,7 @@ function CreativeTab({ settings }: any) {
 
         {/* Step 2: Write your script or description */}
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 2: Write your script or description</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('creative.step2')}</p>
           {/* Script / prompt input */}
           <textarea
             dir="auto"
@@ -1814,14 +1814,14 @@ function CreativeTab({ settings }: any) {
         {/* Step 3: Preview & Generate */}
         {!briefApproved ? (
           <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Step 3: Preview &amp; Generate</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('creative.step3')}</p>
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-400">
                 {selectedVideoType === 'avatar' ? 'Estimated 3 min · 16:9 · 720p' : selectedVideoType === 'cinematic' ? 'Estimated 5 min · 5–10 sec clip · 16:9' : 'Estimated 4 min · 3 sec loop · 16:9'}
               </p>
               <div className="flex items-center gap-3">
                 {!videoScript.trim() && (
-                  <span className="text-xs text-slate-400 italic">Write a script above to continue</span>
+                  <span className="text-xs text-slate-400 italic">{t('creative.writeScriptHint')}</span>
                 )}
                 <button
                   onClick={() => setBriefApproved(true)}
@@ -1829,7 +1829,7 @@ function CreativeTab({ settings }: any) {
                   title={!videoScript.trim() ? 'Write a script in Step 2 to continue' : undefined}
                   className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors"
                 >
-                  Preview Brief →
+                  {t('creative.previewBrief')}
                 </button>
               </div>
             </div>
@@ -1837,30 +1837,30 @@ function CreativeTab({ settings }: any) {
         ) : (
           /* Step 2: Brief Approval */
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 space-y-4">
-            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Brief Review</p>
+            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{t('creative.briefReview')}</p>
             <div className="bg-white rounded-lg p-4 border border-indigo-100 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Type</span>
+                <span className="text-slate-500">{t('creative.type')}</span>
                 <span className="font-semibold text-slate-900 capitalize">{selectedVideoType} · {VIDEO_OPTIONS.find(o => o.type === selectedVideoType)?.provider}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Platform</span>
+                <span className="text-slate-500">{t('creative.platform')}</span>
                 <span className="font-semibold text-slate-900 capitalize">{platform}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Cost</span>
+                <span className="text-slate-500">{t('creative.cost')}</span>
                 <span className="font-bold text-indigo-600">${VIDEO_OPTIONS.find(o => o.type === selectedVideoType)?.price}</span>
               </div>
               <div className="pt-2 border-t border-slate-100">
-                <p className="text-xs text-slate-400 mb-1">Your {selectedVideoType === 'avatar' ? 'script' : 'prompt'}</p>
+                <p className="text-xs text-slate-400 mb-1">{selectedVideoType === 'avatar' ? t('creative.yourScript') : t('creative.yourPrompt')}</p>
                 <p dir="auto" className="text-sm text-slate-700 italic">"{videoScript}"</p>
               </div>
             </div>
             <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
-              <p className="font-semibold">Policy</p>
-              <p>· 1 free revision included — request it from the job list after delivery</p>
-              <p>· Additional revisions: $5 each</p>
-              <p>· Delivery: 3–5 minutes after approval</p>
+              <p className="font-semibold">{t('creative.policy')}</p>
+              <p>{t('creative.policyRevision')}</p>
+              <p>{t('creative.policyAdditional')}</p>
+              <p>{t('creative.policyDelivery')}</p>
             </div>
             <div className="flex gap-2">
               <button
@@ -1873,14 +1873,14 @@ function CreativeTab({ settings }: any) {
                 }}
                 className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
               >
-                Edit Brief
+                {t('creative.editBrief')}
               </button>
               <button
                 onClick={handleGenerateVideo}
                 disabled={videoLoading}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
               >
-                {videoLoading ? 'Submitting...' : 'Approve & Generate'}
+                {videoLoading ? t('creative.submitting') : t('creative.approveGenerate')}
               </button>
             </div>
           </div>
@@ -1891,7 +1891,7 @@ function CreativeTab({ settings }: any) {
           <div className={`rounded-xl p-4 text-sm ${videoJob.status === 'pending_setup' ? 'bg-amber-50 border border-amber-200' : 'bg-emerald-50 border border-emerald-200'}`}>
             {videoJob.status === 'pending_setup'
               ? <p className="text-amber-800">{videoJob.message}</p>
-              : <p className="text-emerald-800">Video generation started — check the job list below for status. You'll receive your video in 3–5 minutes.</p>
+              : <p className="text-emerald-800">{t('creative.videoStarted')}</p>
             }
           </div>
         )}
@@ -1915,7 +1915,7 @@ function CreativeTab({ settings }: any) {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-sm font-semibold text-slate-800 capitalize">{job.type}</span>
                         {job.platform && <span className="text-xs text-slate-400 capitalize">{job.platform}</span>}
-                        {stuck && <span className="text-xs text-amber-600 font-medium">Taking longer than expected</span>}
+                        {stuck && <span className="text-xs text-amber-600 font-medium">{t('creative.takingLong')}</span>}
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>
@@ -1943,7 +1943,7 @@ function CreativeTab({ settings }: any) {
                     {/* B5: Preview before charge — shown when completed and not yet approved */}
                     {needsApproval && (
                       <div className="p-4 space-y-3">
-                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Preview — approve before you are charged</p>
+                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{t('creative.previewApprove')}</p>
                         {isVideo ? (
                           <video
                             src={job.output_url!}
@@ -1962,14 +1962,14 @@ function CreativeTab({ settings }: any) {
                             onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, approved: true } : j))}
                             className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
-                            Approve &amp; Pay ${price}
+                            {t('creative.approvePay')} ${price}
                           </button>
                           <button
                             onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j))}
                             disabled={job.revision_requested}
                             className="flex-1 border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
-                            {job.revision_requested ? 'Revision requested' : 'Request revision (1 free)'}
+                            {job.revision_requested ? t('creative.revisionRequested') : t('creative.requestRevision')}
                           </button>
                           <button
                             onClick={async () => {
@@ -1978,7 +1978,7 @@ function CreativeTab({ settings }: any) {
                             }}
                             className="border border-slate-200 text-slate-500 hover:bg-slate-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
-                            Discard — no charge
+                            {t('creative.discard')}
                           </button>
                         </div>
                       </div>
@@ -1988,10 +1988,10 @@ function CreativeTab({ settings }: any) {
                     {job.status === 'completed' && job.output_url && job.approved && (
                       <div className="px-3 pb-2 space-y-1.5">
                         <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
-                          View creative
+                          {t('creative.viewCreative')}
                         </a>
                         <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
-                          <strong>Meta policy:</strong> When uploading to Ads Manager, check the &quot;AI-generated content&quot; box. Required for all AI-generated images and videos.
+                          {t('creative.metaPolicy')}
                         </p>
                       </div>
                     )}
@@ -2005,7 +2005,7 @@ function CreativeTab({ settings }: any) {
                             disabled={scoringJobId === job.id}
                             className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                           >
-                            {scoringJobId === job.id ? 'Scoring...' : 'Score this creative'}
+                            {scoringJobId === job.id ? t('creative.scoring') : t('creative.scoreThis')}
                           </button>
                         )}
                         {jobScores[job.id] && (() => {
@@ -2035,7 +2035,7 @@ function CreativeTab({ settings }: any) {
                                   onClick={() => setJobScores(prev => { const n = { ...prev }; delete n[job.id]; return n; })}
                                   className="ml-auto text-xs text-slate-400 hover:text-slate-600"
                                 >
-                                  Re-score
+                                  {t('creative.rescoreBtn')}
                                 </button>
                               </div>
                               {s.tips?.length > 0 && (
@@ -2065,11 +2065,11 @@ function CreativeTab({ settings }: any) {
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-900">Ad Copy Generator</h3>
-            <p className="text-sm text-slate-500 mt-0.5">AI writes 6 high-converting variations for {platform}</p>
+            <h3 className="font-bold text-slate-900">{t('creative.adCopyTitle')}</h3>
+            <p className="text-sm text-slate-500 mt-0.5">{t('creative.adCopySubtitle', { platform })}</p>
           </div>
           <button onClick={handleGenerateCopy} disabled={copyLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
-            {copyLoading ? 'Generating...' : 'Generate Copy'}
+            {copyLoading ? t('creative.generatingCopy') : t('creative.generateCopy')}
           </button>
         </div>
 
@@ -2078,7 +2078,7 @@ function CreativeTab({ settings }: any) {
             {copyResult.variations.map((v: any) => (
               <div key={v.variation} className="border border-slate-200 rounded-xl p-4 space-y-2 hover:border-indigo-200 transition-colors">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500 uppercase">Variation {v.variation}</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase">{t('creative.variation')} {v.variation}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full capitalize">{v.tone_tag}</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${v.predicted_score >= 80 ? 'bg-emerald-100 text-emerald-700' : v.predicted_score >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
@@ -2110,7 +2110,7 @@ function CreativeTab({ settings }: any) {
                       }}
                       className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 rounded-lg transition-colors"
                     >
-                      Use for Video →
+                      {t('creative.useForVideo')}
                     </button>
                     <button onClick={() => navigator.clipboard?.writeText(`${v.headline_1}\n${v.description_1}`)} className="text-xs text-slate-400 hover:text-slate-600">Copy</button>
                   </div>
@@ -2124,8 +2124,8 @@ function CreativeTab({ settings }: any) {
       {/* ── Creative Scoring ──────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div>
-          <h3 className="font-bold text-slate-900">Creative Scoring</h3>
-          <p className="text-sm text-slate-500 mt-0.5">Get a 0-100 score and improvement tips before you spend</p>
+          <h3 className="font-bold text-slate-900">{t('creative.scoringTitle')}</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{t('creative.scoringSubtitle')}</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {['avatar', 'cinematic', 'animation', 'image', 'text'].map(opt => (
@@ -2146,7 +2146,7 @@ function CreativeTab({ settings }: any) {
           className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
         <button onClick={handleScore} disabled={scoreLoading || !scoreForm.description} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-colors">
-          {scoreLoading ? 'Scoring...' : 'Score Creative'}
+          {scoreLoading ? t('creative.scoring') : t('creative.scoreCreative')}
         </button>
 
         {scoreResult && (
@@ -2160,10 +2160,10 @@ function CreativeTab({ settings }: any) {
                 <p dir="auto" className="text-sm text-slate-500 mt-1">{scoreResult.verdict}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-slate-400">Predicted CTR</p>
+                <p className="text-xs text-slate-400">{t('creative.predictedCtr')}</p>
                 <p className="text-lg font-bold text-slate-900">{scoreResult.predicted_ctr}</p>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${scoreResult.recommended_action === 'launch' ? 'bg-emerald-100 text-emerald-700' : scoreResult.recommended_action === 'tweak' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                  {scoreResult.recommended_action === 'launch' ? 'Ready to launch' : scoreResult.recommended_action === 'tweak' ? 'Needs tweaks' : 'Rework needed'}
+                  {scoreResult.recommended_action === 'launch' ? t('creative.readyToLaunch') : scoreResult.recommended_action === 'tweak' ? t('creative.needsTweaks') : t('creative.reworkNeeded')}
                 </span>
               </div>
             </div>
@@ -2179,11 +2179,11 @@ function CreativeTab({ settings }: any) {
             )}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="font-semibold text-emerald-700 mb-1.5">Strengths</p>
+                <p className="font-semibold text-emerald-700 mb-1.5">{t('creative.strengths')}</p>
                 {scoreResult.strengths?.map((s: string, i: number) => <p key={i} dir="auto" className="text-slate-600 flex gap-1.5"><span className="text-emerald-500">✓</span>{s}</p>)}
               </div>
               <div>
-                <p className="font-semibold text-amber-700 mb-1.5">Improve</p>
+                <p className="font-semibold text-amber-700 mb-1.5">{t('creative.improve')}</p>
                 {scoreResult.improvements?.map((s: string, i: number) => <p key={i} dir="auto" className="text-slate-600 flex gap-1.5"><span className="text-amber-500">→</span>{s}</p>)}
               </div>
             </div>
