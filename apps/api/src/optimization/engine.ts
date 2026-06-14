@@ -22,6 +22,9 @@ import { sendTenantNotification } from '../services/notify.js';
 import { createProtocol } from '../routes/protocols.js';
 import type { CampaignMetrics } from './rules.js';
 import { buildOptimizationNarrative } from '../services/optimization-narrative.js';
+import { classifyPortfolioRole } from './portfolio.js';
+import { checkQualityGate } from './quality-gate.js';
+import { buildDecisionMatrix, formatDecisionMatrixForProtocol } from './decision-matrix.js';
 
 export interface OptimizationRun {
   tenantId: string;
@@ -588,6 +591,32 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         };
       }
 
+      // ── Optimization Brain: Portfolio + Quality Gate ──────────────────────────
+      // Classify what role this campaign plays in the overall portfolio, then
+      // validate that we have enough data to make the recommended action.
+      const portfolioClassification = classifyPortfolioRole(campaignMetrics);
+      const gate = checkQualityGate(action, campaignMetrics, portfolioClassification.role);
+
+      if (!gate.shouldAct) {
+        // Insufficient data — log "monitor_only" and skip the action entirely.
+        // This prevents the engine from making budget moves based on 1-2 days of data.
+        await db.from('audit_log').insert({
+          tenant_id: tenantId,
+          action: 'optimization.monitor_only',
+          platform: campaign.platform,
+          actor: 'system',
+          payload: {
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            proposedAction: action.type,
+            portfolioRole: portfolioClassification.role,
+            gateReason: gate.reason,
+            monitorHours: gate.monitorHours,
+          },
+        }).then(() => {});
+        continue;
+      }
+
       // ── Stagnation check (independent of normal action flow) ─────────────────
       const ctr = metrics.impressions > 0 ? metrics.clicks / metrics.impressions : 0;
       const bench = getBenchmarkForStagnation(campaign.platform, campaign.campaign_type ?? 'default', customBenchmarks);
@@ -723,16 +752,22 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
             : undefined,
         });
 
+        // Build Decision Matrix — 3 options (Conservative/Balanced/Aggressive)
+        const matrix = buildDecisionMatrix(action, campaignMetrics, portfolioClassification.role, gate);
+        const matrixText = formatDecisionMatrixForProtocol(matrix);
+        const fullRecommendation = richRecommendation + matrixText;
+
         await createProtocol({
           tenantId,
           type: protocolConfig.type,
           title: protocolConfig.title,
-          recommendation: richRecommendation,
+          recommendation: fullRecommendation,
           approvalText: protocolConfig.approvalText,
           approvalSummary: protocolConfig.title,
           actionPayload: {
             campaignId: campaign.id,
             newBudgetUsd: newBudget || undefined,
+            decisionMatrix: { options: matrix.options, recommendedIndex: matrix.recommendedIndex },
           },
           campaignId: campaign.id,
           platform: campaign.platform,
@@ -742,7 +777,26 @@ export async function runOptimizationForTenant(tenantId: string): Promise<Optimi
         continue;
       }
 
-      // Auto mode: execute immediately
+      // Auto mode: execute immediately.
+      // Safety: never auto-execute budget changes when confidence is low —
+      // create a protocol for human review instead.
+      if (gate.confidence === 'low' && (action.type === 'scale_up' || action.type === 'scale_down')) {
+        const matrix = buildDecisionMatrix(action, campaignMetrics, portfolioClassification.role, gate);
+        const matrixText = formatDecisionMatrixForProtocol(matrix);
+        await createProtocol({
+          tenantId,
+          type: action.type === 'scale_up' ? 'campaign_scale' : 'budget_change',
+          title: `Review needed: "${campaign.name}" — low confidence (${gate.reason.slice(0, 80)})`,
+          recommendation: `Vigmis detected a signal to ${action.type.replace('_', ' ')} this campaign but does not have enough data to act automatically.\n\n${gate.reason}${matrixText}`,
+          approvalText: `I have reviewed the data and approve the Balanced option for "${campaign.name}".`,
+          approvalSummary: `${action.type.replace('_', ' ')} — pending human review`,
+          actionPayload: { campaignId: campaign.id, newBudgetUsd: newBudget || undefined },
+          campaignId: campaign.id,
+          platform: campaign.platform,
+        });
+        result.approvalsPending++;
+        continue;
+      }
 
       if (action.type === 'pause' && campaign.external_id) {
         if (campaign.platform === 'meta') await pauseMetaCampaign(campaign.external_id, tenantId);
