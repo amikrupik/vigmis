@@ -320,7 +320,19 @@
       "briefingsEnabled": "Briefings enabled",
       "cadence": "Cadence",
       "channels": "Channels",
-      "savePrefs": "Save preferences"
+      "savePrefs": "Save preferences",
+      "weeklyStrategyTitle": "Weekly Strategy",
+      "weekOf": "Week of",
+      "analyzingPortfolio": "Analyzing portfolio...",
+      "strategyUpdated": "Strategy updated",
+      "strategyFailed": "Analysis failed — try again",
+      "runAnalysis": "Run Analysis",
+      "noStrategy": "No strategy analysis yet — click Run Analysis to generate your first weekly briefing.",
+      "hypothesisDrift": "Hypothesis drift detected",
+      "topInsights": "Key Insights",
+      "topActions": "Priority Actions",
+      "budgetRec": "Budget Recommendation",
+      "creativeRec": "Creative Recommendation"
     }
   },
   "campaigns": {

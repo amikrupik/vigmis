@@ -7,12 +7,14 @@ import {
   getReadiness, runReadinessAudit,
   getBriefingPrefs, updateBriefingPrefs, sendBriefingNow,
   getCrisisCheck,
+  getWeeklyStrategy, runWeeklyStrategy,
 } from './actions';
 
 export default function IntelligenceClient() {
   const [insights, setInsights] = useState<any[]>([]);
   const [readiness, setReadiness] = useState<any | null>(null);
   const [briefings, setBriefings] = useState<any | null>(null);
+  const [weeklyStrategy, setWeeklyStrategy] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
@@ -20,10 +22,11 @@ export default function IntelligenceClient() {
 
   async function load() {
     setLoading(true);
-    const [ins, rd, bp] = await Promise.all([getInsights(), getReadiness(), getBriefingPrefs()]);
+    const [ins, rd, bp, ws] = await Promise.all([getInsights(), getReadiness(), getBriefingPrefs(), getWeeklyStrategy()]);
     setInsights(ins?.insights ?? []);
     setReadiness(rd ?? null);
     setBriefings(bp?.preferences ?? null);
+    setWeeklyStrategy(ws?.analysis ?? null);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -171,6 +174,108 @@ export default function IntelligenceClient() {
           </button>
         </div>
         <p className="text-xs text-slate-500 leading-relaxed">{t('intelligence.crisisDesc')}</p>
+      </section>
+
+      {/* ─── Weekly Strategy (Strategic Brain) ─────────────────────────── */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">{t('intelligence.weeklyStrategyTitle')}</h2>
+            {weeklyStrategy?.week_of && (
+              <p className="text-xs text-slate-400 mt-0.5">{t('intelligence.weekOf')}: {weeklyStrategy.week_of}</p>
+            )}
+          </div>
+          <button
+            onClick={() => startTransition(async () => {
+              setStatus(t('intelligence.analyzingPortfolio'));
+              const r = await runWeeklyStrategy();
+              if (r?.analysis) setWeeklyStrategy(r.analysis);
+              setStatus(r?.ok ? t('intelligence.strategyUpdated') : t('intelligence.strategyFailed'));
+            })}
+            className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg"
+          >
+            {t('intelligence.runAnalysis')}
+          </button>
+        </div>
+
+        {!weeklyStrategy ? (
+          <p className="text-sm text-slate-400">{t('intelligence.noStrategy')}</p>
+        ) : (
+          <div className="space-y-5">
+            {/* Verdict badge */}
+            <div className="flex items-center gap-3">
+              <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide ${
+                weeklyStrategy.portfolio_verdict === 'on_track'  ? 'bg-emerald-100 text-emerald-700' :
+                weeklyStrategy.portfolio_verdict === 'ahead'     ? 'bg-blue-100 text-blue-700' :
+                weeklyStrategy.portfolio_verdict === 'behind'    ? 'bg-amber-100 text-amber-700' :
+                weeklyStrategy.portfolio_verdict === 'pivot_needed' ? 'bg-rose-100 text-rose-700' :
+                'bg-slate-100 text-slate-500'
+              }`}>
+                {weeklyStrategy.portfolio_verdict?.replace(/_/g, ' ')}
+              </span>
+              {!weeklyStrategy.hypothesis_still_valid && (
+                <span className="text-xs font-semibold text-rose-600">{t('intelligence.hypothesisDrift')}</span>
+              )}
+            </div>
+
+            {weeklyStrategy.hypothesis_drift && (
+              <p className="text-sm text-slate-600 leading-relaxed border-l-2 border-amber-400 pl-3">{weeklyStrategy.hypothesis_drift}</p>
+            )}
+
+            {/* Top insights */}
+            {weeklyStrategy.top_insights?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t('intelligence.topInsights')}</p>
+                <ul className="space-y-1.5">
+                  {weeklyStrategy.top_insights.map((insight: string, i: number) => (
+                    <li key={i} className="text-sm text-slate-700 flex gap-2">
+                      <span className="text-slate-400 shrink-0">{i + 1}.</span>
+                      <span>{insight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Top actions */}
+            {weeklyStrategy.top_actions?.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t('intelligence.topActions')}</p>
+                <ul className="space-y-3">
+                  {weeklyStrategy.top_actions.map((a: any, i: number) => (
+                    <li key={i} className="border border-slate-100 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                          a.urgency === 'now'       ? 'bg-rose-100 text-rose-700' :
+                          a.urgency === 'this_week' ? 'bg-amber-100 text-amber-700' :
+                          'bg-slate-100 text-slate-500'
+                        }`}>{a.urgency?.replace(/_/g, ' ')}</span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-800 mb-0.5">{a.action}</p>
+                      <p className="text-xs text-slate-500">{a.rationale}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Budget + Creative recommendations */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {weeklyStrategy.budget_recommendation && (
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{t('intelligence.budgetRec')}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{weeklyStrategy.budget_recommendation}</p>
+                </div>
+              )}
+              {weeklyStrategy.creative_recommendation && (
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{t('intelligence.creativeRec')}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{weeklyStrategy.creative_recommendation}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

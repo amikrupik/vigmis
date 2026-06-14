@@ -1,15 +1,19 @@
-// POST /intelligence/ad-copy       — AI generates ad copy variations
-// POST /intelligence/score-creative — AI scores a creative brief 0-100
-// POST /intelligence/audiences      — AI discovers audience segments
-// POST /intelligence/territory      — Auto-detect territory + benchmarks + events
-// GET  /intelligence/competitors    — Facebook Ad Library (stub, activates when Meta connected)
+// POST /intelligence/ad-copy            — AI generates ad copy variations
+// POST /intelligence/score-creative     — AI scores a creative brief 0-100
+// POST /intelligence/audiences          — AI discovers audience segments
+// POST /intelligence/territory          — Auto-detect territory + benchmarks + events
+// GET  /intelligence/competitors        — Facebook Ad Library (stub, activates when Meta connected)
+// GET  /intelligence/weekly-strategy    — Get latest Strategic Brain weekly analysis
+// POST /intelligence/weekly-strategy/run — Trigger Strategic Brain run (manual or cron)
 
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import { assertCronSecret } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
 import { createMetaAdSet } from '@vigmis/ad-connectors';
 import { analyzeCreativeThemesForTenant } from '../services/creative-theme-insights.js';
+import { runStrategicBrain, getWeeklyStrategy } from '../services/strategic-brain.js';
 
 export async function intelligenceRoutes(app: FastifyInstance) {
 
@@ -780,5 +784,51 @@ Return ONLY valid JSON:
         ? 'Campaigns are underspending — consider raising bids or expanding audiences'
         : 'Budget is pacing well — no action needed',
     });
+  });
+
+  // ── Strategic Brain — weekly portfolio analysis ──────────────────────────────
+
+  // GET /intelligence/weekly-strategy
+  app.get('/intelligence/weekly-strategy', { preHandler: authenticate }, async (request, reply) => {
+    const analysis = await getWeeklyStrategy(request.tenantId);
+    return reply.send({ analysis });
+  });
+
+  // POST /intelligence/weekly-strategy/run — manual trigger OR cron
+  app.post('/intelligence/weekly-strategy/run', async (request, reply) => {
+    // Accept both: authenticated user (manual) or cron secret (automated)
+    const isCron = request.headers['x-cron-secret'] === process.env.CRON_SECRET;
+    if (!isCron) {
+      // Fall back to user auth
+      try { await authenticate(request, reply); } catch { return; }
+    }
+
+    const tenantId = isCron
+      ? (request.body as any)?.tenant_id
+      : (request as any).tenantId;
+
+    if (!tenantId) return reply.status(400).send({ error: 'tenant_id required' });
+
+    const analysis = await runStrategicBrain(tenantId);
+    return reply.send({ analysis, ok: !!analysis });
+  });
+
+  // POST /intelligence/cron/strategic-weekly — cron: run for ALL tenants
+  app.post('/intelligence/cron/strategic-weekly', async (request, reply) => {
+    assertCronSecret(request, reply);
+    const { data: tenants } = await db.from('client_settings').select('tenant_id').not('strategy_plan', 'is', null);
+    if (!tenants?.length) return reply.send({ processed: 0 });
+
+    let processed = 0;
+    for (const row of tenants) {
+      try {
+        await runStrategicBrain(row.tenant_id);
+        processed++;
+      } catch (err) {
+        console.error(`[strategic-brain] cron failed for tenant=${row.tenant_id}:`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    return reply.send({ processed });
   });
 }

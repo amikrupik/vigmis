@@ -71,3 +71,11 @@ export async function sendBriefingNow() {
 export async function getCrisisCheck() {
   return post<{ decision: any; alerted: boolean }>('/comments/crisis/check');
 }
+
+export async function getWeeklyStrategy() {
+  return get<{ analysis: any }>('/intelligence/weekly-strategy');
+}
+
+export async function runWeeklyStrategy() {
+  return post<{ analysis: any; ok: boolean }>('/intelligence/weekly-strategy/run');
+}

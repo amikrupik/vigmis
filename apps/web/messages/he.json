@@ -320,7 +320,19 @@
       "briefingsEnabled": "בריפינגים מופעלים",
       "cadence": "תדירות",
       "channels": "ערוצים",
-      "savePrefs": "שמור העדפות"
+      "savePrefs": "שמור העדפות",
+      "weeklyStrategyTitle": "אסטרטגיה שבועית",
+      "weekOf": "שבוע של",
+      "analyzingPortfolio": "מנתח תיק...",
+      "strategyUpdated": "האסטרטגיה עודכנה",
+      "strategyFailed": "הניתוח נכשל — נסה שוב",
+      "runAnalysis": "הרץ ניתוח",
+      "noStrategy": "אין ניתוח אסטרטגי עדיין — לחץ 'הרץ ניתוח' כדי ליצור את הבריפינג השבועי הראשון.",
+      "hypothesisDrift": "זוהה סטייה בהשערה",
+      "topInsights": "תובנות מרכזיות",
+      "topActions": "פעולות עדיפות",
+      "budgetRec": "המלצת תקציב",
+      "creativeRec": "המלצת קריאייטיב"
     }
   },
   "campaigns": {
