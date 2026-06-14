@@ -42,6 +42,7 @@ import { authenticate } from '../middleware/auth.js';
 import { fetchLogoForTenant } from '../services/logo-fetcher.js';
 import { extractCreativeContext } from '../services/creative-context.js';
 import { buildCreativeDirectorBrief } from '../services/creative-director.js';
+import { runReviewBoard } from '../services/review-board.js';
 import { scoreCreativeImage } from '../services/creative-scorer.js';
 import { critiqueCreative } from '../services/creative-critic.js';
 import { getOrCreateStripeCustomer, createCreativeApprovalCheckout } from '../billing/stripe.js';
@@ -811,11 +812,29 @@ export async function creativeRoutes(app: FastifyInstance) {
         : (enrichedBrief.prompt ?? '');
 
       if (rawUserInput.trim()) {
-        const enhancedBrief = await buildCreativeDirectorBrief(type, rawUserInput, creativeCtx);
+        let directorBrief = await buildCreativeDirectorBrief(type, rawUserInput, creativeCtx);
+
+        // ── Review Board ──────────────────────────────────────────────────────
+        // 3 reviewers (Performance Marketer, Copywriter, ICP Customer) validate
+        // the brief before it reaches any provider. 2/3 reject → rewrite → max 2 rounds.
+        // Non-blocking: if the board fails entirely, store the flag and proceed.
+        try {
+          const reviewResult = await runReviewBoard(type, directorBrief, creativeCtx);
+          directorBrief = reviewResult.finalBrief;
+          // Store review metadata on the job after insert (patched below)
+          enrichedBrief._review_board_passed = reviewResult.passed || !reviewResult.forcedPass;
+          enrichedBrief._review_board_iterations = reviewResult.iterations;
+          if (reviewResult.forcedPass) {
+            console.warn(`[creatives] Review Board force-passed after ${reviewResult.iterations} rounds — tenant=${request.tenantId} type=${type}`);
+          }
+        } catch (rbErr) {
+          console.error('[creatives] review-board step failed:', rbErr instanceof Error ? rbErr.message : rbErr);
+        }
+
         if (type === 'avatar') {
-          enrichedBrief.script = enhancedBrief;
+          enrichedBrief.script = directorBrief;
         } else {
-          enrichedBrief.prompt = enhancedBrief;
+          enrichedBrief.prompt = directorBrief;
         }
       }
     } catch (cdErr) {
@@ -972,6 +991,21 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (insertErr) {
       console.error('[creatives] DB insert failed:', insertErr.message, insertErr.details, insertErr.hint, JSON.stringify(insertErr));
       return reply.code(500).send({ error: 'Failed to create job' });
+    }
+
+    // Patch review board metadata onto the job row (extracted from enrichedBrief internal fields)
+    const rbPassed = enrichedBrief._review_board_passed;
+    const rbIterations = enrichedBrief._review_board_iterations;
+    if (rbIterations !== undefined) {
+      await db.from('creative_jobs')
+        .update({
+          review_board_passed: rbPassed ?? null,
+          review_board_iterations: rbIterations ?? 0,
+        })
+        .eq('id', job.id);
+      // Clean pipeline-internal fields from enrichedBrief before further use
+      delete enrichedBrief._review_board_passed;
+      delete enrichedBrief._review_board_iterations;
     }
 
     if (!providerReady) {
