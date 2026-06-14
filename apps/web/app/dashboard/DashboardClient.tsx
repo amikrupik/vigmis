@@ -2990,7 +2990,7 @@ function ProtocolsTab() {
     if (res?.success) {
       setSelected((prev: any) => ({ ...prev, status: 'approved' }));
       setProtocols(prev => prev.map(p => p.id === selected.id ? { ...p, status: 'approved' } : p));
-      setMsg('Approved. Action has been executed.');
+      setMsg(t('protocols.approvedMsg'));
     }
     setActioning(false);
   }
@@ -3003,7 +3003,7 @@ function ProtocolsTab() {
       setSelected((prev: any) => ({ ...prev, status: 'rejected' }));
       setProtocols(prev => prev.map(p => p.id === selected.id ? { ...p, status: 'rejected' } : p));
       setShowRejectInput(false);
-      setMsg('Rejected.');
+      setMsg(t('protocols.rejectedMsg'));
     }
     setActioning(false);
   }
@@ -3014,12 +3014,12 @@ function ProtocolsTab() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="font-bold text-slate-900 text-lg">Decision Protocols</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Every Vigmis recommendation, documented with full conversation and audit trail.</p>
+          <h2 className="font-bold text-slate-900 text-lg">{t('protocols.title')}</h2>
+          <p className="text-sm text-slate-500 mt-0.5">{t('protocols.subtitle')}</p>
         </div>
         {pendingCount > 0 && (
           <span className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-            {pendingCount} pending decision{pendingCount > 1 ? 's' : ''}
+            {pendingCount > 1 ? t('protocols.pendingDecisionsPlural', { count: pendingCount }) : t('protocols.pendingDecisions', { count: pendingCount })}
           </span>
         )}
       </div>
@@ -3032,7 +3032,7 @@ function ProtocolsTab() {
             onClick={() => { setStatusFilter(s); setTimeout(load, 0); }}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${statusFilter === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-500 hover:border-slate-400'}`}
           >
-            {s === '' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            {s === '' ? t('protocols.filterAll') : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
           </button>
         ))}
       </div>
@@ -3043,7 +3043,7 @@ function ProtocolsTab() {
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
           <p className="text-sm font-semibold text-slate-600">{t('empty.noProtocols')}</p>
           <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-            When Vigmis takes an action on your behalf — pausing a campaign, shifting budget, concluding an A/B test — it documents every decision here with full reasoning.
+            {t('protocols.protocolBody')}
           </p>
         </div>
       ) : (
@@ -3072,7 +3072,7 @@ function ProtocolsTab() {
             {!selected ? (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2">
                 <svg className="w-8 h-8 text-slate-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                <p className="text-sm text-slate-400">Select a protocol from the list to view the full recommendation and discussion</p>
+                <p className="text-sm text-slate-400">{t('protocols.selectPrompt')}</p>
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -3086,10 +3086,10 @@ function ProtocolsTab() {
                     {selected.platform && <span className="text-xs text-slate-400 capitalize">· {selected.platform}</span>}
                   </div>
                   <h3 dir="auto" className="font-bold text-slate-900">{selected.title}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Created {new Date(selected.created_at).toLocaleString()} · Expires {new Date(selected.expires_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t('protocols.createdLabel')} {new Date(selected.created_at).toLocaleString()} · {t('protocols.expiresLabel')} {new Date(selected.expires_at).toLocaleDateString()}</p>
                   {(selected.status === 'pending' || selected.status === 'in_discussion') && (new Date(selected.expires_at).getTime() - Date.now()) < 4 * 3600_000 && (
                     <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-semibold">
-                      ⚠ Expires in {Math.max(0, Math.round((new Date(selected.expires_at).getTime() - Date.now()) / 3600_000))}h — approve or reject now or this decision will be skipped.
+                      {t('protocols.expiresWarning', { hours: Math.max(0, Math.round((new Date(selected.expires_at).getTime() - Date.now()) / 3600_000)) })}
                     </div>
                   )}
                 </div>
@@ -3123,7 +3123,7 @@ function ProtocolsTab() {
                       <textarea
                         value={replyText}
                         onChange={e => setReplyText(e.target.value)}
-                        placeholder="Ask a question or share your thoughts..."
+                        placeholder={t('protocols.replyPlaceholder')}
                         rows={2}
                         className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       />
@@ -3132,13 +3132,13 @@ function ProtocolsTab() {
                         disabled={replying || !replyText.trim()}
                         className="bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
                       >
-                        {replying ? '...' : 'Send'}
+                        {replying ? '...' : t('protocols.send')}
                       </button>
                     </div>
 
                     {/* Formal approval */}
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
-                      <p className="text-xs font-semibold text-emerald-800">Formal approval</p>
+                      <p className="text-xs font-semibold text-emerald-800">{t('protocols.formalApproval')}</p>
                       <p dir="auto" className="text-sm text-emerald-900 italic">"{selected.approval_text}"</p>
                       <div className="flex gap-2 flex-wrap">
                         <button
@@ -3146,14 +3146,14 @@ function ProtocolsTab() {
                           disabled={actioning}
                           className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2 rounded-xl transition-colors"
                         >
-                          {actioning ? 'Processing...' : 'Approve & Execute'}
+                          {actioning ? t('protocols.processing') : t('protocols.approveExecute')}
                         </button>
                         {!showRejectInput ? (
                           <button
                             onClick={() => setShowRejectInput(true)}
                             className="border border-slate-200 text-slate-600 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                           >
-                            Reject
+                            {t('protocols.reject')}
                           </button>
                         ) : (
                           <div className="flex gap-2 w-full">
@@ -3161,7 +3161,7 @@ function ProtocolsTab() {
                               type="text"
                               value={rejectReason}
                               onChange={e => setRejectReason(e.target.value)}
-                              placeholder="Reason (optional)"
+                              placeholder={t('protocols.reasonPlaceholder')}
                               className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
                             />
                             <button
@@ -3169,7 +3169,7 @@ function ProtocolsTab() {
                               disabled={actioning}
                               className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-xl transition-colors"
                             >
-                              Confirm Reject
+                              {t('protocols.confirmReject')}
                             </button>
                           </div>
                         )}
@@ -3183,7 +3183,7 @@ function ProtocolsTab() {
                 {(selected.status === 'approved' || selected.status === 'rejected') && (
                   <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
                     <p className="text-xs text-slate-500">
-                      {selected.status === 'approved' ? 'Approved' : 'Rejected'} on {selected.resolved_at ? new Date(selected.resolved_at).toLocaleString() : '—'}
+                      {selected.status === 'approved' ? t('protocols.approvedOn') : t('protocols.rejectedOn')} on {selected.resolved_at ? new Date(selected.resolved_at).toLocaleString() : '—'}
                     </p>
                   </div>
                 )}
@@ -3331,9 +3331,9 @@ function StrategyTab({ settings: _settings }: any) {
     setReanalyzing(true);
     setReanalyzeMsg(null);
     const res = await rerunAnalysisServer();
-    if (!res) setReanalyzeMsg('Re-analysis failed. Try again from the chat.');
+    if (!res) setReanalyzeMsg(t('strategy.reanalyzeFailed'));
     else if (res.error) setReanalyzeMsg(res.error);
-    else setReanalyzeMsg('Re-analyzed. Reload to see the new strategy.');
+    else setReanalyzeMsg(t('strategy.reanalyzeSuccess'));
     setReanalyzing(false);
     await load();
   }
@@ -3368,12 +3368,12 @@ function StrategyTab({ settings: _settings }: any) {
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Current Strategy</h2>
+          <h2 className="text-xl font-bold text-slate-900">{t('strategy.title')}</h2>
           <p className="text-sm text-slate-500 mt-1">
-            What Vigmis is doing, why, and every change since launch.
+            {t('strategy.subtitle')}
           </p>
           {s.updated_at && (
-            <p className="text-xs text-slate-400 mt-0.5">Last updated: {new Date(s.updated_at).toLocaleString()}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t('strategy.lastUpdated', { date: new Date(s.updated_at).toLocaleString() })}</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -3382,10 +3382,10 @@ function StrategyTab({ settings: _settings }: any) {
             disabled={reanalyzing}
             className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
           >
-            {reanalyzing ? 'Re-analyzing site…' : 'Re-analyze website'}
+            {reanalyzing ? t('strategy.reanalyzing') : t('strategy.reanalyze')}
           </button>
           <a href="/onboarding?rethink=true" className="text-sm border border-amber-200 text-amber-700 hover:bg-amber-50 px-4 py-2 rounded-xl transition-colors">
-            Rethink strategy
+            {t('strategy.rethink')}
           </a>
         </div>
       </div>
@@ -3397,7 +3397,7 @@ function StrategyTab({ settings: _settings }: any) {
       {/* Website understanding */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900">What Vigmis understood about your business</h3>
+          <h3 className="font-bold text-slate-900">{t('strategy.websiteTitle')}</h3>
           {s.website_url && (
             <a href={s.website_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">
               {s.website_url} →
@@ -3408,7 +3408,7 @@ function StrategyTab({ settings: _settings }: any) {
           <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" dir="ltr">{s.website_analysis}</p>
         ) : (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-            No website analysis was stored. Click "Re-analyze website" to scan now — Vigmis will refuse to invent if the site is unreadable.
+            {t('strategy.noWebsiteAnalysis')}
           </p>
         )}
       </div>
@@ -3417,27 +3417,27 @@ function StrategyTab({ settings: _settings }: any) {
       {plan && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">Campaign plan</h3>
+            <h3 className="font-bold text-slate-900">{t('strategy.campaignPlan')}</h3>
             {managedBudget !== null && (
-              <span className="text-sm font-bold text-indigo-600">${managedBudget}/mo managed</span>
+              <span className="text-sm font-bold text-indigo-600">{t('strategy.managedLabel', { amount: `$${managedBudget}` })}</span>
             )}
           </div>
           <div className="p-5 space-y-4 text-sm text-slate-700">
             {plan.market_insights && (
               <div dir="ltr" className="text-left">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Market insights</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.marketInsights')}</p>
                 <p className="leading-relaxed">{plan.market_insights}</p>
               </div>
             )}
             {plan.target_audience && (
               <div dir="ltr" className="text-left">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Target audience</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.targetAudience')}</p>
                 <p className="leading-relaxed">{plan.target_audience}</p>
               </div>
             )}
             {plan.platforms?.length > 0 && (
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Platforms & budget split</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t('strategy.platformsBudgetSplit')}</p>
                 <div className="space-y-2">
                   {plan.platforms.map((p: any) => (
                     <div key={p.name} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
@@ -3458,19 +3458,19 @@ function StrategyTab({ settings: _settings }: any) {
             )}
             {plan.estimated_cpc && (
               <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Estimated CPC</span>
+                <span className="text-slate-500">{t('strategy.estimatedCpc')}</span>
                 <strong>{plan.estimated_cpc}</strong>
               </div>
             )}
             {plan.recommendations && (
               <div dir="ltr" className="text-left">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Recommendations</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.recommendations')}</p>
                 <p className="leading-relaxed whitespace-pre-wrap">{plan.recommendations}</p>
               </div>
             )}
             {plan.confidence_scores && (
               <div dir="ltr" className="text-left">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Confidence</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{t('strategy.confidence')}</p>
                 <div className="space-y-2">
                   {(['icp', 'channel', 'budget', 'overall'] as const).map((key) => {
                     const score = Number((plan.confidence_scores as any)?.[key]);
@@ -3500,14 +3500,14 @@ function StrategyTab({ settings: _settings }: any) {
             )}
             {plan.budget_split_rationale && (
               <div dir="ltr" className="text-left">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Why this budget split</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.budgetSplitRationale')}</p>
                 <p className="leading-relaxed">{plan.budget_split_rationale}</p>
               </div>
             )}
             {Array.isArray(plan.risk_factors) && plan.risk_factors.length > 0 && (
               <details className="group rounded-lg border border-rose-100 bg-rose-50/50">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-rose-700 uppercase tracking-wider">
-                  Risks & Mitigations ({plan.risk_factors.length})
+                  {t('strategy.risksLabel', { count: plan.risk_factors.length })}
                 </summary>
                 <div dir="ltr" className="px-3 pb-3 space-y-2.5 text-left">
                   {plan.risk_factors.map((r: any, i: number) => {
@@ -3532,7 +3532,7 @@ function StrategyTab({ settings: _settings }: any) {
             {plan.counter_argument && (
               <details className="group rounded-lg border border-indigo-100 bg-indigo-50/40">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-indigo-700 uppercase tracking-wider">
-                  Why not the alternatives?
+                  {t('strategy.whyNotAlternatives')}
                 </summary>
                 <p dir="ltr" className="px-3 pb-3 text-left text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{plan.counter_argument}</p>
               </details>
@@ -3540,7 +3540,7 @@ function StrategyTab({ settings: _settings }: any) {
             {Array.isArray(plan.what_we_dont_know) && plan.what_we_dont_know.length > 0 && (
               <details className="group rounded-lg border border-slate-200 bg-slate-50">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Assumptions & unknowns
+                  {t('strategy.assumptionsUnknowns')}
                 </summary>
                 <ul dir="ltr" className="px-3 pb-3 text-left list-disc list-inside space-y-1 text-xs text-slate-600">
                   {plan.what_we_dont_know.map((u: string, i: number) => <li key={i}>{u}</li>)}
@@ -3551,14 +3551,14 @@ function StrategyTab({ settings: _settings }: any) {
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                 <span className="text-amber-500 text-base leading-none mt-0.5">&#9888;</span>
                 <p dir="ltr" className="text-xs text-amber-800 leading-relaxed text-left">
-                  <span className="font-semibold">To improve accuracy: </span>{plan.icp_confidence_gap}
+                  <span className="font-semibold">{t('strategy.toImproveAccuracy')}</span>{plan.icp_confidence_gap}
                 </p>
               </div>
             )}
             {Array.isArray(plan.cited_stats) && plan.cited_stats.length > 0 && (
               <details className="group rounded-lg border border-slate-200 bg-slate-50">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Sources ({plan.cited_stats.length})
+                  {t('strategy.sourcesLabel', { count: plan.cited_stats.length })}
                 </summary>
                 <div dir="ltr" className="px-3 pb-3 space-y-2 text-left">
                   {plan.cited_stats.map((s: any, i: number) => (
@@ -3570,13 +3570,13 @@ function StrategyTab({ settings: _settings }: any) {
                       </div>
                     </div>
                   ))}
-                  <p className="text-[10px] text-slate-400 pt-1">Green dot = high confidence, amber = medium confidence</p>
+                  <p className="text-[10px] text-slate-400 pt-1">{t('strategy.confidenceNote')}</p>
                 </div>
               </details>
             )}
             {plan.custom_benchmarks && (
               <details className="text-xs text-slate-500">
-                <summary className="cursor-pointer font-semibold">Custom benchmarks (what counts as good vs bad for this business)</summary>
+                <summary className="cursor-pointer font-semibold">{t('strategy.customBenchmarks')}</summary>
                 <pre className="mt-2 bg-slate-50 rounded-lg p-2 overflow-x-auto text-[10px]">{JSON.stringify(plan.custom_benchmarks, null, 2)}</pre>
               </details>
             )}
@@ -3586,26 +3586,26 @@ function StrategyTab({ settings: _settings }: any) {
 
       {/* Inputs we used */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <h3 className="font-bold text-slate-900 mb-3">Inputs Vigmis used</h3>
+        <h3 className="font-bold text-slate-900 mb-3">{t('strategy.inputsTitle')}</h3>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <div><dt className="text-xs text-slate-400">Goal</dt><dd className="font-medium">{s.goal}</dd></div>
-          <div><dt className="text-xs text-slate-400">Business type</dt><dd className="font-medium">{s.business_type ?? '—'}</dd></div>
-          <div><dt className="text-xs text-slate-400">Monthly budget</dt><dd className="font-medium">₪{s.budget_monthly_ils?.toLocaleString() ?? '—'}</dd></div>
-          <div><dt className="text-xs text-slate-400">Managed share</dt><dd className="font-medium">{s.management_percentage}%</dd></div>
-          <div><dt className="text-xs text-slate-400">Margin</dt><dd className="font-medium">{s.margin_pct ? `${s.margin_pct}%` : '—'}</dd></div>
-          <div><dt className="text-xs text-slate-400">Hero product</dt><dd className="font-medium">{s.hero_product_name ?? '—'}</dd></div>
-          <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Targeting include</dt><dd className="font-medium">{(s.geo_include ?? []).join(', ') || '—'}</dd></div>
-          {s.geo_exclude?.length > 0 && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Excluded</dt><dd className="font-medium">{s.geo_exclude.join(', ')}</dd></div>}
-          {s.exclusions && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Hard exclusions</dt><dd className="font-medium whitespace-pre-wrap">{s.exclusions}</dd></div>}
-          {s.open_notes && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">Notes</dt><dd className="font-medium whitespace-pre-wrap">{s.open_notes}</dd></div>}
+          <div><dt className="text-xs text-slate-400">{t('strategy.goalLabel')}</dt><dd className="font-medium">{s.goal}</dd></div>
+          <div><dt className="text-xs text-slate-400">{t('strategy.businessTypeLabel')}</dt><dd className="font-medium">{s.business_type ?? '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">{t('strategy.monthlyBudgetLabel')}</dt><dd className="font-medium">₪{s.budget_monthly_ils?.toLocaleString() ?? '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">{t('strategy.managedShareLabel')}</dt><dd className="font-medium">{s.management_percentage}%</dd></div>
+          <div><dt className="text-xs text-slate-400">{t('strategy.marginLabel')}</dt><dd className="font-medium">{s.margin_pct ? `${s.margin_pct}%` : '—'}</dd></div>
+          <div><dt className="text-xs text-slate-400">{t('strategy.heroProductLabel')}</dt><dd className="font-medium">{s.hero_product_name ?? '—'}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-xs text-slate-400">{t('strategy.targetingInclude')}</dt><dd className="font-medium">{(s.geo_include ?? []).join(', ') || '—'}</dd></div>
+          {s.geo_exclude?.length > 0 && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">{t('strategy.excludedLabel')}</dt><dd className="font-medium">{s.geo_exclude.join(', ')}</dd></div>}
+          {s.exclusions && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">{t('strategy.hardExclusions')}</dt><dd className="font-medium whitespace-pre-wrap">{s.exclusions}</dd></div>}
+          {s.open_notes && <div className="sm:col-span-2"><dt className="text-xs text-slate-400">{t('strategy.notesLabel')}</dt><dd className="font-medium whitespace-pre-wrap">{s.open_notes}</dd></div>}
         </dl>
       </div>
 
       {/* G3: Budget Scenario Modeling */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
         <div>
-          <h3 className="font-bold text-slate-900">Budget Scenarios</h3>
-          <p className="text-sm text-slate-500 mt-0.5">What-if forecasts based on your ROAS history</p>
+          <h3 className="font-bold text-slate-900">{t('strategy.budgetScenariosTitle')}</h3>
+          <p className="text-sm text-slate-500 mt-0.5">{t('strategy.budgetScenariosSubtitle')}</p>
         </div>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -3615,7 +3615,7 @@ function StrategyTab({ settings: _settings }: any) {
               min={1}
               value={forecastBudget}
               onChange={e => setForecastBudget(e.target.value)}
-              placeholder="Monthly ad budget"
+              placeholder={t('strategy.monthlyAdBudget')}
               className="w-full border border-slate-200 rounded-xl pl-7 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -3624,22 +3624,22 @@ function StrategyTab({ settings: _settings }: any) {
             disabled={forecastLoading || !forecastBudget}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {forecastLoading ? 'Forecasting...' : 'Run forecast'}
+            {forecastLoading ? t('strategy.forecasting') : t('strategy.runForecast')}
           </button>
         </div>
 
         {forecastResult && (
           <div className="space-y-3">
-            <p className="text-xs text-slate-400">Based on {forecastResult.basedOn}</p>
+            <p className="text-xs text-slate-400">{t('strategy.basedOn', { source: forecastResult.basedOn })}</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pr-4">Budget</th>
-                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">Est. Leads</th>
-                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">Est. Revenue</th>
-                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">ROAS</th>
-                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pl-2">Confidence</th>
+                    <th className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pr-4">{t('strategy.forecastBudget')}</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">{t('strategy.forecastLeads')}</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">{t('strategy.forecastRevenue')}</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 px-2">{t('strategy.forecastRoas')}</th>
+                    <th className="text-right text-xs font-bold text-slate-500 uppercase tracking-wider py-2 pl-2">{t('strategy.forecastConfidence')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -3682,7 +3682,7 @@ function StrategyTab({ settings: _settings }: any) {
                 {h.platform && <span className="text-xs text-slate-500 capitalize">{h.platform}</span>}
                 {h.payload && Object.keys(h.payload).length > 0 && (
                   <details className="mt-1 text-xs text-slate-500">
-                    <summary className="cursor-pointer">details</summary>
+                    <summary className="cursor-pointer">{t('strategy.details')}</summary>
                     <pre className="mt-1 bg-slate-50 rounded p-2 overflow-x-auto text-[10px]">{JSON.stringify(h.payload, null, 2)}</pre>
                   </details>
                 )}
@@ -3849,9 +3849,9 @@ function SettingsTab({ settings, connected }: any) {
         whatsapp_enabled: whatsappEnabled,
       });
       const channels = res?.active_channels ?? [];
-      setAlertMsg(channels.length ? `Active on: ${channels.join(', ')}` : 'Saved. No channels enabled yet.');
+      setAlertMsg(channels.length ? t('settings.activeOn', { channels: channels.join(', ') }) : 'Saved. No channels enabled yet.');
     } catch {
-      setAlertMsg('Save failed.');
+      setAlertMsg(t('settings.saveFailed'));
     } finally {
       setAlertSaving(false);
     }
@@ -3859,16 +3859,16 @@ function SettingsTab({ settings, connected }: any) {
 
   async function handleTestAlert() {
     if (!emailEnabled && !whatsappEnabled) {
-      setAlertMsg('Enable at least one channel before sending a test.');
+      setAlertMsg(t('settings.testEnableFirst'));
       return;
     }
     setTestSending(true);
     setAlertMsg('');
     try {
       await sendTestAlert();
-      setAlertMsg('Test alert sent!');
+      setAlertMsg(t('settings.testSent'));
     } catch {
-      setAlertMsg('Failed to send test alert.');
+      setAlertMsg(t('settings.testFailed'));
     } finally {
       setTestSending(false);
     }
@@ -3878,9 +3878,9 @@ function SettingsTab({ settings, connected }: any) {
     setOptSaving(true); setOptMsg('');
     try {
       await saveOptimizationSettings({ risk_level: riskLevel });
-      setOptMsg(riskLevel === 'conservative' ? 'Manual mode saved — changes need your approval.' : `Auto mode saved (${riskLevel}).`);
+      setOptMsg(riskLevel === 'conservative' ? t('settings.manualModeSaved') : t('settings.autoModeSaved', { level: riskLevel }));
     } catch {
-      setOptMsg('Save failed.');
+      setOptMsg(t('settings.saveFailed'));
     } finally {
       setOptSaving(false);
     }
@@ -3893,9 +3893,9 @@ function SettingsTab({ settings, connected }: any) {
       setOptResult(res);
       const h = await getOptimizationHistory();
       setOptHistory(h?.entries ?? []);
-      setOptMsg(`Done — ${res?.actionsApplied ?? 0} action(s) applied, ${res?.approvalsPending ?? 0} pending approval.`);
+      setOptMsg(t('settings.runDone', { actions: res?.actionsApplied ?? 0, pending: res?.approvalsPending ?? 0 }));
     } catch {
-      setOptMsg('Run failed.');
+      setOptMsg(t('settings.runFailed'));
     } finally {
       setOptRunning(false);
     }
@@ -3917,21 +3917,21 @@ function SettingsTab({ settings, connected }: any) {
 
   const RISK_OPTIONS = [
     {
-      value: 'conservative',
-      label: 'Manual — I approve every change',
-      desc: 'Vigmis sends you a decision protocol for each change. Campaign runs unchanged until you approve. Recommended only if you check the dashboard daily.',
+      value: 'conservative' as const,
+      label: t('settings.optionManual'),
+      desc: t('settings.optionManualDesc'),
     },
     {
-      value: 'moderate',
-      label: 'Auto (Recommended)',
-      desc: 'Vigmis applies safe, data-driven optimizations automatically. Every action is documented and you can review the full log anytime.',
+      value: 'moderate' as const,
+      label: t('settings.optionAuto'),
+      desc: t('settings.optionAutoDesc'),
     },
     {
-      value: 'aggressive',
-      label: 'Auto (Aggressive)',
-      desc: 'Vigmis moves faster — larger budget swings, quicker scaling decisions. Higher upside potential with higher variance.',
+      value: 'aggressive' as const,
+      label: t('settings.optionAggressive'),
+      desc: t('settings.optionAggressiveDesc'),
     },
-  ] as const;
+  ];
 
   const ACTION_LABELS: Record<string, string> = {
     pause: 'Paused campaign',
@@ -3945,15 +3945,15 @@ function SettingsTab({ settings, connected }: any) {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <h2 className="font-bold text-slate-900 text-lg">Campaign Settings</h2>
+      <h2 className="font-bold text-slate-900 text-lg">{t('settings.title')}</h2>
       {settings && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           {[
-            { label: 'Website', value: settings.website_url ?? '—' },
-            { label: 'Monthly Budget', value: `₪${settings.budget_monthly_ils?.toLocaleString()}` },
-            { label: 'Managed %', value: `${settings.management_percentage ?? 100}%` },
-            { label: 'Goal', value: settings.goal, capitalize: true },
-            { label: 'Targeting', value: (settings.geo_include ?? []).join(', ') || '—' },
+            { label: t('settings.websiteLabel'), value: settings.website_url ?? '—' },
+            { label: t('settings.monthlyBudget'), value: `₪${settings.budget_monthly_ils?.toLocaleString()}` },
+            { label: t('settings.managedPct'), value: `${settings.management_percentage ?? 100}%` },
+            { label: t('settings.goalLabel'), value: settings.goal, capitalize: true },
+            { label: t('settings.targetingLabel'), value: (settings.geo_include ?? []).join(', ') || '—' },
           ].map(item => (
             <div key={item.label} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
               <span className="text-sm text-slate-500 font-medium">{item.label}</span>
@@ -3961,14 +3961,14 @@ function SettingsTab({ settings, connected }: any) {
             </div>
           ))}
           <div className="pt-3 flex gap-2 border-t border-slate-100">
-            <a href="/onboarding" className="flex-1 text-center text-sm text-indigo-600 hover:text-indigo-700 font-semibold">Edit Settings →</a>
-            <a href="/onboarding?rethink=true" className="flex-1 text-center text-sm text-amber-600 hover:text-amber-700 font-semibold">Rethink Strategy →</a>
+            <a href="/onboarding" className="flex-1 text-center text-sm text-indigo-600 hover:text-indigo-700 font-semibold">{t('settings.editSettings')}</a>
+            <a href="/onboarding?rethink=true" className="flex-1 text-center text-sm text-amber-600 hover:text-amber-700 font-semibold">{t('settings.rethinkStrategy')}</a>
           </div>
         </div>
       )}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h3 className="font-bold text-slate-900 mb-4">Connected Platforms</h3>
+        <h3 className="font-bold text-slate-900 mb-4">{t('settings.connectedPlatforms')}</h3>
         <div className="space-y-3">
           {[
             { name: 'Google Ads', platform: 'google', connected: connected.google },
@@ -3978,10 +3978,10 @@ function SettingsTab({ settings, connected }: any) {
             <div key={p.platform} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
               <span className="text-sm font-semibold text-slate-800">{p.name}</span>
               {p.soon
-                ? <span className="text-xs bg-slate-100 text-slate-400 px-2.5 py-1 rounded-full font-semibold">Coming Soon</span>
+                ? <span className="text-xs bg-slate-100 text-slate-400 px-2.5 py-1 rounded-full font-semibold">{t('settings.comingSoon')}</span>
                 : p.connected
-                ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Connected ✓</span>
-                : <a href="/onboarding" className="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-semibold hover:bg-indigo-100 transition-colors">Connect →</a>
+                ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">{t('settings.connectedCheck')}</span>
+                : <a href="/onboarding" className="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-semibold hover:bg-indigo-100 transition-colors">{t('settings.connectArrow')}</a>
               }
             </div>
           ))}
@@ -3992,15 +3992,15 @@ function SettingsTab({ settings, connected }: any) {
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-slate-900">Optimization Mode</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Control how the AI manages your campaigns</p>
+            <h3 className="font-bold text-slate-900">{t('settings.optimizationMode')}</h3>
+            <p className="text-sm text-slate-500 mt-0.5">{t('settings.optimizationSubtitle')}</p>
           </div>
           <button
             onClick={handleRunNow}
             disabled={optRunning}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
           >
-            {optRunning ? 'Running...' : 'Run Now'}
+            {optRunning ? t('settings.running') : t('settings.runNow')}
           </button>
         </div>
 
@@ -4021,14 +4021,14 @@ function SettingsTab({ settings, connected }: any) {
 
         {riskLevel === 'conservative' && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 space-y-1.5">
-            <p className="font-semibold text-sm">Important: manual mode has a cost</p>
-            <p>When Vigmis detects a needed change (e.g. a campaign is burning budget with low results), it will create a pending protocol and wait for your approval. <strong>Until you approve, the campaign continues at current settings.</strong></p>
-            <p>This works well if you log in daily. If you're less available, Auto mode gives better results — every action is still logged and you can see the full audit trail at any time.</p>
+            <p className="font-semibold text-sm">{t('settings.manualModeWarning')}</p>
+            <p>{t('settings.manualModeBody')}</p>
+            <p>{t('settings.manualModeNote')}</p>
           </div>
         )}
 
         <button onClick={handleSaveOptimization} disabled={optSaving || optLoading} className="bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors">
-          {optSaving ? 'Saving...' : 'Save Mode'}
+          {optSaving ? t('settings.saving') : t('settings.saveMode')}
         </button>
 
         {optMsg && <p className={`text-sm font-medium ${optMsg.includes('failed') ? 'text-red-600' : 'text-indigo-600'}`}>{optMsg}</p>}
@@ -4036,7 +4036,7 @@ function SettingsTab({ settings, connected }: any) {
         {/* Optimization history */}
         {optHistory.length > 0 && (
           <div className="pt-2 border-t border-slate-100 space-y-2">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Recent Optimization Actions</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('settings.recentOptActions')}</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {optHistory.map((entry: any) => (
                 <div key={entry.id} className="flex items-center gap-3 py-1.5 text-sm border-b border-slate-50 last:border-0">
@@ -4061,11 +4061,11 @@ function SettingsTab({ settings, connected }: any) {
 
         {optResult && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm space-y-1">
-            <p className="font-semibold text-slate-800">Last run results</p>
-            <p className="text-slate-600">{optResult.campaignsEvaluated} campaigns evaluated</p>
-            <p className="text-slate-600">{optResult.actionsApplied} actions applied</p>
-            {optResult.approvalsPending > 0 && <p className="text-amber-600">{optResult.approvalsPending} pending your approval</p>}
-            {optResult.errors?.length > 0 && <p className="text-red-600">{optResult.errors.length} errors</p>}
+            <p className="font-semibold text-slate-800">{t('settings.lastRunResults')}</p>
+            <p className="text-slate-600">{t('settings.campaignsEvaluated', { count: optResult.campaignsEvaluated })}</p>
+            <p className="text-slate-600">{t('settings.actionsApplied', { count: optResult.actionsApplied })}</p>
+            {optResult.approvalsPending > 0 && <p className="text-amber-600">{t('settings.approvalsPending', { count: optResult.approvalsPending })}</p>}
+            {optResult.errors?.length > 0 && <p className="text-red-600">{t('settings.errorsCount', { count: optResult.errors.length })}</p>}
           </div>
         )}
       </div>
@@ -4075,7 +4075,7 @@ function SettingsTab({ settings, connected }: any) {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-            <h3 className="font-bold text-amber-900">{approvals.length} Pending Approval{approvals.length > 1 ? 's' : ''}</h3>
+            <h3 className="font-bold text-amber-900">{approvals.length > 1 ? t('settings.pendingApprovalsPlural', { count: approvals.length }) : t('settings.pendingApprovals', { count: approvals.length })}</h3>
           </div>
           <div className="space-y-3">
             {approvals.map((req: any) => (
@@ -4094,16 +4094,16 @@ function SettingsTab({ settings, connected }: any) {
                       onClick={() => handleReject(req.id)}
                       disabled={approvalsLoading}
                       className="text-xs border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
-                    >Reject</button>
+                    >{t('settings.rejectBtn')}</button>
                     <button
                       onClick={() => handleApprove(req.id)}
                       disabled={approvalsLoading}
                       className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
-                    >Approve</button>
+                    >{t('settings.approveBtn')}</button>
                   </div>
                 </div>
                 {req.reason && <p dir="auto" className="text-xs text-slate-500">{req.reason}</p>}
-                {req.factor && <p className="text-xs text-slate-400">Budget factor: ×{req.factor}</p>}
+                {req.factor && <p className="text-xs text-slate-400">{t('settings.budgetFactor', { factor: req.factor })}</p>}
               </div>
             ))}
           </div>
@@ -4111,15 +4111,15 @@ function SettingsTab({ settings, connected }: any) {
       )}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h3 className="font-bold text-slate-900 mb-1">Alert Channels</h3>
-        <p className="text-sm text-slate-500 mb-5">Get notified via email or WhatsApp when campaigns need attention</p>
+        <h3 className="font-bold text-slate-900 mb-1">{t('settings.alertChannels')}</h3>
+        <p className="text-sm text-slate-500 mb-5">{t('settings.alertChannelsSubtitle')}</p>
         {alertLoading ? (
           <p className="text-sm text-slate-400">{t('status.loading')}</p>
         ) : (
           <div className="space-y-5">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-slate-700">Email alerts</label>
+                <label className="text-sm font-semibold text-slate-700">{t('settings.emailAlerts')}</label>
                 <button
                   onClick={() => setEmailEnabled(v => !v)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
@@ -4138,7 +4138,7 @@ function SettingsTab({ settings, connected }: any) {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-slate-700">WhatsApp alerts</label>
+                <label className="text-sm font-semibold text-slate-700">{t('settings.whatsappAlerts')}</label>
                 <button
                   onClick={() => setWhatsappEnabled(v => !v)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${whatsappEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
@@ -4154,7 +4154,7 @@ function SettingsTab({ settings, connected }: any) {
                 className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'border-red-300 focus:ring-red-300' : 'border-slate-200 focus:ring-indigo-400'}`}
               />
               <p className={`text-xs ${alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'text-red-500' : 'text-slate-400'}`}>
-                {alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? 'Must start with + and country code (e.g. +972501234567)' : 'Include country code (e.g. +972 for Israel)'}
+                {alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp) ? t('settings.whatsappError') : t('settings.whatsappHint')}
               </p>
             </div>
 
@@ -4164,14 +4164,14 @@ function SettingsTab({ settings, connected }: any) {
                 disabled={alertSaving || (whatsappEnabled && !!alertWhatsApp && !/^\+\d{7,15}$/.test(alertWhatsApp))}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
               >
-                {alertSaving ? 'Saving...' : 'Save Settings'}
+                {alertSaving ? t('settings.saving') : t('settings.saveSettings')}
               </button>
               <button
                 onClick={handleTestAlert}
                 disabled={testSending}
                 className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold px-5 py-2 rounded-xl text-sm transition-colors"
               >
-                {testSending ? 'Sending...' : 'Send Test Alert'}
+                {testSending ? t('settings.sending') : t('settings.sendTestAlert')}
               </button>
             </div>
 
@@ -4187,15 +4187,15 @@ function SettingsTab({ settings, connected }: any) {
 
       {/* Danger Zone */}
       <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm">
-        <h2 className="font-bold text-red-700 text-lg mb-1">Danger Zone</h2>
-        <p className="text-xs text-slate-500 mb-5">These actions are irreversible. Please read carefully before proceeding.</p>
+        <h2 className="font-bold text-red-700 text-lg mb-1">{t('settings.dangerZone')}</h2>
+        <p className="text-xs text-slate-500 mb-5">{t('settings.dangerZoneSubtitle')}</p>
 
         <div className="space-y-4">
           {/* Export */}
           <div className="flex items-center justify-between gap-4 py-3 border-b border-slate-100">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Export my data</p>
-              <p className="text-xs text-slate-500">Download all your campaign data, settings, and history as JSON.</p>
+              <p className="text-sm font-semibold text-slate-800">{t('settings.exportData')}</p>
+              <p className="text-xs text-slate-500">{t('settings.exportDataDesc')}</p>
             </div>
             <button
               disabled={exporting}
@@ -4215,35 +4215,35 @@ function SettingsTab({ settings, connected }: any) {
               }}
               className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 transition-colors disabled:opacity-50"
             >
-              {exporting ? 'Exporting...' : 'Export Data'}
+              {exporting ? t('settings.exporting') : t('settings.exportBtn')}
             </button>
           </div>
 
             {/* Cancel subscription */}
           <div className="flex items-center justify-between gap-4 py-3 border-b border-slate-100">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Cancel subscription</p>
-              <p className="text-xs text-slate-500">Manage or cancel your billing plan. Your account and data stay intact.</p>
+              <p className="text-sm font-semibold text-slate-800">{t('settings.cancelSubscription')}</p>
+              <p className="text-xs text-slate-500">{t('settings.cancelSubscriptionDesc')}</p>
             </div>
             <a
               href="/billing"
               className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 transition-colors"
             >
-              Manage Billing
+              {t('settings.manageBilling')}
             </a>
           </div>
 
           {/* Delete */}
           <div className="flex items-start justify-between gap-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-red-700">Delete my account</p>
-              <p className="text-xs text-slate-500">All campaigns are paused and your account is permanently deleted immediately. This cannot be undone.</p>
+              <p className="text-sm font-semibold text-red-700">{t('settings.deleteAccount')}</p>
+              <p className="text-xs text-slate-500">{t('settings.deleteAccountDesc')}</p>
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
             >
-              Delete Account
+              {t('settings.deleteAccountBtn')}
             </button>
           </div>
         </div>
@@ -4252,9 +4252,9 @@ function SettingsTab({ settings, connected }: any) {
         {showDeleteConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h3 id="delete-account-title" className="font-bold text-slate-900 text-lg mb-2">Delete your account?</h3>
+              <h3 id="delete-account-title" className="font-bold text-slate-900 text-lg mb-2">{t('settings.deleteModalTitle')}</h3>
               <p className="text-sm text-slate-600 mb-3">
-                All campaigns will be paused immediately. Your account data will be permanently and irreversibly deleted. This action <strong>cannot be undone</strong>.
+                {t('settings.deleteModalBody')}
               </p>
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-4 flex items-start gap-2">
                 <span className="text-amber-500 font-bold text-sm mt-0.5">↓</span>
@@ -4262,7 +4262,7 @@ function SettingsTab({ settings, connected }: any) {
                   Consider <button onClick={async () => { setExporting(true); try { const { url, token } = await getExportUrl(); const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } }); const blob = await res.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vigmis-export-${new Date().toISOString().slice(0, 10)}.json`; a.click(); } finally { setExporting(false); } }} className="font-semibold underline underline-offset-2 cursor-pointer">{exporting ? 'downloading...' : 'downloading your data'}</button> before deleting — campaigns, settings, and history as JSON.
                 </p>
               </div>
-              <p className="text-xs text-slate-500 mb-2">Type <strong>DELETE</strong> to confirm:</p>
+              <p className="text-xs text-slate-500 mb-2">{t('settings.deleteConfirmPrompt')}</p>
               <input
                 type="text"
                 value={deleteConfirmText}
@@ -4275,7 +4275,7 @@ function SettingsTab({ settings, connected }: any) {
                   onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
                   className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
                 >
-                  Cancel
+                  {t('settings.deleteCancel')}
                 </button>
                 <button
                   disabled={deleteConfirmText !== 'DELETE' || deleting}
@@ -4290,7 +4290,7 @@ function SettingsTab({ settings, connected }: any) {
                   }}
                   className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                 >
-                  {deleting ? 'Processing...' : 'Yes, delete my account'}
+                  {deleting ? t('settings.deleteProcessing') : t('settings.deleteConfirmBtn')}
                 </button>
               </div>
             </div>
@@ -4729,8 +4729,8 @@ function HistoryTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Account History</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Monthly snapshots of your account — performance, AI visibility, and all actions Vigmis took</p>
+          <h2 className="text-xl font-bold text-slate-900">{t('history.title')}</h2>
+          <p className="text-sm text-slate-500 mt-0.5">{t('history.subtitle')}</p>
         </div>
       </div>
 
@@ -4764,7 +4764,7 @@ function HistoryTab() {
                   {/* GEO score */}
                   {geo && (
                     <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-slate-400 font-medium">AI Score</p>
+                      <p className="text-xs text-slate-400 font-medium">{t('history.aiScore')}</p>
                       <p className={`text-lg font-black ${(geo.score ?? 0) >= 80 ? 'text-emerald-600' : (geo.score ?? 0) >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
                         {geo.grade ?? 'N/A'}
                       </p>
@@ -4778,24 +4778,24 @@ function HistoryTab() {
                   {/* Campaigns */}
                   {month.active_campaigns !== undefined && (
                     <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-slate-400 font-medium">Campaigns</p>
+                      <p className="text-xs text-slate-400 font-medium">{t('history.campaigns')}</p>
                       <p className="text-lg font-black text-slate-800">{month.active_campaigns}</p>
-                      <p className="text-xs text-slate-400">active</p>
+                      <p className="text-xs text-slate-400">{t('history.active')}</p>
                     </div>
                   )}
                   {/* Optimizations */}
                   {month.optimizations_count !== undefined && (
                     <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                      <p className="text-xs text-slate-400 font-medium">AI Actions</p>
+                      <p className="text-xs text-slate-400 font-medium">{t('history.aiActions')}</p>
                       <p className="text-lg font-black text-indigo-600">{(month.optimizations_count ?? 0) + (month.budget_changes_count ?? 0)}</p>
-                      <p className="text-xs text-slate-400">total</p>
+                      <p className="text-xs text-slate-400">{t('history.total')}</p>
                     </div>
                   )}
                   {/* Events count */}
                   <div className="bg-slate-50 rounded-xl p-2.5 text-center">
-                    <p className="text-xs text-slate-400 font-medium">Events</p>
+                    <p className="text-xs text-slate-400 font-medium">{t('history.events')}</p>
                     <p className="text-lg font-black text-slate-800">{(month.highlights ?? []).length}</p>
-                    <p className="text-xs text-slate-400">logged</p>
+                    <p className="text-xs text-slate-400">{t('history.logged')}</p>
                   </div>
                 </div>
 
@@ -4810,7 +4810,7 @@ function HistoryTab() {
                   {/* Action groups summary */}
                   {Object.keys(actionGroups).length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Actions by type</p>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t('history.actionsByType')}</p>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(actionGroups).map(([key, count]) => (
                           <span key={key} className="text-xs font-semibold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full">
@@ -4823,7 +4823,7 @@ function HistoryTab() {
                   {/* Last 8 highlights */}
                   {highlights.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Recent events</p>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t('history.recentEvents')}</p>
                       <div className="space-y-1.5">
                         {highlights.map((h: any, i: number) => (
                           <div key={i} className="flex items-center gap-3 text-sm">
@@ -4838,7 +4838,7 @@ function HistoryTab() {
                   {/* Market notes if present */}
                   {month.market_notes && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">Market notes</p>
+                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-1">{t('history.marketNotes')}</p>
                       <p dir="auto" className="text-sm text-amber-800">{month.market_notes}</p>
                     </div>
                   )}
@@ -4856,6 +4856,7 @@ function HistoryTab() {
 // Sits under each row in the posts list so the client can fix typos, push a
 // date, or remove a draft without leaving the page.
 function PostActions({ post, onChange }: { post: any; onChange: () => Promise<void> | void }) {
+  const t = useTranslations('dashboard');
   const [mode, setMode] = useState<'idle' | 'edit' | 'reschedule' | 'delete' | 'image'>('idle');
   const [text, setText] = useState(post.client_edit || post.content || '');
   const [when, setWhen] = useState(post.scheduled_for ? new Date(post.scheduled_for).toISOString().slice(0, 16) : '');
@@ -4880,11 +4881,11 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
     return (
       <div className="flex gap-2 mt-3">
         <button
-          onClick={() => { if (confirm('Remove this post from Vigmis? (it stays live on Facebook/Instagram unless you delete it there too)')) doDelete(); }}
+          onClick={() => { if (confirm(t('social.postActionsRemoveConfirm'))) doDelete(); }}
           disabled={busy}
           className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded"
         >
-          Remove from Vigmis
+          {t('social.postActionsRemove')}
         </button>
       </div>
     );
@@ -4894,15 +4895,15 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
     <div className="mt-3">
       {mode === 'idle' && (
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setMode('edit')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">Edit text</button>
-          <button onClick={() => setMode('image')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">{post.image_url ? 'Change image' : 'Add image'}</button>
-          <button onClick={() => setMode('reschedule')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">Reschedule</button>
+          <button onClick={() => setMode('edit')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">{t('social.postActionsEditText')}</button>
+          <button onClick={() => setMode('image')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">{post.image_url ? t('social.postActionsChangeImage') : t('social.postActionsAddImage')}</button>
+          <button onClick={() => setMode('reschedule')} className="text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-slate-700">{t('social.postActionsReschedule')}</button>
           <button
-            onClick={() => { if (confirm('Delete this post permanently?')) doDelete(); }}
+            onClick={() => { if (confirm(t('social.postActionsDeleteConfirm'))) doDelete(); }}
             disabled={busy}
             className="text-xs border border-red-200 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg"
           >
-            Delete
+            {t('social.postActionsDelete')}
           </button>
         </div>
       )}
@@ -4917,8 +4918,8 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
             className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
           />
           <div className="flex gap-2">
-            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
-            <button onClick={() => save({ content: text })} disabled={busy || !text.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">Save text</button>
+            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">{t('social.postActionsCancelBtn')}</button>
+            <button onClick={() => save({ content: text })} disabled={busy || !text.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">{t('social.postActionsSaveText')}</button>
           </div>
         </div>
       )}
@@ -4929,16 +4930,16 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
             type="url"
             value={img}
             onChange={e => setImg(e.target.value)}
-            placeholder="https://..."
+            placeholder={t('social.postActionsImagePlaceholder')}
             className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2"
           />
-          <p className="text-xs text-slate-400">Paste a public image URL. Image upload is coming — for now use a URL from your site or any image host.</p>
+          <p className="text-xs text-slate-400">{t('social.postActionsImageNote')}</p>
           <div className="flex gap-2">
-            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
+            <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">{t('social.postActionsCancelBtn')}</button>
             {post.image_url && (
-              <button onClick={() => save({ image_url: null })} disabled={busy} className="text-xs border border-red-200 text-red-600 px-3 py-1.5 rounded-lg">Remove image</button>
+              <button onClick={() => save({ image_url: null })} disabled={busy} className="text-xs border border-red-200 text-red-600 px-3 py-1.5 rounded-lg">{t('social.postActionsRemoveImage')}</button>
             )}
-            <button onClick={() => save({ image_url: img })} disabled={busy || !img.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">Save image</button>
+            <button onClick={() => save({ image_url: img })} disabled={busy || !img.trim()} className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg">{t('social.postActionsSaveImage')}</button>
           </div>
         </div>
       )}
@@ -4951,13 +4952,13 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
             onChange={e => setWhen(e.target.value)}
             className="text-sm border border-slate-200 rounded-xl px-3 py-1.5"
           />
-          <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">Cancel</button>
+          <button onClick={() => setMode('idle')} className="text-xs border border-slate-200 px-3 py-1.5 rounded-lg">{t('social.postActionsCancelBtn')}</button>
           <button
             onClick={() => save({ scheduled_for: new Date(when).toISOString() })}
             disabled={busy || !when}
             className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg"
           >
-            Save new time
+            {t('social.postActionsSaveTime')}
           </button>
         </div>
       )}
@@ -5365,9 +5366,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
           </svg>
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Enable Social Media</h2>
+        <h2 className="text-xl font-bold text-slate-900">{t('social.enableTitle')}</h2>
         <p className="text-sm text-slate-500 leading-relaxed">
-          Vigmis will create weekly content for your Facebook Page and Instagram. You approve before anything is published.
+          {t('social.enableBody')}
         </p>
         <button
           onClick={async () => {
@@ -5384,9 +5385,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
           }}
           className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm"
         >
-          Enable Social Media Management
+          {t('social.enableBtn')}
         </button>
-        <p className="text-xs text-slate-400">Requires Meta connection. You can disable it later in settings.</p>
+        <p className="text-xs text-slate-400">{t('social.enableNote')}</p>
       </div>
     );
   }
@@ -5403,9 +5404,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Social Media</h2>
+          <h2 className="text-xl font-bold text-slate-900">{t('social.title')}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {settings.approval_mode === 'auto' ? 'Auto-publish mode' : settings.approval_mode === 'strict' ? 'Manual approval required' : '24h review window'} ·{' '}
+            {settings.approval_mode === 'auto' ? t('social.approvalModeAuto') : settings.approval_mode === 'strict' ? t('social.approvalModeStrict') : t('social.approvalModeReview')} ·{' '}
             {(settings.platforms as any[]).filter(p => p.enabled !== false).map((p: any) => p.platform).join(', ')}
           </p>
         </div>
@@ -5420,9 +5421,9 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
           >
             {generating ? (
-              <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />Generating...</>
+              <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />{t('social.generatePosts')}</>
             ) : (
-              <>+ Generate this week's posts</>
+              <>{t('social.generateBtn')}</>
             )}
           </button>
         </div>
@@ -5432,14 +5433,14 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {lastGenerateSkipped > 0 && (
         <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
           <span className="text-amber-800 font-medium">
-            {lastGenerateSkipped} platform{lastGenerateSkipped > 1 ? 's' : ''} skipped — already scheduled this week.
+            {lastGenerateSkipped > 1 ? t('social.skippedBannerPlural', { count: lastGenerateSkipped }) : t('social.skippedBanner', { count: lastGenerateSkipped })}
           </span>
           <button
             onClick={() => runGenerateSocialContent(socialBriefData, true)}
             disabled={generating}
             className="shrink-0 text-amber-700 font-semibold underline underline-offset-2 hover:text-amber-900 disabled:opacity-50 transition-colors"
           >
-            Generate anyway →
+            {t('social.generateAnyway')}
           </button>
         </div>
       )}
@@ -5450,19 +5451,19 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
           onClick={() => setActiveSection('posts')}
           className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'posts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          Posts {pendingPosts.length > 0 && <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pendingPosts.length}</span>}
+          {t('social.postsTab')} {pendingPosts.length > 0 && <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pendingPosts.length}</span>}
         </button>
         <button
           onClick={() => setActiveSection('comments')}
           className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'comments' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          Comments {comments.length > 0 && <span className="ml-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{comments.length}</span>}
+          {t('social.commentsTab')} {comments.length > 0 && <span className="ml-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full">{comments.length}</span>}
         </button>
         <button
           onClick={() => setActiveSection('connect')}
           className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeSection === 'connect' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
         >
-          Connect {(!settings?.facebook_page_id && !settings?.instagram_user_id) && <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">!</span>}
+          {t('social.connectTab')} {(!settings?.facebook_page_id && !settings?.instagram_user_id) && <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">!</span>}
         </button>
       </div>
 
@@ -5477,7 +5478,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>
-            Publishing to Facebook &amp; Instagram. Connect Google Ads to manage paid campaigns too.
+            {t('social.fbIgOnly')}
           </span>
         </div>
       )}
@@ -5486,8 +5487,8 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {coolingOffPosts.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-amber-700 font-bold">⏳ Cooling-off in progress</span>
-            <span className="text-xs text-amber-600">High-stakes content auto-publishes after 1 hour. Cancel here if you change your mind.</span>
+            <span className="text-amber-700 font-bold">{t('social.coolingOffTitle')}</span>
+            <span className="text-xs text-amber-600">{t('social.coolingOffNote')}</span>
           </div>
           {coolingOffPosts.map(p => {
             const remainingMs = p.cooling_off_until ? new Date(p.cooling_off_until).getTime() - Date.now() : 0;
@@ -5495,7 +5496,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
             return (
               <div key={p.id} className="bg-white rounded-xl p-3 flex items-start gap-3 border border-amber-100">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-slate-400 mb-0.5"><span className="capitalize">{p.platform}</span> · publishes in {minsLeft} min</p>
+                  <p className="text-xs text-slate-400 mb-0.5"><span className="capitalize">{p.platform}</span> · {t('social.publishesIn', { mins: minsLeft })}</p>
                   <p className="text-sm text-slate-700 truncate"><bdi>{p.client_edit || p.content}</bdi></p>
                   {Array.isArray(p.cooling_off_labels) && p.cooling_off_labels.length > 0 && (
                     <div className="flex gap-1 mt-1 flex-wrap">
@@ -5509,7 +5510,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   onClick={() => handleCancelCoolingOff(p.id)}
                   className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-semibold px-3 py-1.5 rounded-lg"
                 >
-                  Cancel publish
+                  {t('social.cancelPublish')}
                 </button>
               </div>
             );
@@ -5521,15 +5522,15 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {analytics?.summary && (
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-slate-400 font-medium mb-1">Published</p>
+            <p className="text-xs text-slate-400 font-medium mb-1">{t('social.published')}</p>
             <p className="text-2xl font-bold text-slate-900">{analytics.summary.totalPublished}</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-slate-400 font-medium mb-1">Total Reach</p>
+            <p className="text-xs text-slate-400 font-medium mb-1">{t('social.totalReach')}</p>
             <p className="text-2xl font-bold text-violet-600">{analytics.summary.totalReach.toLocaleString()}</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <p className="text-xs text-slate-400 font-medium mb-1">Spend This Month</p>
+            <p className="text-xs text-slate-400 font-medium mb-1">{t('social.spendThisMonth')}</p>
             <p className="text-2xl font-bold text-slate-900">${analytics.summary.totalSpendUsd.toFixed(2)}</p>
           </div>
         </div>
@@ -5540,18 +5541,18 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
         <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
           <div className="px-5 py-3.5 border-b border-red-200 flex items-center justify-between">
             <p className="text-sm font-bold text-red-800">
-              {brokenPosts.length} post{brokenPosts.length !== 1 ? 's' : ''} failed to generate
+              {brokenPosts.length !== 1 ? t('social.failedGenTitlePlural', { count: brokenPosts.length }) : t('social.failedGenTitle', { count: brokenPosts.length })}
             </p>
             <button
               onClick={async () => { await Promise.all(brokenPosts.map(p => deleteSocialPost(p.id))); await load(); }}
               className="text-xs text-red-600 font-semibold hover:text-red-800"
             >
-              Delete all
+              {t('social.deleteAll')}
             </button>
           </div>
           <div className="px-5 py-3 text-sm text-red-700 space-y-1">
-            <p>Vigmis could not find enough information about your business to generate posts.</p>
-            <p className="text-xs text-red-500">Delete these and click "Generate this week's posts" again after making sure your website has product/service details.</p>
+            <p>{t('social.failedGenBody')}</p>
+            <p className="text-xs text-red-500">{t('social.failedGenNote')}</p>
           </div>
         </div>
       )}
@@ -5560,7 +5561,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {pendingPosts.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
           <div className="px-5 py-3.5 border-b border-amber-200">
-            <p className="text-sm font-bold text-amber-800">{pendingPosts.length} post{pendingPosts.length !== 1 ? 's' : ''} awaiting your approval</p>
+            <p className="text-sm font-bold text-amber-800">{pendingPosts.length !== 1 ? t('social.awaitingApprovalPlural', { count: pendingPosts.length }) : t('social.awaitingApproval', { count: pendingPosts.length })}</p>
           </div>
           <div className="divide-y divide-amber-100">
             {pendingPosts.map(post => (
@@ -5587,8 +5588,8 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                           <svg className="w-4 h-4 text-slate-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 leading-none">Your Business</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{post.platform} · Scheduled</p>
+                          <p className="text-xs font-bold text-slate-800 leading-none">{t('social.yourBusiness')}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{post.platform} · {t('social.scheduledLabel')}</p>
                         </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[post.platform] ?? 'bg-slate-100 text-slate-500'}`}>{post.platform}</span>
                       </div>
@@ -5610,7 +5611,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         </div>
                       ) : (
                         <div className="mx-3 mb-3 border-2 border-dashed border-slate-200 rounded-lg h-24 flex items-center justify-center">
-                          <button onClick={() => openMediaPicker(post.id)} className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">+ Add image</button>
+                          <button onClick={() => openMediaPicker(post.id)} className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">{t('social.addImage')}</button>
                         </div>
                       )}
                     </div>
@@ -5621,7 +5622,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                 {mediaPickerPost === post.id && (
                   <div className="border-2 border-indigo-200 bg-indigo-50 rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-indigo-700">Attach image to post</p>
+                      <p className="text-xs font-bold text-indigo-700">{t('social.attachImage')}</p>
                       <button onClick={() => setMediaPickerPost(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none">×</button>
                     </div>
                     <div className="flex gap-2 flex-wrap">
@@ -5633,18 +5634,18 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                         {generatingImage ? (
                           <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating...</>
                         ) : (
-                          <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>Generate with AI</>
+                          <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{t('social.generateWithAi')}</>
                         )}
                       </button>
                       <label className="flex items-center gap-1.5 border border-indigo-300 bg-white text-indigo-700 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors flex-shrink-0">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        {uploadingMedia ? 'Uploading...' : 'Upload from computer'}
+                        {uploadingMedia ? t('social.uploading') : t('social.uploadComputer')}
                         <input type="file" accept="image/*" className="hidden" disabled={uploadingMedia} onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadForPost(post.id, f); }} />
                       </label>
                     </div>
                     {brandAssets && brandAssets.length > 0 && (
                       <div>
-                        <p className="text-xs text-slate-500 mb-2">Or pick from your brand library:</p>
+                        <p className="text-xs text-slate-500 mb-2">{t('social.pickFromLibrary')}</p>
                         <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
                           {brandAssets.map((a: any) => (
                             <button key={a.id} onClick={() => handleSetPostImage(post.id, a.public_url)} className="aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-indigo-400 transition-colors">
@@ -5677,12 +5678,12 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                     <input
                       value={rejectReason}
                       onChange={e => setRejectReason(e.target.value)}
-                      placeholder="Reason for rejection (optional)"
+                      placeholder={t('social.reasonPlaceholder')}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <div className="flex gap-2">
-                      <button onClick={() => { setRejectingPost(null); setRejectReason(''); }} className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
-                      <button onClick={() => handleReject(post.id)} className="flex-1 bg-red-500 text-white text-sm font-semibold py-2 rounded-xl hover:bg-red-600 transition-colors">Confirm Reject</button>
+                      <button onClick={() => { setRejectingPost(null); setRejectReason(''); }} className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors">{t('social.cancelReject')}</button>
+                      <button onClick={() => handleReject(post.id)} className="flex-1 bg-red-500 text-white text-sm font-semibold py-2 rounded-xl hover:bg-red-600 transition-colors">{t('social.confirmReject')}</button>
                     </div>
                   </div>
                 ) : (
@@ -5691,36 +5692,36 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       onClick={() => setEditPost(editPost?.id === post.id ? null : { id: post.id, content: post.content })}
                       className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                     >
-                      {editPost?.id === post.id ? 'Cancel edit' : 'Edit text'}
+                      {editPost?.id === post.id ? t('social.cancelEdit') : t('social.editText')}
                     </button>
                     <button
                       onClick={() => mediaPickerPost === post.id ? setMediaPickerPost(null) : openMediaPicker(post.id)}
                       className="border border-slate-200 text-slate-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                      {mediaPickerPost === post.id ? 'Close' : 'Image'}
+                      {mediaPickerPost === post.id ? t('social.closeBtn') : t('social.imageBtn')}
                     </button>
-                    <button onClick={() => setRejectingPost(post.id)} className="border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">Reject</button>
+                    <button onClick={() => setRejectingPost(post.id)} className="border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">{t('social.rejectBtn')}</button>
                     <button
                       onClick={() => handleApprove(post.id, 'now')}
                       disabled={generatingPost === post.id}
                       className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
                     >
-                      {generatingPost === post.id ? 'Publishing...' : 'Publish now'}
+                      {generatingPost === post.id ? t('social.publishing') : t('social.publishNow')}
                     </button>
                     <button
                       onClick={() => setScheduleFor(scheduleFor?.id === post.id ? null : { id: post.id, value: new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16) })}
                       disabled={generatingPost === post.id}
                       className="border border-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                     >
-                      {scheduleFor?.id === post.id ? 'Cancel' : 'Pick time'}
+                      {scheduleFor?.id === post.id ? t('social.cancelReject') : t('social.pickTime')}
                     </button>
                     <button
                       onClick={() => handleApprove(post.id, 'keep')}
                       disabled={generatingPost === post.id}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
                     >
-                      Approve as scheduled ({post.scheduled_for ? new Date(post.scheduled_for).toLocaleString() : 'no date'})
+                      {post.scheduled_for ? t('social.approveAsScheduled', { date: new Date(post.scheduled_for).toLocaleString() }) : t('social.approveNoDate')}
                     </button>
                   </div>
                 )}
@@ -5739,7 +5740,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                       disabled={generatingPost === post.id || !sf.value}
                       className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 rounded-xl"
                     >
-                      Schedule
+                      {t('social.scheduleBtn')}
                     </button>
                   </div>
                   );
@@ -5753,17 +5754,17 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {/* Posts list */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-700">All Posts</p>
+          <p className="text-sm font-semibold text-slate-700">{t('social.allPostsHeader')}</p>
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
             className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
           >
-            <option value="">All statuses</option>
-            <option value="pending_approval">Pending approval</option>
-            <option value="approved">Approved</option>
-            <option value="published">Published</option>
-            <option value="rejected">Rejected</option>
+            <option value="">{t('social.filterAll')}</option>
+            <option value="pending_approval">{t('social.filterPending')}</option>
+            <option value="approved">{t('social.filterApproved')}</option>
+            <option value="published">{t('social.filterPublished')}</option>
+            <option value="rejected">{t('social.filterRejected')}</option>
           </select>
         </div>
         {posts.length === 0 ? (
@@ -5822,21 +5823,21 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
       {activeSection === 'connect' && (
         <div className="space-y-5 max-w-xl">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Your connections</h2>
-            <p className="text-sm text-slate-500 mt-1">Vigmis will manage your campaigns and posts through these connections.</p>
+            <h2 className="text-lg font-bold text-slate-900">{t('social.connectionsTitle')}</h2>
+            <p className="text-sm text-slate-500 mt-1">{t('social.connectionsSubtitle')}</p>
           </div>
 
           {!metaConnected && (
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Facebook & Instagram</h3>
+              <h3 className="text-base font-bold text-slate-900">{t('social.fbIgTitle')}</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
-                One click opens Facebook. On their screen you'll approve all the permissions Vigmis needs at once — and you're done.
+                {t('social.fbIgDesc')}
               </p>
               <button
                 onClick={handleConnectMeta}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                Connect Facebook
+                {t('social.connectFacebook')}
               </button>
             </div>
           )}
@@ -5846,7 +5847,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Facebook Page</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">{t('social.facebookPageLabel')}</p>
                     {(selectedPageId || settings?.facebook_page_id) ? (
                       <>
                         <p className="text-base font-bold text-slate-900 mt-0.5">
@@ -5866,17 +5867,17 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                     onClick={() => { if (editing !== 'page') { loadPages(); setEditing('page'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'page' ? 'Close' : (selectedPageId || settings?.facebook_page_id) ? 'Change' : 'Choose Page'}
+                    {editing === 'page' ? t('social.closeBtn') : (selectedPageId || settings?.facebook_page_id) ? t('social.changeBtn') : t('social.choosePage')}
                   </button>
                 </div>
 
                 {editing === 'page' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {pagesLoading && <p className="text-sm text-slate-500">Loading Pages from Facebook…</p>}
+                    {pagesLoading && <p className="text-sm text-slate-500">{t('social.loadingPages')}</p>}
                     {pagesError && <p className="text-xs text-red-600">{pagesError}</p>}
                     {pages && pages.length === 0 && (
                       <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                        Facebook returned no Pages. You need admin access to at least one Page.
+                        {t('social.noPagesFound')}
                       </p>
                     )}
                     {pages?.map(p => {
@@ -5893,8 +5894,8 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                           <p className="text-sm font-semibold text-slate-900"><bdi>{p.name}</bdi></p>
                           {p.instagram_username
                             ? <p className="text-xs text-violet-600 mt-0.5">Instagram: <bdi>@{p.instagram_username}</bdi></p>
-                            : <p className="text-xs text-slate-400 mt-0.5">No Instagram linked</p>}
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                            : <p className="text-xs text-slate-400 mt-0.5">{t('social.noInstagramLinked')}</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">{t('social.selectedLabel')}</p>}
                         </button>
                       );
                     })}
@@ -5905,7 +5906,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ad Account</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">{t('social.adAccountLabel')}</p>
                     {adAccountSelected ? (
                       <p className="text-base font-bold text-slate-900 mt-0.5">
                         <bdi>{adAccounts?.find(a => a.id === adAccountSelected)?.name ?? 'Connected'}</bdi>
@@ -5918,17 +5919,17 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                     onClick={() => { if (editing !== 'account') { loadAdAccounts(); setEditing('account'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'account' ? 'Close' : adAccountSelected ? 'Change' : 'Choose Account'}
+                    {editing === 'account' ? t('social.closeBtn') : adAccountSelected ? t('social.changeBtn') : t('social.chooseAccount')}
                   </button>
                 </div>
 
                 {editing === 'account' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {adAccountLoading && <p className="text-sm text-slate-500">Loading Ad Accounts from Facebook…</p>}
+                    {adAccountLoading && <p className="text-sm text-slate-500">{t('social.loadingAdAccounts')}</p>}
                     {adAccountError && <p className="text-xs text-red-600">{adAccountError}</p>}
                     {adAccounts && adAccounts.length === 0 && (
                       <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                        Facebook returned no Ad Accounts. Make sure you have admin access to at least one.
+                        {t('social.noAdAccountsFound')}
                       </p>
                     )}
                     {adAccounts?.map(a => {
@@ -5948,7 +5949,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                             {a.currency && <span>Currency: <bdi>{a.currency}</bdi></span>}
                             <span>{a.active ? 'Active' : 'Inactive'}</span>
                           </div>
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">{t('social.selectedLabel')}</p>}
                         </button>
                       );
                     })}
@@ -5959,30 +5960,30 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Analytics (optional)</p>
+                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">{t('social.ga4Label')}</p>
                     {ga4Settings ? (
                       <>
                         <p className="text-base font-bold text-slate-900 mt-0.5"><bdi>{ga4Settings.property_name ?? 'Connected'}</bdi></p>
-                        <p className="text-xs text-slate-500 mt-0.5">Vigmis measures campaign results from your website instead of relying on Facebook and Google's own reports.</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{t('social.ga4Synced')}</p>
                       </>
                     ) : (
-                      <p className="text-sm text-slate-500 mt-0.5">Connecting Analytics lets Vigmis judge campaigns on real on-site conversions instead of platform-reported numbers.</p>
+                      <p className="text-sm text-slate-500 mt-0.5">{t('social.ga4Desc')}</p>
                     )}
                   </div>
                   <button
                     onClick={() => { if (editing !== 'ga4') { loadGa4(); setEditing('ga4'); } else { setEditing(null); } }}
                     className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                   >
-                    {editing === 'ga4' ? 'Close' : ga4Settings ? 'Change' : 'Connect'}
+                    {editing === 'ga4' ? t('social.closeBtn') : ga4Settings ? t('social.changeBtn') : t('buttons.connect')}
                   </button>
                 </div>
 
                 {editing === 'ga4' && (
                   <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                    {ga4Loading && <p className="text-sm text-slate-500">Loading properties from Google Analytics…</p>}
+                    {ga4Loading && <p className="text-sm text-slate-500">{t('social.loadingGa4')}</p>}
                     {ga4Error && <p className="text-xs text-red-600">{ga4Error}</p>}
                     {ga4Properties && ga4Properties.length === 0 && (
-                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">No Analytics properties found on this Google account. Create one at analytics.google.com and try again.</p>
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{t('social.noGa4Found')}</p>
                     )}
                     {ga4Properties?.map(p => {
                       const isSelected = p.property_id === ga4Settings?.property_id;
@@ -5996,7 +5997,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-900"><bdi>{p.display_name}</bdi></p>
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">{t('social.selectedLabel')}</p>}
                         </button>
                       );
                     })}
@@ -6010,7 +6011,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   disabled={disconnecting}
                   className="text-xs text-red-600 hover:text-red-700 underline disabled:opacity-50"
                 >
-                  {disconnecting ? 'Disconnecting…' : 'Disconnect Vigmis from Facebook'}
+                  {disconnecting ? t('social.disconnecting') : t('social.disconnectFacebook')}
                 </button>
               </div>
             </>
@@ -6019,24 +6020,24 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
           {/* ── Google Ads ── */}
           {!googleConnected ? (
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Google Ads</h3>
+              <h3 className="text-base font-bold text-slate-900">{t('social.googleAdsTitle')}</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
-                Connect your Google Ads account. After connecting, you'll choose which ad account Vigmis should manage.
+                {t('social.googleAdsDesc')}
               </p>
               <button
                 onClick={handleConnectGoogleAds}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
-                Connect Google Ads
+                {t('social.connectGoogleAds')}
               </button>
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Google Ads Account</p>
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">{t('social.googleAdsAccountLabel')}</p>
                   {googleAccountSelected ? (
-                    <p className="text-base font-bold text-slate-900 mt-0.5">Account {googleAccountSelected}</p>
+                    <p className="text-base font-bold text-slate-900 mt-0.5">{t('social.accountLabel', { id: googleAccountSelected })}</p>
                   ) : (
                     <p className="text-sm text-amber-600 mt-0.5">{t('empty.noAdAccountSelected')}</p>
                   )}
@@ -6045,17 +6046,17 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   onClick={() => { if (editing !== 'google_account') { loadGoogleAccounts(); setEditing('google_account'); } else { setEditing(null); } }}
                   className="text-sm border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl"
                 >
-                  {editing === 'google_account' ? 'Close' : googleAccountSelected ? 'Change' : 'Choose Account'}
+                  {editing === 'google_account' ? t('social.closeBtn') : googleAccountSelected ? t('social.changeBtn') : t('social.chooseAccount')}
                 </button>
               </div>
 
               {editing === 'google_account' && (
                 <div className="mt-4 border-t border-slate-100 pt-4 space-y-2">
-                  {googleAccountLoading && <p className="text-sm text-slate-500">Loading accounts from Google…</p>}
+                  {googleAccountLoading && <p className="text-sm text-slate-500">{t('social.loadingGoogleAccounts')}</p>}
                   {googleAccountError && <p className="text-xs text-red-600">{googleAccountError}</p>}
                   {googleAccounts && googleAccounts.length === 0 && (
                     <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                      No Google Ads accounts found. Make sure you have access to at least one account at ads.google.com.
+                      {t('social.noGoogleAccounts')}
                     </p>
                   )}
                   <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
@@ -6072,10 +6073,10 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                           }`}
                         >
                           <p className="text-sm font-semibold text-slate-900">{a.name}</p>
-                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">Selected</p>}
+                          {isSelected && <p className="text-xs text-emerald-600 font-semibold mt-1">{t('social.selectedLabel')}</p>}
                           {isInactive && (
                             <p className="text-xs text-amber-700 mt-1">
-                              Account status: {a.status?.toLowerCase()} — activate it in Google Ads before using with Vigmis.
+                              {t('social.accountStatus', { status: (a.status ?? '').toLowerCase() })}
                             </p>
                           )}
                         </button>
@@ -6154,7 +6155,7 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
         <div className="space-y-4">
           {comments.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-xl px-5 py-12 text-center text-sm text-slate-400 shadow-sm">
-              No comments pending review. Vigmis checks for new comments every 4 hours.
+              {t('social.noComments')}
             </div>
           ) : (
             <div className="space-y-3">
