@@ -6,14 +6,14 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import LanguageSelector from '../components/LanguageSelector';
-import type { OnboardingSettings, AnalysisResult, WebsiteCheck, TrackingStatus, PixelSnippet } from './actions';
+import type { OnboardingSettings, AnalysisResult, WebsiteCheck, PixelSnippet } from './actions';
 import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
 import { recordAttestation } from '../components/attestation-actions';
 import {
   getMetaPages, selectMetaPage, type MetaPage,
   getMetaAdAccounts, selectMetaAdAccount, type MetaAdAccount,
 } from '../dashboard/actions';
-import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
+import type { ConversationMessage } from '@vigmis/db';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
