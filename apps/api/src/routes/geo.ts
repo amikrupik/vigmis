@@ -95,7 +95,7 @@ export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string)
   }
 
   const { data: settings } = await db.from('client_settings')
-    .select('business_type, goal, geo_include')
+    .select('business_type, goal, geo_include, website_analysis, strategy_plan')
     .eq('tenant_id', tenantId)
     .maybeSingle();
 
@@ -114,36 +114,40 @@ export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string)
 
   if (!report) {
     report = fallbackGeoReport(websiteUrl);
-    // Try to generate real FAQ items from website_analysis if we have it
+    // Generate real FAQ + business_description from website_analysis when scraping failed
     try {
-      const { data: cs } = await db.from('client_settings')
-        .select('website_analysis, business_type')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      if (cs?.website_analysis) {
-        const faqRes = await route({
-          task: 'analysis',
-          prompt: `You are a GEO (Generative Engine Optimization) specialist.
-Based on this business website analysis, generate 5 FAQ items that AI systems (ChatGPT, Gemini, Perplexity) would use to recommend this business.
-Business type: ${cs.business_type ?? 'unknown'}
-Website: ${websiteUrl}
-Website analysis:
-${cs.website_analysis.slice(0, 2000)}
+      const businessContext = buildBusinessContext(settings, websiteUrl);
+      if (businessContext) {
+        const [faqRes, descRes] = await Promise.all([
+          route({
+            task: 'analysis',
+            prompt: `You are a GEO specialist. Generate 5 FAQ items that AI systems (ChatGPT, Gemini, Perplexity) would use to recommend this business.
+${businessContext}
 
-Return ONLY valid JSON array — no markdown, no explanation:
+Return ONLY valid JSON array:
 [{"question":"...","answer":"..."},...]`,
-          systemPrompt: 'You are a GEO specialist. Return only a valid JSON array. No markdown. No explanation.',
-          options: { maxTokens: 1000, temperature: 0.3 },
-        });
+            systemPrompt: 'You are a GEO specialist. Return only a valid JSON array. No markdown. No explanation.',
+            options: { maxTokens: 1000, temperature: 0.3 },
+          }),
+          route({
+            task: 'analysis',
+            prompt: `You are a GEO specialist. Write a 120-word AI-optimized business description for directory listings and Google Business Profile. Factual only, no fluff.
+${businessContext}
+
+Return ONLY the description text, no JSON, no markdown.`,
+            systemPrompt: 'You are a GEO specialist. Return only the description text. No markdown.',
+            options: { maxTokens: 300, temperature: 0.3 },
+          }),
+        ]);
         const faqMatch = faqRes.output.match(/\[[\s\S]*\]/);
         if (faqMatch) {
           const faqs = JSON.parse(faqMatch[0]);
-          if (Array.isArray(faqs) && faqs.length > 0) {
-            report.faq = faqs;
-          }
+          if (Array.isArray(faqs) && faqs.length > 0) report.faq = faqs;
         }
+        const desc = descRes.output.trim();
+        if (desc.length > 40) report.business_description = desc;
       }
-    } catch { /* leave faq as [] — non-fatal */ }
+    } catch { /* leave as fallback — non-fatal */ }
   }
 
   // Upsert current report (latest always available)
@@ -176,7 +180,26 @@ Return ONLY valid JSON array — no markdown, no explanation:
   );
 }
 
+function buildBusinessContext(settings: any, websiteUrl: string): string {
+  const parts: string[] = [];
+  if (settings?.website_analysis) parts.push(`Website analysis:\n${settings.website_analysis.slice(0, 2000)}`);
+  const sp = settings?.strategy_plan;
+  if (sp) {
+    if (sp.strategy_narrative) parts.push(`Strategy narrative:\n${String(sp.strategy_narrative).slice(0, 800)}`);
+    if (sp.target_audience) parts.push(`Target audience: ${String(sp.target_audience).slice(0, 400)}`);
+  }
+  if (settings?.business_type) parts.push(`Business type: ${settings.business_type}`);
+  if (settings?.goal) parts.push(`Goal: ${settings.goal}`);
+  const geos = (settings?.geo_include ?? []).join(', ');
+  if (geos) parts.push(`Territory: ${geos}`);
+  parts.push(`Website: ${websiteUrl}`);
+  return parts.join('\n\n');
+}
+
 function buildGeoPrompt(websiteUrl: string, extracted: ReturnType<typeof extractHtmlData>, settings: any): string {
+  const isSparseScrape = extracted.pageText.length < 300 || extracted.pageText === 'Could not fetch website.' || extracted.h1s.length === 0;
+  const businessContext = buildBusinessContext(settings, websiteUrl);
+
   return `You are a GEO (Generative Engine Optimization) expert. Analyze this business website's AI visibility.
 
 Website: ${websiteUrl}
@@ -196,7 +219,10 @@ WHAT WE FOUND ON THE WEBSITE:
 - Email found: ${extracted.hasEmail ? 'Yes' : 'No'}
 - Address found: ${extracted.hasAddress ? 'Yes' : 'No'}
 - Reviews/ratings schema: ${extracted.hasReviews ? 'Yes' : 'No'}
-- Page content sample: ${extracted.pageText.slice(0, 1500)}
+- Page content sample: ${extracted.pageText.slice(0, 1500)}${isSparseScrape && businessContext ? `
+
+NOTE: The website uses a JavaScript framework and could not be fully scraped. Use the business context below to generate accurate, specific recommendations — not generic placeholders:
+${businessContext}` : ''}
 
 Return ONLY valid JSON:
 {

@@ -4782,11 +4782,20 @@ function GeoTab({ settings }: any) {
                       <p className="text-sm font-semibold text-slate-700">AI-optimized business description</p>
                       <p className="text-xs text-slate-400 mt-0.5">Use this on Google Business Profile, directory listings, and your About page</p>
                     </div>
-                    <CopyButton text={report.business_description ?? ''} label="Copy text" />
+                    {report.business_description && !report.business_description.startsWith('Run audit') && (
+                      <CopyButton text={report.business_description} label="Copy text" />
+                    )}
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-                    <p dir="auto" className="text-sm text-slate-700 leading-relaxed">{report.business_description}</p>
-                  </div>
+                  {report.business_description && !report.business_description.startsWith('Run audit') ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                      <p dir="auto" className="text-sm text-slate-700 leading-relaxed">{report.business_description}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center">
+                      <p className="text-sm text-slate-500 font-medium">No business description generated yet</p>
+                      <p className="text-xs text-slate-400 mt-1.5">We couldn&apos;t fully scan your website. Click <span className="font-semibold">Refresh</span> to generate your description from your business profile.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
