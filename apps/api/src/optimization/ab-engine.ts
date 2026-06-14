@@ -85,10 +85,13 @@ async function processTest(tenantId: string, test: any): Promise<void> {
   }
 
   const [a, b] = synced;
-  const clicksA     = a.clicks ?? 0;
-  const clicksB     = b.clicks ?? 0;
-  const impressionsA = Math.max(a.impressions ?? 0, 1);
-  const impressionsB = Math.max(b.impressions ?? 0, 1);
+  const clicksA      = a.clicks ?? 0;
+  const clicksB      = b.clicks ?? 0;
+  const rawImpressionsA = a.impressions ?? 0;
+  const rawImpressionsB = b.impressions ?? 0;
+  // Floor to 1 only for safe division — raw values are used for display
+  const impressionsA = Math.max(rawImpressionsA, 1);
+  const impressionsB = Math.max(rawImpressionsB, 1);
 
   const hasEnoughData = clicksA >= MIN_CLICKS_PER_VARIANT
     && clicksB >= MIN_CLICKS_PER_VARIANT
@@ -145,8 +148,8 @@ async function processTest(tenantId: string, test: any): Promise<void> {
 
   // Create Decision Protocol with winner announcement
   const variantSummary = [
-    `• ${a.name} (Variant A): ${(ctrA * 100).toFixed(2)}% CTR — ${clicksA} clicks / ${impressionsA.toLocaleString()} impressions`,
-    `• ${b.name} (Variant B): ${(ctrB * 100).toFixed(2)}% CTR — ${clicksB} clicks / ${impressionsB.toLocaleString()} impressions`,
+    `• ${a.name} (Variant A): ${(ctrA * 100).toFixed(2)}% CTR — ${clicksA} clicks / ${rawImpressionsA.toLocaleString()} impressions`,
+    `• ${b.name} (Variant B): ${(ctrB * 100).toFixed(2)}% CTR — ${clicksB} clicks / ${rawImpressionsB.toLocaleString()} impressions`,
   ].join('\n');
 
   await createProtocol({

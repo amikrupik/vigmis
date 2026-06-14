@@ -443,8 +443,11 @@ Return ONLY valid JSON:
   app.post('/intelligence/ab-test/conclude', { preHandler: authenticate }, async (request, reply) => {
     const { test_id } = request.body as any;
 
+    if (!test_id) return reply.code(400).send({ error: 'test_id required' });
+
     const { data: test } = await db.from('ab_tests').select('*').eq('id', test_id).eq('tenant_id', request.tenantId).single();
     if (!test) return reply.code(404).send({ error: 'Test not found' });
+    if (test.status !== 'running') return reply.code(409).send({ error: `Test is already ${test.status} — cannot conclude again` });
 
     const res = await route({
       task: 'analysis',
@@ -486,9 +489,11 @@ Return ONLY valid JSON:
       conclusion = match ? JSON.parse(match[0]) : null;
     } catch { conclusion = null; }
 
-    if (conclusion) {
-      await db.from('ab_tests').update({ status: 'concluded', winner_announced: true, conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id).eq('tenant_id', request.tenantId);
+    if (!conclusion) {
+      return reply.code(500).send({ error: 'AI could not generate conclusion — please try again' });
     }
+
+    await db.from('ab_tests').update({ status: 'concluded', winner_announced: true, conclusion, concluded_at: new Date().toISOString() }).eq('id', test_id).eq('tenant_id', request.tenantId);
 
     return reply.send({ test_id, conclusion });
   });

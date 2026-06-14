@@ -2223,6 +2223,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
   // A/B Testing
   const [abTests, setAbTests] = useState<any[]>([]);
   const [abLoading, setAbLoading] = useState(false);
+  const [abConcludingId, setAbConcludingId] = useState<string | null>(null);
   const [newTest, setNewTest] = useState({ name: '', platform: 'google', goal: 'leads', variantA: '', variantB: '' });
   const [abRecommendation, setAbRecommendation] = useState<any>(null);
   const [abRecLoading, setAbRecLoading] = useState(false);
@@ -2306,8 +2307,14 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
   }
 
   async function handleConcludeTest(id: string) {
-    const res = await concludeAbTest(id);
-    if (res?.conclusion) setAbTests(prev => prev.map(test => test.id === id ? { ...test, status: 'concluded', conclusion: res.conclusion } : test));
+    if (abConcludingId) return; // prevent double-click
+    setAbConcludingId(id);
+    try {
+      const res = await concludeAbTest(id);
+      if (res?.conclusion) setAbTests(prev => prev.map(test => test.id === id ? { ...test, status: 'concluded', conclusion: res.conclusion } : test));
+    } finally {
+      setAbConcludingId(null);
+    }
   }
 
   async function handleElementAnalysis() {
@@ -2657,7 +2664,15 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
                       <span className="font-semibold text-slate-900 text-sm">{test.name}</span>
                       <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${test.status === 'running' ? 'bg-blue-100 text-blue-700' : test.status === 'concluded' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{test.status}</span>
-                        {test.status === 'running' && <button onClick={() => handleConcludeTest(test.id)} className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold border border-indigo-200 px-3 py-1 rounded-lg">Conclude →</button>}
+                        {test.status === 'running' && (
+                          <button
+                            onClick={() => handleConcludeTest(test.id)}
+                            disabled={abConcludingId === test.id}
+                            className="text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-40 font-semibold border border-indigo-200 px-3 py-1 rounded-lg"
+                          >
+                            {abConcludingId === test.id ? 'Concluding…' : 'Conclude →'}
+                          </button>
+                        )}
                       </div>
                     </div>
                     {test.conclusion && (
