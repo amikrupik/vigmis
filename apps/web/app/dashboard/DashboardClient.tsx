@@ -392,6 +392,14 @@ export default function DashboardClient() {
         </main>
       </div>
 
+      {/* Persistent disclaimer footer */}
+      <div className="border-t border-amber-200 bg-amber-50 px-6 py-3">
+        <p className="max-w-6xl mx-auto text-xs text-amber-700 leading-relaxed flex items-start gap-2">
+          <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span><strong>{t('overview.disclaimerLabel')}:</strong> {t('overview.disclaimerText')}</span>
+        </p>
+      </div>
+
       <FeedbackModal />
 
       {showStopModal && (
@@ -562,12 +570,6 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
 
   return (
     <div className="space-y-5">
-      {/* Disclaimer */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 flex items-start gap-2">
-        <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        <span><strong>{t('overview.disclaimerLabel')}</strong> {t('overview.disclaimerText')}</span>
-      </div>
-
       {/* Platform health bar */}
       {campaigns.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">

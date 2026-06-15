@@ -170,7 +170,7 @@
     },
     "overview": {
       "disclaimerLabel": "Disclaimer",
-      "disclaimerText": "Vigmis provides AI-driven campaign management on a best-effort basis. Results are not guaranteed. You retain full control and can pause all campaigns at any time.",
+      "disclaimerText": "Vigmis is an AI marketing manager that continuously analyzes, optimizes, and adjusts your campaigns. As with all digital advertising, results cannot be predicted — they depend on market conditions, seasonality, competitor activity, and platform algorithms beyond our control. Vigmis operates on a best-effort basis and does not guarantee specific outcomes. You retain full control and can pause or modify your campaigns at any time.",
       "todayGlance": "Today at a Glance",
       "vsYesterday": "vs yesterday",
       "burnRate": "Burn rate",

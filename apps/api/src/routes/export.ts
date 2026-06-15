@@ -303,7 +303,7 @@ export async function exportRoutes(app: FastifyInstance) {
       </div>
 
       <div class="disclaimer">
-        <strong>Disclaimer:</strong> Data shown represents simulated projections based on campaign budgets. Actual performance depends on competition, seasonality, and platform algorithms. Real API data will replace simulated data once Google Ads Developer Token and Meta Marketing API access are approved. Past performance does not guarantee future results.
+        <strong>Disclaimer:</strong> Vigmis is an AI marketing manager that continuously analyzes, optimizes, and adjusts your campaigns. As with all digital advertising, results cannot be predicted — they depend on market conditions, seasonality, competitor activity, and platform algorithms beyond our control. Vigmis operates on a best-effort basis and does not guarantee specific outcomes. You retain full control and can pause or modify your campaigns at any time.
       </div>`;
 
     return reply

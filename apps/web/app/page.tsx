@@ -151,7 +151,7 @@ export default async function Home() {
       {/* Disclaimer */}
       <section className="bg-slate-50 border-t border-slate-100 px-6 py-6">
         <p className="max-w-3xl mx-auto text-xs text-slate-400 text-center leading-relaxed">
-          <strong className="text-slate-500">Results Disclaimer:</strong> Advertising performance depends on many factors including competition, seasonality, landing page quality, and platform algorithms — all outside our control. Vigmis uses AI and data to maximise results, but does not guarantee specific outcomes such as ROAS, CPA, or revenue. Past performance does not guarantee future results.{' '}
+          <strong className="text-slate-500">Disclaimer:</strong> Vigmis is an AI marketing manager that continuously analyzes, optimizes, and adjusts your campaigns. As with all digital advertising, results cannot be predicted — they depend on market conditions, seasonality, competitor activity, and platform algorithms beyond our control. Vigmis operates on a best-effort basis and does not guarantee specific outcomes. You retain full control and can pause or modify your campaigns at any time.{' '}
           <Link href="/terms" className="underline hover:text-slate-600">Full Terms →</Link>
         </p>
       </section>
