@@ -2302,10 +2302,17 @@ function CreativeTab({ settings }: any) {
 
             {libraryExpanded && (
               <div className="border-t border-slate-100">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs table-fixed" dir="ltr">
+                  <colgroup>
+                    <col className="w-12" />
+                    <col className="w-28" />
+                    <col className="w-20" />
+                    <col className="w-36" />
+                    <col />
+                  </colgroup>
                   <thead>
                     <tr className="bg-slate-50 text-slate-400 font-semibold uppercase tracking-wide text-[10px]">
-                      <th className="px-4 py-2 text-left w-8"></th>
+                      <th className="px-4 py-2 text-left"></th>
                       <th className="px-3 py-2 text-left">Type</th>
                       <th className="px-3 py-2 text-left">Platform</th>
                       <th className="px-3 py-2 text-left">Status</th>
@@ -2318,6 +2325,8 @@ function CreativeTab({ settings }: any) {
                       const isProcessing = job.status === 'queued' || job.status === 'processing';
                       const needsReview = job.status === 'completed' && job.output_url && !job.approved;
                       const isApproved = job.status === 'completed' && job.output_url && job.approved;
+                      const ext = isVideo ? 'mp4' : 'jpg';
+                      const filename = `vigmis-${job.type}-${job.id.slice(0, 8)}.${ext}`;
                       return (
                         <tr key={job.id} className="hover:bg-slate-50 transition-colors">
                           {/* Thumbnail */}
@@ -2361,13 +2370,25 @@ function CreativeTab({ settings }: any) {
                                 </a>
                               )}
                               {job.output_url && (
-                                <a
-                                  href={job.output_url}
-                                  download
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(job.output_url!);
+                                      const blob = await res.blob();
+                                      const blobUrl = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = blobUrl;
+                                      a.download = filename;
+                                      a.click();
+                                      URL.revokeObjectURL(blobUrl);
+                                    } catch {
+                                      window.open(job.output_url!, '_blank');
+                                    }
+                                  }}
                                   className="text-slate-500 hover:text-slate-700 font-semibold"
                                 >
                                   {t('creative.download')}
-                                </a>
+                                </button>
                               )}
                               <button
                                 onClick={async () => {
