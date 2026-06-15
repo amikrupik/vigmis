@@ -7,6 +7,7 @@ import "./globals.css";
 import { ClerkProviderWrapper } from "./clerk-provider";
 import CookieBanner from "./components/CookieBanner";
 import ChatDrawer from "./components/ChatDrawer";
+import PostHogProvider from "./components/PostHogProvider";
 import { normalizeLocale, RTL_LOCALES, getMessages } from "../lib/i18n";
 
 const inter = Inter({
@@ -36,8 +37,10 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ClerkProviderWrapper>
-            {children}
-            {userId ? <ChatDrawer /> : null}
+            <PostHogProvider>
+              {children}
+              {userId ? <ChatDrawer /> : null}
+            </PostHogProvider>
           </ClerkProviderWrapper>
           <CookieBanner />
         </NextIntlClientProvider>

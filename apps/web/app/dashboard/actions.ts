@@ -653,3 +653,10 @@ export async function getReadinessScore(): Promise<{
 export async function runReadinessAudit(): Promise<{ report: any } | null> {
   return apiCall('/readiness/audit', 'POST');
 }
+
+// ── Analytics event logging ───────────────────────────────────────────────────
+
+export async function logEvent(event: string, metadata?: Record<string, unknown>): Promise<void> {
+  // Fire-and-forget — never await this in callers
+  apiCall('/analytics/event', 'POST', { event, metadata }).catch(() => {});
+}

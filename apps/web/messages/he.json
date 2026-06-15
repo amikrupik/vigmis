@@ -141,7 +141,12 @@
       "paused": "מושהה",
       "activating": "מפעיל…",
       "error": "שגיאה",
-      "loading": "טוען..."
+      "loading": "טוען...",
+      "statusActive": "שבוע {week} · {count} קמפיין(ים) פעיל(ים) · Vigmis מייעל את הקמפיינים שלך.",
+      "statusLearning": "Google נמצאת בשלב הלמידה — הביצועים ישתפרו ככל שהאלגוריתם אוסף נתונים (בדרך כלל 2 שבועות).",
+      "statusNoActive": "אין קמפיינים פעילים. הפעל מלשונית הקמפיינים.",
+      "statusSetup": "חבר את חשבונות הפרסום שלך כדי להתחיל.",
+      "statusSetupCta": "הגדרות"
     },
     "empty": {
       "welcomeTitle": "‏ברוכים הבאים ל-Vigmis",

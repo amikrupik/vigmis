@@ -141,7 +141,12 @@
       "paused": "paused",
       "activating": "activating…",
       "error": "error",
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "statusActive": "Week {week} · {count} campaign(s) active · Vigmis is optimizing your campaigns.",
+      "statusLearning": "Google is in the learning phase — performance improves as the algorithm collects data (typically 2 weeks).",
+      "statusNoActive": "No active campaigns. Launch from the Campaigns tab.",
+      "statusSetup": "Connect your ad accounts to get started.",
+      "statusSetupCta": "Go to Settings"
     },
     "empty": {
       "welcomeTitle": "Welcome to Vigmis",

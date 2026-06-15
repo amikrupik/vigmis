@@ -83,6 +83,24 @@ function computeChanges(curr: ReturnType<typeof computeSummary>, prev: ReturnTyp
 
 export async function analyticsRoutes(app: FastifyInstance) {
 
+  // POST /analytics/event — log a frontend analytics event to analytics_events
+  app.post<{ Body: { event: string; metadata?: Record<string, unknown> } }>(
+    '/analytics/event',
+    { preHandler: authenticate },
+    async (request, reply) => {
+      const { event, metadata } = request.body ?? {};
+      if (!event?.trim()) return reply.code(400).send({ error: 'event required' });
+
+      await db.from('analytics_events').insert({
+        tenant_id: request.tenantId,
+        event: event.trim(),
+        metadata: metadata ?? {},
+      });
+
+      return reply.send({ ok: true });
+    },
+  );
+
   // GET /analytics/summary?period=7|30|90&compare=true
   app.get('/analytics/summary', { preHandler: authenticate }, async (request, reply) => {
     const { period: periodParam, compare } = request.query as any;

@@ -1,8 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { usePostHog } from 'posthog-js/react';
 import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import LanguageSelector from '../components/LanguageSelector';
@@ -54,6 +55,8 @@ const ONBOARDING_PERSIST_KEY = 'vigmis_onboarding_progress';
 export default function OnboardingPageClient({ initialConnected, initialError, rethinkMode }: Props) {
   const router = useRouter();
   const t = useTranslations('onboarding');
+  const posthog = usePostHog();
+  const posthogStartedRef = useRef(false);
   const [step, setStep] = useState<Step>('connect');
   const [showRethinkWarning, setShowRethinkWarning] = useState(rethinkMode === true);
   // Never initialise from the URL param — it only reflects the LAST connected platform
@@ -63,6 +66,14 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode] = useState<string | null>(initialError ?? null);
+
+  // Track onboarding_started once on mount
+  useEffect(() => {
+    if (!posthogStartedRef.current) {
+      posthogStartedRef.current = true;
+      posthog?.capture('onboarding_started');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Translate OAuth error once translations are mounted
   useEffect(() => {
@@ -120,8 +131,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   // Persist onboarding progress to sessionStorage on every meaningful state change.
   // Cleared on completion (router.push to dashboard) and when returning to step 'connect'.
+  // Also track step changes for PostHog.
   useEffect(() => {
     if (step === 'connect' || step === 'saving') return;
+    posthog?.capture('onboarding_step_completed', { step });
     try {
       sessionStorage.setItem(ONBOARDING_PERSIST_KEY, JSON.stringify({
         step,
@@ -131,7 +144,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         websiteNotes,
       }));
     } catch { /* ignore — storage full */ }
-  }, [step, pendingConversation, pendingSettings, analysisResult, websiteNotes]);
+  }, [step, pendingConversation, pendingSettings, analysisResult, websiteNotes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch the real connection status from the API on every mount.
   // The URL param (?connected=meta) only tells us the LAST platform — so connecting Meta
@@ -361,6 +374,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         throw new Error(detail);
       }
       sessionStorage.removeItem(ONBOARDING_PERSIST_KEY);
+      posthog?.capture('onboarding_completed');
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error');

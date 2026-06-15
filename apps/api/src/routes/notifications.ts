@@ -7,6 +7,7 @@ import { db } from '@vigmis/db';
 import { assertCronSecret, cronSecretHeader } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
 import { monthlyFee } from '../billing/pricing.js';
+import { route } from '@vigmis/ai-router';
 
 const FROM_EMAIL = 'digest@vigmis.com';
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
@@ -312,8 +313,9 @@ function buildDigestHtml(tenantData: {
   geoScore?: number | null;
   geoGrade?: string | null;
   geoScoreDelta?: number | null;
+  aiNarrative?: string | null;
 }): string {
-  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0, plan = 'free', geoScore, geoGrade, geoScoreDelta } = tenantData;
+  const { period, campaigns, alertCount, actionsApplied, socialPostsPublished = 0, socialPostsPending = 0, socialCommentsReplied = 0, plan = 'free', geoScore, geoGrade, geoScoreDelta, aiNarrative } = tenantData;
   const active = campaigns.filter(c => c.status === 'active');
   const totalBudget = active.reduce((s, c) => s + (c.daily_budget_usd ?? 0), 0);
 
@@ -350,6 +352,14 @@ function buildDigestHtml(tenantData: {
         <h1 style="margin:0;color:white;font-size:20px;font-weight:700">Weekly Performance Digest</h1>
         <p style="margin:4px 0 0;color:rgba(255,255,255,0.75);font-size:13px">${period}</p>
       </div>
+
+      ${aiNarrative ? `
+      <!-- AI Narrative Briefing -->
+      <div style="padding:24px 32px;border-bottom:1px solid #f1f5f9;background:#f8fafc">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.08em">From Your Vigmis Account Manager</p>
+        <p style="margin:0;font-size:14px;color:#1e293b;line-height:1.7;white-space:pre-line">${aiNarrative.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+      </div>
+      ` : ''}
 
       <!-- Summary stats -->
       <div style="padding:24px 32px;border-bottom:1px solid #f1f5f9">
@@ -565,8 +575,8 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!settings.email) { skipped++; continue; }
 
       try {
-        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes] = await Promise.all([
-          db.from('campaigns').select('name, platform, status, daily_budget_usd').eq('tenant_id', settings.tenant_id),
+        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes, clientSettingsRes] = await Promise.all([
+          db.from('campaigns').select('name, platform, status, daily_budget_usd, created_at').eq('tenant_id', settings.tenant_id),
           db.from('audit_log')
             .select('action')
             .eq('tenant_id', settings.tenant_id)
@@ -579,13 +589,71 @@ export async function notificationRoutes(app: FastifyInstance) {
           db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle(),
           db.from('geo_reports').select('score, grade').eq('tenant_id', settings.tenant_id).maybeSingle(),
           db.from('geo_report_snapshots').select('score_delta').eq('tenant_id', settings.tenant_id).order('snapshot_month', { ascending: false }).limit(1).maybeSingle(),
+          db.from('client_settings').select('business_type, goal, content_language, business_name').eq('tenant_id', settings.tenant_id).maybeSingle(),
         ]);
+
+        const weekCampaigns = campaignsRes.data ?? [];
+        const actionsApplied = logsRes.data?.length ?? 0;
+        const activeCampaigns = weekCampaigns.filter(c => c.status === 'active');
+        const locale = (clientSettingsRes.data as any)?.content_language ?? 'en';
+        const businessType = (clientSettingsRes.data as any)?.business_type ?? 'business';
+        const goal = (clientSettingsRes.data as any)?.goal ?? 'leads';
+        const businessName = (clientSettingsRes.data as any)?.business_name ?? 'your business';
+        const firstCampaignDate = weekCampaigns.length > 0
+          ? new Date(Math.min(...weekCampaigns.map(c => new Date((c as any).created_at ?? now).getTime())))
+          : null;
+        const campaignAgeDays = firstCampaignDate
+          ? Math.floor((Date.now() - firstCampaignDate.getTime()) / 86400000)
+          : null;
+        const isLearningPhase = campaignAgeDays !== null && campaignAgeDays < 14;
+
+        // Generate AI narrative
+        let aiNarrative: string | null = null;
+        try {
+          const narrativePrompt = `You are Vigmis, an AI marketing manager. Write a 150-200 word weekly briefing for this business owner.
+Language: ${locale === 'he' ? 'Hebrew' : 'English'}
+Business: ${businessName} (${businessType}), goal: ${goal}
+Data this week:
+- Active campaigns: ${activeCampaigns.length} (platforms: ${[...new Set(activeCampaigns.map(c => c.platform))].join(', ') || 'none'})
+- Total daily budget: $${activeCampaigns.reduce((s, c) => s + (c.daily_budget_usd ?? 0), 0).toFixed(0)}/day
+- AI optimization actions applied: ${actionsApplied}
+- Campaign age: ${campaignAgeDays !== null ? `${campaignAgeDays} days` : 'not launched yet'}
+- Learning phase: ${isLearningPhase ? 'YES — Google campaigns are under 14 days old' : 'No'}
+- Period: ${period}
+
+Structure:
+1. What happened this week (2-3 sentences, plain language)
+2. What worked (specific insight)
+3. What didn't / learning phase status if applicable (honest)
+4. What Vigmis adjusted and why (1-2 sentences)
+5. What to expect next week (set realistic expectations)
+
+Tone: professional account manager. Not a bot. No bullet points. Flowing paragraphs. Max 200 words.`;
+
+          const narrativeResponse = await route({
+            task: 'cheap_task',
+            messages: [{ role: 'user', content: narrativePrompt }],
+          });
+          aiNarrative = narrativeResponse.output?.trim() ?? null;
+
+          // Log to analytics_events
+          if (aiNarrative) {
+            // Fire-and-forget — don't block digest on event logging
+            void db.from('analytics_events').insert({
+              tenant_id: settings.tenant_id,
+              event: 'weekly_digest_generated',
+              metadata: { narrative_length: aiNarrative.length, locale },
+            });
+          }
+        } catch {
+          // Narrative generation failure is non-fatal — send digest without it
+        }
 
         const html = buildDigestHtml({
           period,
-          campaigns: campaignsRes.data ?? [],
+          campaigns: weekCampaigns,
           alertCount: 0,
-          actionsApplied: logsRes.data?.length ?? 0,
+          actionsApplied,
           socialPostsPublished: socialPublishedRes.count ?? 0,
           socialPostsPending: socialPendingRes.count ?? 0,
           socialCommentsReplied: socialRepliedRes.count ?? 0,
@@ -593,6 +661,7 @@ export async function notificationRoutes(app: FastifyInstance) {
           geoScore: geoRes.data?.score ?? null,
           geoGrade: geoRes.data?.grade ?? null,
           geoScoreDelta: geoSnapshotRes.data?.score_delta ?? null,
+          aiNarrative,
         }).replace('{{TENANT_ID}}', settings.tenant_id);
 
         await sendDigest(settings.email, html, period);

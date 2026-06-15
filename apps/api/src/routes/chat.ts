@@ -389,9 +389,9 @@ export async function chatRoutes(app: FastifyInstance) {
         return reply.send({ message: intent.user_facing_response, executedActions: [] });
       }
 
-      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes, ga4Res, protocolsRes, auditRes, newsRes] = await Promise.all([
+      const [historyRes, campaignsRes, settingsRes, postsRes, socialSettingsRes, metaTokenRes, assetsRes, ga4Res, protocolsRes, auditRes, newsRes, analyticsEventsRes, recentAlertsRes] = await Promise.all([
         db.from('chat_messages').select('role, content').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
-        db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type').eq('tenant_id', tenantId).limit(30),
+        db.from('campaigns').select('id, name, platform, status, daily_budget_usd, campaign_type, created_at').eq('tenant_id', tenantId).limit(30),
         db.from('client_settings').select('goal, budget_monthly_ils, management_percentage, website_url, risk_level, exclusions, open_notes, business_type, margin_pct, geo_include, geo_exclude, preferred_platforms, strategy_plan, content_language, budget_currency, website_analysis, business_name').eq('tenant_id', tenantId).maybeSingle(),
         db.from('social_posts').select('id, platform, pillar, status, content, scheduled_for').eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(20),
         db.from('social_settings').select('enabled, platforms, approval_mode, content_pillars, facebook_page_id, instagram_user_id').eq('tenant_id', tenantId).maybeSingle(),
@@ -402,6 +402,8 @@ export async function chatRoutes(app: FastifyInstance) {
         db.from('decision_protocols').select('id, type, title, status, created_at').eq('tenant_id', tenantId).eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
         db.from('audit_log').select('action, actor, payload, created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(10),
         db.from('news_alerts').select('title, why_relevant, suggested_action, relevance_score').eq('tenant_id', tenantId).neq('status', 'dismissed').order('relevance_score', { ascending: false }).limit(3),
+        db.from('analytics_events').select('event, metadata, created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
+        db.from('news_alerts').select('title, body, created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(5),
       ]);
 
       const pastMessages = (historyRes.data ?? []).reverse();
@@ -415,6 +417,8 @@ export async function chatRoutes(app: FastifyInstance) {
       const pendingProtocols = protocolsRes.data ?? [];
       const recentActions = auditRes.data ?? [];
       const activeNews = newsRes.data ?? [];
+      const analyticsEvents = analyticsEventsRes.data ?? [];
+      const recentAlerts = recentAlertsRes.data ?? [];
 
       const active = campaigns.filter(c => c.status === 'active');
       const paused = campaigns.filter(c => c.status === 'paused');
@@ -535,7 +539,40 @@ export async function chatRoutes(app: FastifyInstance) {
         ? '\n\n⚠️ MANDATORY: The client is writing in Hebrew. YOUR ENTIRE RESPONSE MUST BE IN HEBREW.'
         : '\n\n⚠️ MANDATORY: The client is writing in English. YOUR ENTIRE RESPONSE MUST BE IN ENGLISH.';
 
-      const systemWithContext = SYSTEM_PROMPT + '\n\n' + clientContext + langOverride;
+      // Build account context prefix with campaign age / learning phase awareness
+      const firstCampaign = [...campaigns].sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime())[0] as any;
+      const campaignAgeDays = firstCampaign?.created_at
+        ? Math.floor((Date.now() - new Date(firstCampaign.created_at).getTime()) / 86400000)
+        : null;
+      const activeCampaigns = campaigns.filter(c => c.status === 'active');
+      const activePlatforms = [...new Set(activeCampaigns.map(c => c.platform))];
+      const googleLearningCampaigns = activeCampaigns.filter(c =>
+        c.platform === 'google' && firstCampaign?.created_at &&
+        Math.floor((Date.now() - new Date(firstCampaign.created_at).getTime()) / 86400000) < 14
+      );
+      const isGoogleLearning = googleLearningCampaigns.length > 0;
+
+      const accountContextPrefix = [
+        'ACCOUNT CONTEXT:',
+        campaignAgeDays !== null
+          ? `- Campaign age: ${campaignAgeDays} days (launched: ${firstCampaign?.created_at ? new Date(firstCampaign.created_at).toLocaleDateString() : '—'})`
+          : '- No campaigns launched yet',
+        `- Active campaigns: ${activeCampaigns.length}${activePlatforms.length ? ` on platforms: [${activePlatforms.join(', ')}]` : ''}`,
+        isGoogleLearning
+          ? `- Learning phase: Google campaigns are currently in the learning phase (${campaignAgeDays} days in, under 14 days). Normal to see variable performance — Google needs ~50 conversions to fully optimize. This is expected at this stage.`
+          : '- Learning phase: Not in Google learning phase',
+        recentAlerts.length > 0
+          ? `- Recent Vigmis actions: ${recentAlerts.slice(0, 3).map((a: any) => a.title).join(' | ')}`
+          : '- Recent Vigmis actions: (none)',
+        analyticsEvents.length > 0
+          ? `- Recent user activity: ${analyticsEvents.slice(0, 5).map((e: any) => `${e.event}${e.metadata && Object.keys(e.metadata).length ? ` (${JSON.stringify(e.metadata)})` : ''}`).join(' | ')}`
+          : '- Recent user activity: (none tracked)',
+        '',
+        'When user asks why performance is slow or why nothing is happening: explain the learning phase timeline, that Google needs ~50 conversions to fully optimize, and that this is normal. Be specific about their situation.',
+        '',
+      ].join('\n');
+
+      const systemWithContext = SYSTEM_PROMPT + '\n\n' + accountContextPrefix + clientContext + langOverride;
 
       const messages = [
         ...pastMessages.map(m => ({

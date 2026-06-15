@@ -36,10 +36,12 @@ import {
   scoreCreativeAsset, getCreativeThemes, getBudgetForecast,
   getBrandAssets, deleteBrandAsset, uploadBrandAsset, generatePostImage,
   getCreativeBrief, generateCreativeBrief,
+  logEvent,
 } from './actions';
 import FeedbackModal from './FeedbackModal';
 import { ClerkSignOutButton } from '../components/sign-out-button';
 import LanguageSelector from '../components/LanguageSelector';
+import { usePostHog } from 'posthog-js/react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -118,6 +120,7 @@ export default function DashboardClient() {
   const t = useTranslations('dashboard');
   const router = useRouter();
   const searchParams = useSearchParams();
+  const posthog = usePostHog();
 
   // Initialize from URL so language-switch reloads (and direct links) restore the correct tab
   const initialTab = (searchParams?.get('tab') as Tab | null) ?? 'overview';
@@ -160,7 +163,13 @@ export default function DashboardClient() {
       switchTab('social');
       load();
     }
-  }, []);
+    // Track first dashboard visit (once per browser)
+    if (typeof window !== 'undefined' && !localStorage.getItem('posthog_dashboard_visited')) {
+      localStorage.setItem('posthog_dashboard_visited', '1');
+      posthog?.capture('dashboard_first_visit');
+      logEvent('dashboard_first_visit');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLaunch() {
     setLaunching(true); setError(null);
@@ -174,6 +183,8 @@ export default function DashboardClient() {
           ? 'Your landing page needs improvements before paid campaigns. Check Strategy → Readiness for details.'
           : msg);
       } else {
+        posthog?.capture('campaign_launched');
+        logEvent('campaign_launched');
         await load();
       }
     }
@@ -285,6 +296,8 @@ export default function DashboardClient() {
                   onClick={async () => {
                     if (p.key === 'tiktok') { switchTab('social'); return; }
                     try {
+                      posthog?.capture('oauth_started', { platform: p.key });
+                      logEvent('oauth_started', { platform: p.key });
                       const tok = await (window as any).Clerk?.session?.getToken();
                       const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
                       window.location.href = `${apiUrl}/auth/${p.key}?token=${encodeURIComponent(tok ?? '')}&return=dashboard`;
@@ -360,6 +373,7 @@ export default function DashboardClient() {
         {tab === 'overview' && (
           <OverviewTab
             campaigns={campaigns} settings={settings}
+            connected={connected}
             activeCampaigns={activeCampaigns} pausedCampaigns={pausedCampaigns}
             pendingCampaigns={pendingCampaigns}
             errorCampaigns={errorCampaigns} totalDailyBudget={totalDailyBudget}
@@ -370,6 +384,7 @@ export default function DashboardClient() {
             onGeoTab={() => switchTab('geo')}
             onSocialTab={() => switchTab('social')}
             onCreativeTab={() => switchTab('creative')}
+            onSettingsTab={() => switchTab('settings')}
           />
         )}
         {tab === 'strategy' && <StrategyTab settings={settings} />}
@@ -548,7 +563,7 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab, onSocialTab, onCreativeTab }: any) {
+function OverviewTab({ campaigns, settings, connected, activeCampaigns, pausedCampaigns, pendingCampaigns, errorCampaigns, totalDailyBudget, managedBudget, feeEstimate, launching, onLaunch, onViewAll, onEmergencyStop, onGeoTab, onSocialTab, onCreativeTab, onSettingsTab }: any) {
   const t = useTranslations('dashboard');
   const [alerts, setAlerts] = useState<any[]>([]);
   const [daily, setDaily] = useState<any>(null);
@@ -568,8 +583,57 @@ function OverviewTab({ campaigns, settings, activeCampaigns, pausedCampaigns, pe
   const platformHealth = daily?.platform_health ?? {};
   const recentActions = daily?.recent_actions ?? [];
 
+  // Status card logic
+  const isConnected = connected?.google || connected?.meta || connected?.tiktok;
+  const hasCampaigns = campaigns.length > 0;
+  const activeCampaignList = (campaigns as Campaign[]).filter(c => c.status === 'active');
+  const firstCampaignDate = hasCampaigns ? new Date(campaigns[0]?.created_at ?? Date.now()) : null;
+  const daysSinceFirst = firstCampaignDate
+    ? Math.floor((Date.now() - firstCampaignDate.getTime()) / 86400000)
+    : 0;
+  const weekNumber = Math.max(1, Math.ceil(daysSinceFirst / 7));
+  const googleActiveCampaigns = (campaigns as Campaign[]).filter(
+    c => c.platform === 'google' && c.status === 'active' &&
+    Math.floor((Date.now() - new Date(c.created_at).getTime()) / 86400000) < 14
+  );
+  const isGoogleInLearning = googleActiveCampaigns.length > 0;
+
+  const connectedPlatforms = [
+    connected?.google && 'Google',
+    connected?.meta && 'Meta',
+    connected?.tiktok && 'TikTok',
+  ].filter(Boolean) as string[];
+
   return (
     <div className="space-y-5">
+      {/* Status Card */}
+      {!isConnected && !hasCampaigns ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">{t('status.statusSetup')}</p>
+          </div>
+          <button
+            onClick={onSettingsTab}
+            className="flex-shrink-0 text-xs font-bold text-amber-700 border border-amber-300 bg-amber-100 hover:bg-amber-200 px-3 py-2 rounded-xl transition-colors"
+          >
+            {t('status.statusSetupCta')}
+          </button>
+        </div>
+      ) : hasCampaigns && activeCampaignList.length > 0 ? (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-1.5">
+          <p className="text-sm font-semibold text-emerald-800">
+            {t('status.statusActive', { week: weekNumber, count: activeCampaignList.length })}
+          </p>
+          {isGoogleInLearning && (
+            <p className="text-xs text-emerald-700">{t('status.statusLearning')}</p>
+          )}
+        </div>
+      ) : hasCampaigns && activeCampaignList.length === 0 ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-amber-800">{t('status.statusNoActive')}</p>
+        </div>
+      ) : null}
+
       {/* Platform health bar */}
       {campaigns.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -3935,6 +3999,7 @@ function BrandAssetLibrary() {
 
 function SettingsTab({ settings, connected }: any) {
   const t = useTranslations('dashboard');
+  const posthog = usePostHog();
   const [alertEmail, setAlertEmail] = useState('');
   const [alertWhatsApp, setAlertWhatsApp] = useState('');
   const [emailEnabled, setEmailEnabled] = useState(false);
@@ -5119,6 +5184,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
 
 function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean; googleConnected: boolean }) {
   const t = useTranslations('dashboard');
+  const posthog = usePostHog();
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<any[]>([]);
   const [settings, setSocialSettings] = useState<any>(null);
@@ -5255,18 +5321,24 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
 
   async function handleConnectMeta() {
+    posthog?.capture('oauth_started', { platform: 'meta' });
+    logEvent('oauth_started', { platform: 'meta' });
     const tok = await (window as any).Clerk?.session?.getToken();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
     window.location.href = `${apiUrl}/auth/meta?token=${encodeURIComponent(tok ?? '')}`;
   }
 
   async function handleConnectGoogleAds() {
+    posthog?.capture('oauth_started', { platform: 'google' });
+    logEvent('oauth_started', { platform: 'google' });
     const tok = await (window as any).Clerk?.session?.getToken();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
     window.location.href = `${apiUrl}/auth/google?token=${encodeURIComponent(tok ?? '')}`;
   }
 
   async function handleConnectGoogleAnalytics() {
+    posthog?.capture('oauth_started', { platform: 'google_analytics' });
+    logEvent('oauth_started', { platform: 'google_analytics' });
     const tok = await (window as any).Clerk?.session?.getToken();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
     window.location.href = `${apiUrl}/auth/google/analytics?token=${encodeURIComponent(tok ?? '')}`;
