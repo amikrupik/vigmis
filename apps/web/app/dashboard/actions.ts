@@ -292,6 +292,10 @@ export async function rejectCreative(jobId: string) {
   return apiCall(`/creatives/${jobId}/reject`, 'POST', {});
 }
 
+export async function deleteCreativeJob(jobId: string) {
+  return apiCall(`/creatives/${jobId}`, 'DELETE');
+}
+
 // ── Agency Brain: Creative Brief Extension ────────────────────────────────────
 
 /**

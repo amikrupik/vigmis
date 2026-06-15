@@ -1440,6 +1440,28 @@ export async function creativeRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // DELETE /creatives/:id — permanently delete a job (tenant-owned, any status)
+  app.delete('/creatives/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { data: job, error: fetchErr } = await db
+      .from('creative_jobs')
+      .select('id, tenant_id')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .single();
+
+    if (fetchErr || !job) return reply.code(404).send({ error: 'Job not found' });
+
+    const { error } = await db
+      .from('creative_jobs')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId);
+
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ success: true });
+  });
+
   // PATCH /settings/brand — update Brand DNA
   app.patch('/settings/brand', { preHandler: authenticate }, async (request, reply) => {
     const { brand_colors, brand_fonts, do_not_change_elements, approved_creative_styles } = request.body as {

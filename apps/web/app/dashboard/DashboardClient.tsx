@@ -9,7 +9,7 @@ import {
   getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
-  generateCreative, getCreatives, getCreativeStatus, rejectCreative,
+  generateCreative, getCreatives, getCreativeStatus, rejectCreative, deleteCreativeJob,
   createAbTest, getAbTests, concludeAbTest, getAbTestRecommendation,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
@@ -1643,117 +1643,6 @@ function CreativeTab({ settings }: any) {
         </div>
       </div>
 
-      {/* ── Creative Library ──────────────────────────────────────────────── */}
-      {jobs.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <button
-            onClick={() => setLibraryExpanded(v => !v)}
-            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <h3 className="font-bold text-slate-900">{t('creative.libraryTitle')}</h3>
-              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">{jobs.length}</span>
-              {jobs.filter(j => j.status === 'completed' && !j.approved).length > 0 && (
-                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
-                  {jobs.filter(j => j.status === 'completed' && !j.approved).length} {t('creative.awaitingApproval')}
-                </span>
-              )}
-            </div>
-            <svg className={`w-4 h-4 text-slate-400 transition-transform ${libraryExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {libraryExpanded && (
-            <div className="px-5 pb-5 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {jobs.map(job => {
-                  const isVideo = job.output_url && (job.output_url.endsWith('.mp4') || job.output_url.includes('video'));
-                  const isImage = job.output_url && !isVideo;
-                  const needsReview = job.status === 'completed' && job.output_url && !job.approved;
-                  const isApproved = job.status === 'completed' && job.output_url && job.approved;
-                  const isProcessing = job.status === 'queued' || job.status === 'processing';
-                  const isFailed = job.status === 'failed';
-                  const TYPE_COLORS: Record<string, string> = {
-                    avatar: 'bg-emerald-100 text-emerald-700',
-                    cinematic: 'bg-blue-100 text-blue-700',
-                    animation: 'bg-violet-100 text-violet-700',
-                    image: 'bg-orange-100 text-orange-700',
-                  };
-                  return (
-                    <div key={job.id} className={`border rounded-xl overflow-hidden flex flex-col ${needsReview ? 'border-amber-300' : 'border-slate-200'}`}>
-                      {/* Thumbnail area */}
-                      <div className="relative bg-slate-100 aspect-video flex items-center justify-center overflow-hidden">
-                        {isImage && (
-                          <img src={job.output_url!} alt="" className="w-full h-full object-cover" />
-                        )}
-                        {isVideo && (
-                          <video src={job.output_url!} className="w-full h-full object-cover" muted playsInline />
-                        )}
-                        {isProcessing && (
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-xs text-slate-500">{t('creative.processing')}</span>
-                          </div>
-                        )}
-                        {isFailed && (
-                          <div className="flex flex-col items-center gap-1">
-                            <svg className="w-8 h-8 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                            </svg>
-                            <span className="text-xs text-red-400">{t('creative.failed')}</span>
-                          </div>
-                        )}
-                        {!job.output_url && !isProcessing && !isFailed && (
-                          <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                          </svg>
-                        )}
-                        {needsReview && (
-                          <span className="absolute top-1.5 right-1.5 bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-md">
-                            {t('creative.reviewNeeded')}
-                          </span>
-                        )}
-                        {isApproved && (
-                          <span className="absolute top-1.5 right-1.5 bg-emerald-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-md">✓</span>
-                        )}
-                      </div>
-                      {/* Info bar */}
-                      <div className="px-2.5 py-2 flex items-center justify-between gap-1.5 bg-white">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-md capitalize ${TYPE_COLORS[job.type] ?? 'bg-slate-100 text-slate-600'}`}>{job.type}</span>
-                          {job.platform && <span className="text-xs text-slate-400 capitalize truncate">{job.platform}</span>}
-                        </div>
-                        {isApproved && job.output_url && (
-                          <a
-                            href={job.output_url}
-                            download
-                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold shrink-0"
-                            title="Download"
-                          >
-                            ↓
-                          </a>
-                        )}
-                        {needsReview && job.output_url && (
-                          <a
-                            href={job.output_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-amber-600 hover:text-amber-800 font-semibold shrink-0"
-                          >
-                            {t('creative.view')}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── AI Creative Recommendations ──────────────────────────────────── */}
       <div className="bg-gradient-to-br from-indigo-50 to-white border border-indigo-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
@@ -2313,6 +2202,129 @@ function CreativeTab({ settings }: any) {
           </div>
         )}
       </div>
+
+      {/* ── Creative Library ─────────────────────────────────────────────── */}
+      {(() => {
+        const visibleJobs = jobs.filter(j => j.status !== 'failed');
+        if (!visibleJobs.length) return null;
+        const TYPE_COLORS: Record<string, string> = {
+          avatar: 'bg-emerald-100 text-emerald-700',
+          cinematic: 'bg-blue-100 text-blue-700',
+          animation: 'bg-violet-100 text-violet-700',
+          image: 'bg-orange-100 text-orange-700',
+        };
+        const awaitingCount = visibleJobs.filter(j => j.status === 'completed' && !j.approved).length;
+        return (
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <button
+              onClick={() => setLibraryExpanded(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-bold text-slate-900 text-sm">{t('creative.libraryTitle')}</h3>
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">{visibleJobs.length}</span>
+                {awaitingCount > 0 && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                    {awaitingCount} {t('creative.awaitingApproval')}
+                  </span>
+                )}
+              </div>
+              <svg className={`w-4 h-4 text-slate-400 transition-transform ${libraryExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {libraryExpanded && (
+              <div className="border-t border-slate-100">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-400 font-semibold uppercase tracking-wide text-[10px]">
+                      <th className="px-4 py-2 text-left w-8"></th>
+                      <th className="px-3 py-2 text-left">Type</th>
+                      <th className="px-3 py-2 text-left">Platform</th>
+                      <th className="px-3 py-2 text-left">Status</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {visibleJobs.map(job => {
+                      const isVideo = job.output_url && (job.output_url.endsWith('.mp4') || job.output_url.includes('video'));
+                      const isProcessing = job.status === 'queued' || job.status === 'processing';
+                      const needsReview = job.status === 'completed' && job.output_url && !job.approved;
+                      const isApproved = job.status === 'completed' && job.output_url && job.approved;
+                      return (
+                        <tr key={job.id} className="hover:bg-slate-50 transition-colors">
+                          {/* Thumbnail */}
+                          <td className="pl-4 py-2">
+                            <div className="w-8 h-8 rounded-md bg-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+                              {job.output_url && !isVideo && (
+                                <img src={job.output_url} alt="" className="w-full h-full object-cover" />
+                              )}
+                              {job.output_url && isVideo && (
+                                <video src={job.output_url} className="w-full h-full object-cover" muted playsInline />
+                              )}
+                              {isProcessing && (
+                                <div className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                              )}
+                            </div>
+                          </td>
+                          {/* Type */}
+                          <td className="px-3 py-2">
+                            <span className={`px-1.5 py-0.5 rounded font-semibold capitalize ${TYPE_COLORS[job.type] ?? 'bg-slate-100 text-slate-600'}`}>{job.type}</span>
+                          </td>
+                          {/* Platform */}
+                          <td className="px-3 py-2 text-slate-500 capitalize">{job.platform || '—'}</td>
+                          {/* Status */}
+                          <td className="px-3 py-2">
+                            {isApproved && <span className="text-emerald-600 font-semibold">Approved</span>}
+                            {needsReview && <span className="text-amber-600 font-semibold">{t('creative.reviewNeeded')}</span>}
+                            {isProcessing && <span className="text-indigo-500">{t('creative.processing')}</span>}
+                            {!isApproved && !needsReview && !isProcessing && <span className="text-slate-400">—</span>}
+                          </td>
+                          {/* Actions */}
+                          <td className="px-4 py-2">
+                            <div className="flex items-center justify-end gap-3">
+                              {job.output_url && (
+                                <a
+                                  href={job.output_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-indigo-600 hover:text-indigo-800 font-semibold"
+                                >
+                                  {t('creative.view')}
+                                </a>
+                              )}
+                              {job.output_url && (
+                                <a
+                                  href={job.output_url}
+                                  download
+                                  className="text-slate-500 hover:text-slate-700 font-semibold"
+                                >
+                                  {t('creative.download')}
+                                </a>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('Delete this creative?')) return;
+                                  await deleteCreativeJob(job.id);
+                                  setJobs(prev => prev.filter(j => j.id !== job.id));
+                                }}
+                                className="text-red-400 hover:text-red-600 font-semibold"
+                              >
+                                {t('creative.delete')}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Brand & Creative Library ─────────────────────────────────────── */}
       <BrandAssetLibrary />

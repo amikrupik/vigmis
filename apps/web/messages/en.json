@@ -237,6 +237,8 @@
       "awaitingApproval": "awaiting approval",
       "reviewNeeded": "Review",
       "view": "View",
+      "download": "Download",
+      "delete": "Delete",
       "failed": "Failed",
       "processing": "Processing…",
       "aiRecsTitle": "AI Creative Recommendations",
