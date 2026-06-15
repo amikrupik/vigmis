@@ -552,6 +552,35 @@ export async function chatRoutes(app: FastifyInstance) {
       );
       const isGoogleLearning = googleLearningCampaigns.length > 0;
 
+      // Load intelligence context in parallel (non-blocking — fall back gracefully)
+      const [maturityRes, weeklyStrategyRes, recentOutcomesRes, hypothesesRes] = await Promise.all([
+        db.from('client_settings').select('data_maturity_level, data_maturity_computed_at, decision_quality_stats, hypotheses').eq('tenant_id', tenantId).maybeSingle().then(r => r.data),
+        db.from('client_settings').select('weekly_strategy').eq('tenant_id', tenantId).maybeSingle().then(r => (r.data as any)?.weekly_strategy ?? null),
+        db.from('audit_log').select('payload').eq('tenant_id', tenantId).eq('action', 'optimization.outcome_measured').order('created_at', { ascending: false }).limit(3).then(r => r.data ?? []),
+        Promise.resolve(null), // hypotheses already in maturityRes
+      ]).catch(() => [null, null, [], null]);
+
+      const dataMaturity = (maturityRes as any)?.data_maturity_level ?? 1;
+      const weeklyStrategy = weeklyStrategyRes as any;
+      const recentOutcomes = recentOutcomesRes as any[];
+      const decisionQuality = (maturityRes as any)?.decision_quality_stats ?? {};
+      const openHypotheses = ((maturityRes as any)?.hypotheses ?? []).filter((h: any) => h.status === 'open');
+
+      const intelligenceContext = [
+        '',
+        '## Intelligence State',
+        `Data Maturity: Level ${dataMaturity}/5 ${dataMaturity === 1 ? '(still learning — limited optimization)' : dataMaturity >= 4 ? '(portfolio intelligence active)' : '(optimization active)'}`,
+        weeklyStrategy ? `Weekly Portfolio Verdict: ${weeklyStrategy.portfolio_verdict} | Regime: ${weeklyStrategy.regime_signal ?? 'normal'}` : '',
+        weeklyStrategy?.top_insights?.length ? `Top insights this week: ${(weeklyStrategy.top_insights as string[]).slice(0, 2).join(' | ')}` : '',
+        openHypotheses.length > 0 ? `Open Hypotheses: ${openHypotheses.slice(0, 2).map((h: any) => h.text).join(' | ')}` : '',
+        recentOutcomes.length > 0
+          ? `Recent Decision Outcomes: ${recentOutcomes.map((r: any) => `${(r.payload as any)?.type}: ${(r.payload as any)?.verdict}`).join(' | ')}`
+          : '',
+        Object.keys(decisionQuality).length > 0
+          ? `My Decision Quality: ${Object.entries(decisionQuality).map(([k, v]: [string, any]) => `${k} ${Math.round(v.batting_avg * 100)}%`).join(' | ')}`
+          : '',
+      ].filter(Boolean).join('\n');
+
       const accountContextPrefix = [
         'ACCOUNT CONTEXT:',
         campaignAgeDays !== null
@@ -567,8 +596,10 @@ export async function chatRoutes(app: FastifyInstance) {
         analyticsEvents.length > 0
           ? `- Recent user activity: ${analyticsEvents.slice(0, 5).map((e: any) => `${e.event}${e.metadata && Object.keys(e.metadata).length ? ` (${JSON.stringify(e.metadata)})` : ''}`).join(' | ')}`
           : '- Recent user activity: (none tracked)',
+        intelligenceContext,
         '',
         'When user asks why performance is slow or why nothing is happening: explain the learning phase timeline, that Google needs ~50 conversions to fully optimize, and that this is normal. Be specific about their situation.',
+        'When user asks "why did you make that decision?" — reference the outcome data above if available.',
         '',
       ].join('\n');
 

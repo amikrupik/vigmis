@@ -45,6 +45,8 @@ export interface CreativeContext {
   websiteUrl: string;
   // Learning Loop — prior winning patterns for this client
   winningPatternsContext?: string;
+  // Hypothesis Engine — open testable hypotheses from Strategic Brain
+  hypothesesContext?: string;
   // Extended brief data (optional — present when creative_brief_extended exists)
   messagingPillars?: Array<{
     pillar: string;
@@ -78,14 +80,20 @@ export async function extractCreativeContext(
   // Fetch the creative brief (separate table — pain/promise/proof/objection)
   const brief: CreativeBrief | null = await getDefaultBrief(tenantId).catch(() => null);
 
-  // Fetch winning_patterns from Learning Loop
+  // Fetch winning_patterns + hypotheses from Learning Loop and Hypothesis Engine
   const { data: settingsForPatterns } = await db
     .from('client_settings')
-    .select('winning_patterns')
+    .select('winning_patterns, hypotheses')
     .eq('tenant_id', tenantId)
     .maybeSingle();
   const winningPatterns = (settingsForPatterns as any)?.winning_patterns ?? null;
   const winningPatternsContext = formatWinningPatternsForContext(winningPatterns, format as 'avatar' | 'cinematic' | 'animation' | 'image') || undefined;
+
+  // Inject open hypotheses from Hypothesis Engine
+  const openHypotheses = ((settingsForPatterns as any)?.hypotheses ?? []).filter((h: any) => h.status === 'open') as Array<{ text: string; confidence: number }>;
+  const hypothesesContext = openHypotheses.length > 0
+    ? `\n\nOPEN HYPOTHESES TO TEST IN THIS CREATIVE:\n${openHypotheses.slice(0, 3).map(h => `  • ${h.text}`).join('\n')}\nIf your brief naturally aligns with one of these, lean into it.`
+    : '';
 
   const extended = strategyPlan?.creative_brief_extended ?? null;
 
@@ -193,5 +201,6 @@ export async function extractCreativeContext(
     existingConcepts,
     platformHooks,
     winningPatternsContext,
+    hypothesesContext: hypothesesContext || undefined,
   };
 }

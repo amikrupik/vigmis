@@ -13,6 +13,7 @@ import { assertCronSecret } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
 import { sendTenantNotification } from '../services/notify.js';
 import { applyBenchmarkRecalibration } from '../optimization/recalibration.js';
+import { scheduleOutcomeCheck } from '../optimization/outcome-tracker.js';
 
 export async function protocolRoutes(app: FastifyInstance) {
 
@@ -176,6 +177,12 @@ Respond honestly and directly. If the client disagrees, engage with their specif
     // Benchmark recalibration — apply new thresholds to client_settings
     if (payload?.type === 'benchmark_recalibration' && Array.isArray(payload.suggestions)) {
       await applyBenchmarkRecalibration(request.tenantId, payload.suggestions as any).catch(() => {});
+    }
+
+    // Schedule outcome check — measure in 10 days whether this decision worked
+    const measurableTypes = ['campaign_scale', 'budget_change', 'campaign_pause', 'campaign_resume', 'portfolio_reallocation'];
+    if (measurableTypes.includes(protocol.type)) {
+      scheduleOutcomeCheck(id, 10).catch(() => {});
     }
 
     return reply.send({ success: true, type: protocol.type, actionPayload: protocol.action_payload });

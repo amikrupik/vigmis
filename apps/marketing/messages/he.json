@@ -14,7 +14,7 @@
     "badge": "AI-Powered Ad Automation",
     "headline": "Your ads.",
     "headlineAccent": "On autopilot.",
-    "subheadline": "Vigmis uses AI to run your Google and Meta ads automatically — so you can focus on running your business, not chasing clicks.",
+    "subheadline": "Most ad tools automate the easy part. Vigmis measures whether decisions actually worked — then gets smarter every week.",
     "ctaPrimary": "Start for Free",
     "ctaSecondary": "See how it works",
     "ctaNote": "No credit card required. Setup in 5 minutes.",
@@ -56,7 +56,23 @@
     "f5Title": "24/7 Automation",
     "f5Desc": "Your ads never sleep. Vigmis monitors and adjusts your campaigns around the clock, even on weekends and holidays.",
     "f6Title": "Performance Reports",
-    "f6Desc": "Weekly email summaries and on-demand reports show what's working, what improved, and what your ROI looks like."
+    "f6Desc": "Weekly email summaries and on-demand reports show what's working, what improved, and what your ROI looks like.",
+    "f7Title": "True Incrementality Measurement",
+    "f7Desc": "See three numbers side by side: what the platform reports, what Google Analytics attributes, and what Vigmis estimates you actually caused. Most tools only show you the first one.",
+    "f8Title": "Portfolio Intelligence",
+    "f8Desc": "When the same $1 produces different returns on Google vs. Meta, Vigmis flags it and suggests a reallocation. Capital flows to the platform that's actually winning right now."
+  },
+  "learningCurve": {
+    "badge": "Institutional Memory",
+    "headline": "The only ad platform that learns your business — not just your ads.",
+    "subheadline": "Every decision Vigmis makes is logged. Every outcome is measured 10 days later. Over time, Vigmis knows which decisions worked for your specific business — and stops repeating the ones that didn't.",
+    "stat1": "Decisions tracked",
+    "stat1Desc": "Every optimization, budget change, and creative swap is recorded with its outcome.",
+    "stat2": "Average improvement",
+    "stat2Desc": "Tenants on Vigmis for 90+ days see better batting average on optimization decisions.",
+    "stat3": "Of budget shifts",
+    "stat3Desc": "Portfolio reallocation suggestions are based on GA4 ground truth, not platform self-reporting.",
+    "cta": "Start building your institutional memory"
   },
   "pricing": {
     "badge": "Simple, transparent pricing",

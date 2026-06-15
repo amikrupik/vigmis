@@ -97,6 +97,11 @@ export function startScheduler(): void {
   // ── Strategic Brain ───────────────────────────────────────────────────────
   weekly(1, 9, 0, () => post('/intelligence/cron/strategic-weekly')); // Mon 09:00
 
+  // ── Intelligence Engines (new) ────────────────────────────────────────────
+  daily(6, 30, () => post('/intelligence/cron/portfolio-allocator'));  // daily after main engine
+  daily(7, 30, () => post('/intelligence/cron/outcome-tracker'));      // daily outcome check
+  weekly(1, 10, 0, () => post('/intelligence/cron/data-maturity'));    // Mon 10:00 weekly
+
   // ── Compliance ────────────────────────────────────────────────────────────
   daily(2, 0, () => {
     post('/compliance/cron/reattestation');

@@ -361,6 +361,61 @@ async function checkProactiveGrowth(
     break; // One scale suggestion per run
   }
 
+  // Explore/Exploit: if we already scaled in the last 30 days, suggest opening a test instead
+  if (process.env.ENABLE_EXPLORE_EXPLOIT === 'false') return;
+  const { data: recentScale } = await db
+    .from('decision_protocols')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('type', 'campaign_scale')
+    .eq('status', 'approved')
+    .gte('resolved_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    .limit(1);
+
+  if (recentScale?.length) {
+    // Already exploited — suggest an exploration test instead
+    const { data: activeTests } = await db
+      .from('ab_tests')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'running')
+      .limit(1);
+
+    if (!activeTests?.length) {
+      const { data: recentTestSuggestion } = await db
+        .from('decision_protocols')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('type', 'general_advice')
+        .ilike('title', '%A/B test%')
+        .gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (!recentTestSuggestion?.length) {
+        await createProtocol({
+          tenantId,
+          type: 'general_advice',
+          title: 'You scaled last month — now is a good time to test a creative variation',
+          recommendation: [
+            `Your campaign was scaled 30 days ago. Performance has been maintained.`,
+            ``,
+            `When a campaign runs at the same creative for 30+ days, it starts to plateau — not because the audience is wrong, but because the message becomes invisible. The click rate looks stable, but hidden fatigue is building.`,
+            ``,
+            `The high-ROI move right now isn't another budget increase — it's testing a new creative angle while performance is still strong. A/B tests run with a winning control produce better data than tests run on a struggling campaign.`,
+            ``,
+            `Vigmis can set up a controlled test: your current ad (control) vs. a new variation on the same audience. If the new version wins, you've just raised your performance ceiling. If not, you keep the current version and the test costs nothing extra.`,
+            ``,
+            `Would you like Vigmis to set up a creative variation test?`,
+          ].join('\n'),
+          approvalText: 'I approve setting up a creative variation A/B test.',
+          approvalSummary: 'Explore/Exploit: set up creative A/B test after recent scale',
+          actionPayload: { type: 'explore_exploit_suggestion' },
+        });
+        result.approvalsPending++;
+      }
+    }
+  }
+
   // Platform expansion: only on one platform for 21+ days
   if (platforms.length === 1) {
     const oldestCampaign = activeCampaigns.reduce((oldest: any, c: any) =>

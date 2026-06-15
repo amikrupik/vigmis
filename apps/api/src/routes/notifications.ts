@@ -575,7 +575,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!settings.email) { skipped++; continue; }
 
       try {
-        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes, clientSettingsRes] = await Promise.all([
+        const [campaignsRes, logsRes, socialPublishedRes, socialPendingRes, socialRepliedRes, planRes, geoRes, geoSnapshotRes, clientSettingsRes, outcomesRes, weeklyStrategyRes] = await Promise.all([
           db.from('campaigns').select('name, platform, status, daily_budget_usd, created_at').eq('tenant_id', settings.tenant_id),
           db.from('audit_log')
             .select('action')
@@ -589,7 +589,11 @@ export async function notificationRoutes(app: FastifyInstance) {
           db.from('billing_customers').select('plan').eq('tenant_id', settings.tenant_id).maybeSingle(),
           db.from('geo_reports').select('score, grade').eq('tenant_id', settings.tenant_id).maybeSingle(),
           db.from('geo_report_snapshots').select('score_delta').eq('tenant_id', settings.tenant_id).order('snapshot_month', { ascending: false }).limit(1).maybeSingle(),
-          db.from('client_settings').select('business_type, goal, content_language, business_name').eq('tenant_id', settings.tenant_id).maybeSingle(),
+          db.from('client_settings').select('business_type, goal, content_language, business_name, data_maturity_level, decision_quality_stats').eq('tenant_id', settings.tenant_id).maybeSingle(),
+          // New: outcome measurements this week
+          db.from('audit_log').select('payload').eq('tenant_id', settings.tenant_id).eq('action', 'optimization.outcome_measured').gte('created_at', weekAgo.toISOString()).limit(5),
+          // New: weekly strategy verdict
+          db.from('client_settings').select('weekly_strategy').eq('tenant_id', settings.tenant_id).maybeSingle(),
         ]);
 
         const weekCampaigns = campaignsRes.data ?? [];
@@ -607,6 +611,14 @@ export async function notificationRoutes(app: FastifyInstance) {
           : null;
         const isLearningPhase = campaignAgeDays !== null && campaignAgeDays < 14;
 
+        const weekOutcomes = (outcomesRes.data ?? []).map((r: any) => r.payload as any).filter((p: any) => p?.verdict !== 'insufficient_data');
+        const weeklyStrategy = (weeklyStrategyRes.data as any)?.weekly_strategy as any;
+        const dataMaturity = (clientSettingsRes.data as any)?.data_maturity_level ?? 1;
+
+        const outcomeSummary = weekOutcomes.length > 0
+          ? weekOutcomes.map((o: any) => `  - ${o.type}: ${o.verdict} (${o.deltaPercent !== null ? `${o.deltaPercent > 0 ? '+' : ''}${o.deltaPercent.toFixed(1)}%` : 'n/a'})`).join('\n')
+          : '  - No outcomes measured this week';
+
         // Generate AI narrative
         let aiNarrative: string | null = null;
         try {
@@ -620,13 +632,18 @@ Data this week:
 - Campaign age: ${campaignAgeDays !== null ? `${campaignAgeDays} days` : 'not launched yet'}
 - Learning phase: ${isLearningPhase ? 'YES — Google campaigns are under 14 days old' : 'No'}
 - Period: ${period}
+- Data Maturity Level: ${dataMaturity}/5
+${weeklyStrategy ? `- Portfolio verdict: ${weeklyStrategy.portfolio_verdict} | Regime: ${weeklyStrategy.regime_signal ?? 'normal'}` : ''}
+${weeklyStrategy?.top_insights?.length ? `- Key insights: ${(weeklyStrategy.top_insights as string[]).join(' | ')}` : ''}
+- Decisions that were measured this week (did they work?):
+${outcomeSummary}
 
 Structure:
 1. What happened this week (2-3 sentences, plain language)
-2. What worked (specific insight)
-3. What didn't / learning phase status if applicable (honest)
+2. What worked and what our decisions achieved (reference outcomes if available)
+3. What we're NOT doing yet — and why (be honest about what data says we can't do yet)
 4. What Vigmis adjusted and why (1-2 sentences)
-5. What to expect next week (set realistic expectations)
+5. What to expect next week
 
 Tone: professional account manager. Not a bot. No bullet points. Flowing paragraphs. Max 200 words.`;
 

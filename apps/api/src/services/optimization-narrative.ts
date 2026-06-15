@@ -27,9 +27,16 @@ export interface OptimizationNarrativeCtx {
     revenue?: number;
     attributionSource?: string;
   };
-  proposedChange?: string;     // e.g. "$50 → $40/day" or "creative refresh"
+  // Three-layer ROAS: the honest picture
+  roasTriple?: {
+    platformReported: number | null;  // what Meta/Google claims
+    ga4Attributed: number;            // GA4 single-touch (more honest)
+    incremental: number;              // new customers only (most honest)
+    confidence: number;               // 0-1 confidence in incremental figure
+  };
+  proposedChange?: string;
   businessGoal?: string;
-  strategyNarrative?: string;  // first paragraph of strategy
+  strategyNarrative?: string;
   targetAudience?: string;
 }
 
@@ -48,12 +55,23 @@ export async function buildOptimizationNarrative(ctx: OptimizationNarrativeCtx):
     ? (ctx.metrics.revenue / ctx.metrics.spend).toFixed(1)
     : null;
 
+  const roasLines: string[] = [];
+  if (ctx.roasTriple) {
+    const r = ctx.roasTriple;
+    if (r.platformReported !== null && r.platformReported !== undefined) {
+      roasLines.push(`ROAS — Platform self-reported: ${r.platformReported.toFixed(1)}× | GA4 attributed: ${r.ga4Attributed.toFixed(1)}× | Incremental (new customers): ${r.incremental.toFixed(1)}× [confidence: ${Math.round(r.confidence * 100)}%]`);
+    } else {
+      roasLines.push(`ROAS — GA4 attributed: ${r.ga4Attributed.toFixed(1)}× | Incremental (new customers): ${r.incremental.toFixed(1)}× [confidence: ${Math.round(r.confidence * 100)}%]`);
+    }
+  }
+
   const metricsBlock = [
     `Platform: ${ctx.platform} (${ctx.campaignType})`,
     `Running: ${ctx.metrics.daysRunning} days`,
     `Clicks: ${ctx.metrics.clicks} | Impressions: ${ctx.metrics.impressions.toLocaleString()} | CTR: ${ctrPct}%`,
     `Spend: $${ctx.metrics.spend.toFixed(2)} | Daily budget: $${ctx.metrics.dailyBudgetUsd}/day`,
-    ctx.metrics.conversions !== undefined ? `Conversions: ${ctx.metrics.conversions}${roas ? ` | ROAS: ${roas}×` : ''}${ctx.metrics.attributionSource === 'ga4' ? ' (GA4 ground truth)' : ' (platform reported)'}` : '',
+    ctx.metrics.conversions !== undefined ? `Conversions: ${ctx.metrics.conversions}${roas && !ctx.roasTriple ? ` | ROAS: ${roas}×` : ''}${ctx.metrics.attributionSource === 'ga4' ? ' (GA4 ground truth)' : ' (platform reported)'}` : '',
+    ...roasLines,
   ].filter(Boolean).join('\n');
 
   try {

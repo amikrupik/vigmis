@@ -38,9 +38,24 @@ const featureIcons = [
     <path d="M7 14l4-4 3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     <circle cx="19" cy="8" r="2" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5"/>
   </svg>,
+  // Incrementality — three-column measurement
+  <svg key="f7" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M3 17l4-6 4 3 4-8 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="7" cy="11" r="1.5" fill="currentColor"/>
+    <circle cx="11" cy="14" r="1.5" fill="currentColor"/>
+    <circle cx="15" cy="6" r="1.5" fill="currentColor"/>
+    <circle cx="19" cy="10" r="1.5" fill="currentColor"/>
+    <path d="M3 20h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>,
+  // Portfolio allocation — split arrow
+  <svg key="f8" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M12 3v9m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7 15h3m4 0h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>,
 ];
 
-const featureKeys = ["f1", "f2", "f3", "f4", "f5", "f6"] as const;
+const featureKeys = ["f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8"] as const;
 
 export default function Features() {
   const t = useTranslations("features");

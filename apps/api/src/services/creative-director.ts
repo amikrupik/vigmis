@@ -56,6 +56,9 @@ function formatContext(ctx: CreativeContext): string {
   if (ctx.winningPatternsContext) {
     lines.push(ctx.winningPatternsContext);
   }
+  if (ctx.hypothesesContext) {
+    lines.push(ctx.hypothesesContext);
+  }
   return lines.join('\n');
 }
 

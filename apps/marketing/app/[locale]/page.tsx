@@ -8,6 +8,7 @@ import FAQ from "@/components/FAQ";
 import CTABanner from "@/components/CTABanner";
 import Footer from "@/components/Footer";
 import SocialProof from "@/components/SocialProof";
+import LearningCurve from "@/components/LearningCurve";
 
 export const metadata: Metadata = {
   title: "Vigmis — Your Ads. On Autopilot.",
@@ -22,6 +23,7 @@ export default function HomePage() {
         <SocialProof />
         <HowItWorks />
         <Features />
+        <LearningCurve />
         <Pricing />
         <FAQ />
         <CTABanner />

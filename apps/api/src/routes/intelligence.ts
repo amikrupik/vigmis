@@ -14,6 +14,9 @@ import { route } from '@vigmis/ai-router';
 import { createMetaAdSet } from '@vigmis/ad-connectors';
 import { analyzeCreativeThemesForTenant } from '../services/creative-theme-insights.js';
 import { runStrategicBrain, getWeeklyStrategy } from '../services/strategic-brain.js';
+import { runPortfolioAllocatorForAll } from '../optimization/portfolio-allocator.js';
+import { runOutcomeTracker } from '../optimization/outcome-tracker.js';
+import { updateDataMaturityForAll } from '../services/data-maturity.js';
 
 export async function intelligenceRoutes(app: FastifyInstance) {
 
@@ -835,5 +838,41 @@ Return ONLY valid JSON:
     }
 
     return reply.send({ processed });
+  });
+
+  // POST /intelligence/cron/portfolio-allocator — cron: cross-platform capital allocation
+  app.post('/intelligence/cron/portfolio-allocator', async (request, reply) => {
+    if (!assertCronSecret(request, reply)) return;
+    try {
+      await runPortfolioAllocatorForAll();
+      return reply.send({ ok: true });
+    } catch (err) {
+      console.error('[portfolio-allocator] cron failed:', err instanceof Error ? err.message : err);
+      return reply.status(500).send({ error: 'portfolio-allocator cron failed' });
+    }
+  });
+
+  // POST /intelligence/cron/outcome-tracker — cron: measure decision outcomes
+  app.post('/intelligence/cron/outcome-tracker', async (request, reply) => {
+    if (!assertCronSecret(request, reply)) return;
+    try {
+      await runOutcomeTracker();
+      return reply.send({ ok: true });
+    } catch (err) {
+      console.error('[outcome-tracker] cron failed:', err instanceof Error ? err.message : err);
+      return reply.status(500).send({ error: 'outcome-tracker cron failed' });
+    }
+  });
+
+  // POST /intelligence/cron/data-maturity — cron: recompute data maturity for all tenants
+  app.post('/intelligence/cron/data-maturity', async (request, reply) => {
+    if (!assertCronSecret(request, reply)) return;
+    try {
+      await updateDataMaturityForAll();
+      return reply.send({ ok: true });
+    } catch (err) {
+      console.error('[data-maturity] cron failed:', err instanceof Error ? err.message : err);
+      return reply.status(500).send({ error: 'data-maturity cron failed' });
+    }
   });
 }

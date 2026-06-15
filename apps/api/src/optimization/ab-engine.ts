@@ -11,6 +11,7 @@
 import { db } from '@vigmis/db';
 import { getMetaAdSetInsights, pauseMetaAdSet } from '@vigmis/ad-connectors';
 import { createProtocol } from '../routes/protocols.js';
+import { recordApprovedCreative } from '../services/learning-loop.js';
 
 const MIN_CLICKS_PER_VARIANT = 50;
 const MIN_DAYS = 7;
@@ -136,6 +137,25 @@ async function processTest(tenantId: string, test: any): Promise<void> {
   // Pause losing Meta Ad Set automatically when winner is clear
   if (test.platform === 'meta' && loser.ad_set_external_id && isSignificant) {
     await pauseMetaAdSet(loser.ad_set_external_id, tenantId);
+  }
+
+  // Close the learning loop — inject A/B winner into Creative Director memory
+  if (isSignificant && winner.name) {
+    recordApprovedCreative(
+      tenantId,
+      test.id,
+      'animation',
+      {
+        script: winner.name,
+        abTestId: test.id,
+        ctrLift,
+        winnerCtr: (winnerCtr * 100).toFixed(2) + '%',
+        daysRan: daysRunning,
+        platform: test.platform,
+      },
+      0,
+      0,
+    ).catch(err => console.error('[ab-learning] failed:', err instanceof Error ? err.message : err));
   }
 
   // Mark concluded in DB
