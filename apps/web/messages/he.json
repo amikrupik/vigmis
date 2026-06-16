@@ -122,7 +122,65 @@
       "pause": "השהה",
       "resume": "המשך",
       "recentJobs": "משימות אחרונות",
-      "changeHistory": "היסטוריית שינויים"
+      "changeHistory": "היסטוריית שינויים",
+      "export": "ייצוא",
+      "clickEditBudget": "לחץ לעריכת תקציב"
+    },
+    "navGroups": {
+      "main": "ראשי",
+      "intelligence": "אינטליגנציה",
+      "account": "חשבון"
+    },
+    "analytics": {
+      "dailyTrend": "מגמה יומית — {period} ימים אחרונים",
+      "spend": "הוצאה",
+      "convShort": "המרות",
+      "platformBreakdown": "פירוט לפי פלטפורמה",
+      "ofTotalSpend": "% מסך ההוצאה",
+      "topPerformers": "⭐ ביצועים מובילים",
+      "bottomPerformers": "⚠ דורש שיפור"
+    },
+    "burn": {
+      "onTrack": "בנתיב",
+      "over": "חריגה",
+      "under": "חסר",
+      "spent": "נוצל"
+    },
+    "platformHealth": {
+      "issue": "תקלה",
+      "idle": "לא פעיל"
+    },
+    "intel": {
+      "territoryTitle": "מידע גיאוגרפי",
+      "territoryNote": "שווקים גיאוגרפיים אלה זוהו מתוך האסטרטגיה שלך. הקמפיין שלך כבר מוגדר לטרגט אותם.",
+      "upcomingEvents": "אירועים קרובים",
+      "localizationTips": "טיפים להתאמה לשוק",
+      "audienceDiscovery": "גילוי קהלים",
+      "audienceNote": "פלחי קהל שעדיין לא מכוסים על ידי הקמפיינים הפעילים שלך. בחר אחד להוסיף לטרגוט.",
+      "discoverAudiences": "גלה קהלים",
+      "discovering": "מגלה...",
+      "audienceAddNote": "פלחים אלה זוהו על בסיס האסטרטגיה ופרופיל העסק שלך. הוסף אותם לשיפור הטרגוט.",
+      "competitorIntel": "מודיעין מתחרים",
+      "connectMetaCompetitor": "חבר את Meta כדי לבטל נעילה על מודיעין מתחרים",
+      "competitorNote": "משתמש ב-Facebook Ad Library — מציג את כל המודעות הפעילות בשוק שלך",
+      "connectMeta": "חבר Meta →",
+      "viewAd": "צפה במודעה →",
+      "variantA": "וריאנט A",
+      "variantB": "וריאנט B",
+      "createAbTest": "צור מבחן A/B",
+      "noAbTests": "אין מבחני A/B פעילים",
+      "activeTests": "מבחנים פעילים",
+      "creativeElementTitle": "ניתוח אלמנטים קריאטיביים",
+      "creativeElementNote": "מה עובד — הוק, CTA, צבע, אורך, טון",
+      "winningFormula": "הנוסחה המנצחת",
+      "topElements": "האלמנטים המובילים",
+      "nextTest": "הבדיקה הבאה להריץ",
+      "creativeThemesTitle": "תמות קריאטיב",
+      "topPattern": "התבנית המובילה",
+      "avoidPattern": "תבנית להימנע ממנה",
+      "themeInsights": "תובנות תמות",
+      "applyShifts": "החל שינויים",
+      "croAudit": "ביקורת CRO"
     },
     "status": {
       "tiktokSoon": "‏TikTok — בקרוב",
@@ -991,5 +1049,50 @@
     "ja": "日本語",
     "ko": "한국어",
     "el": "Ελληνικά"
+  },
+  "chat": {
+    "buttonLabel": "שאל את Vigmis",
+    "headerTitle": "שאל את VIGMIS",
+    "headerSubtitle": "מנהל שיווק AI",
+    "loadingHistory": "טוען היסטוריה…",
+    "emptyTitle": "שאל אותי כל דבר",
+    "emptyBody": "קמפיינים, תקציבים, פוסטים — אני יכול לענות ולפעול.",
+    "errorMsg": "שגיאת חיבור",
+    "retry": "נסה שוב",
+    "placeholder": "שאל כל דבר… (Enter לשליחה)",
+    "send": "שלח",
+    "suggested1": "איך הקמפיינים שלי מתפקדים?",
+    "suggested2": "צור פוסט פרסומי",
+    "suggested3": "השהה את כל הקמפיינים",
+    "actionSuccess": {
+      "pause_campaign": "קמפיין הושהה",
+      "resume_campaign": "קמפיין חודש",
+      "update_budget": "תקציב עודכן",
+      "pause_all": "כל הקמפיינים הושהו",
+      "resume_all": "כל הקמפיינים חודשו",
+      "create_post": "פוסט נוצר",
+      "write_post": "פוסט נשמר",
+      "edit_post": "פוסט עודכן",
+      "set_post_image": "תמונה צורפה",
+      "approve_post": "פוסט אושר",
+      "reject_post": "פוסט נדחה",
+      "schedule_post": "פוסט נקבע מחדש",
+      "select_ad_account": "חשבון פרסום נבחר"
+    },
+    "actionFail": {
+      "pause_campaign": "כשל בהשהיית קמפיין",
+      "resume_campaign": "כשל בחידוש קמפיין",
+      "update_budget": "עדכון תקציב נכשל",
+      "pause_all": "כשל בהשהיית כל הקמפיינים",
+      "resume_all": "כשל בחידוש כל הקמפיינים",
+      "create_post": "כשל ביצירת פוסט",
+      "write_post": "כשל בשמירת פוסט",
+      "edit_post": "כשל בעדכון פוסט",
+      "set_post_image": "כשל בצירוף תמונה",
+      "approve_post": "כשל באישור",
+      "reject_post": "כשל בדחייה",
+      "schedule_post": "כשל בקביעה מחדש",
+      "select_ad_account": "כשל בבחירת חשבון"
+    }
   }
 }

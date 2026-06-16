@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { sendChatMessage, getChatHistory, type ExecutedAction } from './chat-actions';
 
 type Message = {
@@ -12,36 +13,16 @@ type Message = {
 };
 
 function ActionBadge({ action }: { action: ExecutedAction }) {
-  const successLabel: Record<string, string> = {
-    pause_campaign:  'Paused campaign',
-    resume_campaign: 'Resumed campaign',
-    update_budget:   'Budget updated',
-    pause_all:       'All campaigns paused',
-    resume_all:      'All campaigns resumed',
-    create_post:     'AI post created',
-    write_post:      'Custom post saved',
-    edit_post:       'Post updated',
-    set_post_image:  'Image attached',
-    approve_post:    'Post approved',
-    reject_post:     'Post rejected',
-    schedule_post:    'Post rescheduled',
-    select_ad_account: 'Ad account set',
-  };
-  const failLabel: Record<string, string> = {
-    pause_campaign:  'Failed to pause campaign',
-    resume_campaign: 'Failed to resume campaign',
-    update_budget:   'Budget update failed',
-    pause_all:       'Failed to pause all campaigns',
-    resume_all:      'Failed to resume all campaigns',
-    create_post:     'Failed to create post',
-    write_post:      'Failed to save post',
-    edit_post:       'Failed to update post',
-    set_post_image:  'Failed to attach image',
-    approve_post:    'Failed to approve',
-    reject_post:     'Failed to reject',
-    schedule_post:    'Failed to reschedule',
-    select_ad_account: 'Failed to set ad account',
-  };
+  const t = useTranslations('chat');
+
+  let label: string;
+  try {
+    label = action.success
+      ? t(`actionSuccess.${action.type}` as any)
+      : t(`actionFail.${action.type}` as any);
+  } catch {
+    label = action.success ? action.type : `Failed: ${action.type}`;
+  }
 
   return (
     <div className={`flex items-center gap-2 text-xs rounded-lg px-3 py-1.5 ${action.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
@@ -50,7 +31,7 @@ function ActionBadge({ action }: { action: ExecutedAction }) {
           ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           : <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />}
       </svg>
-      <span className="font-medium">{action.success ? (successLabel[action.type] ?? action.type) : (failLabel[action.type] ?? `Failed: ${action.type}`)}</span>
+      <span className="font-medium">{label}</span>
       {action.campaign_name && <span className="opacity-70">— {action.campaign_name}</span>}
       {action.detail && <span className="opacity-70">({action.detail})</span>}
     </div>
@@ -68,6 +49,7 @@ function pageContextFor(pathname: string | null): string | undefined {
 }
 
 export default function ChatDrawer() {
+  const t = useTranslations('chat');
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -119,12 +101,14 @@ export default function ChatDrawer() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
+  const suggestedQuestions = [t('suggested1'), t('suggested2'), t('suggested3')];
+
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl flex items-center gap-2.5 px-4 py-3 shadow-xl shadow-indigo-200 transition-all hover:scale-105 hover:shadow-2xl hover:shadow-indigo-300"
-        aria-label="Ask VIGMIS"
+        aria-label={t('headerTitle')}
       >
         <span className="relative flex-shrink-0">
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
@@ -132,7 +116,7 @@ export default function ChatDrawer() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
           </svg>
         </span>
-        <span className="text-sm font-bold">Ask Vigmis</span>
+        <span className="text-sm font-bold">{t('buttonLabel')}</span>
       </button>
 
       {open && (
@@ -142,8 +126,8 @@ export default function ChatDrawer() {
       <div className={`fixed bottom-0 right-0 z-50 w-full max-w-md h-[75vh] bg-white shadow-2xl rounded-t-2xl flex flex-col transition-transform duration-300 ease-out ${open ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
           <div>
-            <span className="font-bold text-slate-900">Ask VIGMIS</span>
-            <span className="ml-2 text-xs text-slate-400 font-medium">AI Marketing Manager</span>
+            <span className="font-bold text-slate-900">{t('headerTitle')}</span>
+            <span className="ml-2 text-xs text-slate-400 font-medium">{t('headerSubtitle')}</span>
           </div>
           <button
             onClick={() => setOpen(false)}
@@ -158,7 +142,7 @@ export default function ChatDrawer() {
             <div className="flex justify-center py-8">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
-                Loading history…
+                {t('loadingHistory')}
               </div>
             </div>
           )}
@@ -170,16 +154,11 @@ export default function ChatDrawer() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-slate-700">Ask me anything</p>
-                <p className="text-xs text-slate-400 max-w-[260px] mx-auto">Campaigns, budgets, posts — I can answer and act. Try: "Write a Facebook post about our spring sale" or "Pause all campaigns".</p>
+                <p className="text-sm font-semibold text-slate-700">{t('emptyTitle')}</p>
+                <p className="text-xs text-slate-400 max-w-[260px] mx-auto">{t('emptyBody')}</p>
               </div>
               <div className="space-y-2">
-                {[
-                  'How are my campaigns performing?',
-                  'Create a promotional Instagram post',
-                  'Write a Facebook post: Spring sale, 20% off all dates this week',
-                  'Pause all campaigns',
-                ].map(q => (
+                {suggestedQuestions.map(q => (
                   <button key={q} onClick={() => { setInput(q); }} className="w-full text-left text-xs px-3 py-2 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors">
                     {q}
                   </button>
@@ -193,8 +172,8 @@ export default function ChatDrawer() {
               <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.content === '__error__' ? (
                   <div className="bg-red-50 border border-red-100 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-red-700 flex items-center gap-3">
-                    <span>Connection error</span>
-                    <button onClick={handleSend} className="text-xs font-semibold text-red-600 underline">Retry</button>
+                    <span>{t('errorMsg')}</span>
+                    <button onClick={handleSend} className="text-xs font-semibold text-red-600 underline">{t('retry')}</button>
                   </div>
                 ) : (
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
@@ -233,7 +212,7 @@ export default function ChatDrawer() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask anything... (Enter to send)"
+            placeholder={t('placeholder')}
             rows={1}
             className="flex-1 resize-none border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
@@ -242,7 +221,7 @@ export default function ChatDrawer() {
             disabled={!input.trim() || isLoading}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-4 rounded-xl text-sm font-semibold transition-colors flex-shrink-0"
           >
-            Send
+            {t('send')}
           </button>
         </div>
       </div>

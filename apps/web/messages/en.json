@@ -122,7 +122,65 @@
       "pause": "Pause",
       "resume": "Resume",
       "recentJobs": "Recent Jobs",
-      "changeHistory": "Change history"
+      "changeHistory": "Change history",
+      "export": "Export",
+      "clickEditBudget": "Click to edit budget"
+    },
+    "navGroups": {
+      "main": "Main",
+      "intelligence": "Intelligence",
+      "account": "Account"
+    },
+    "analytics": {
+      "dailyTrend": "Daily Trend — last {period} days",
+      "spend": "Spend",
+      "convShort": "conv",
+      "platformBreakdown": "Platform Breakdown",
+      "ofTotalSpend": "% of total spend",
+      "topPerformers": "⭐ Top Performers",
+      "bottomPerformers": "⚠ Needs Attention"
+    },
+    "burn": {
+      "onTrack": "On Track",
+      "over": "Over",
+      "under": "Under",
+      "spent": "spent"
+    },
+    "platformHealth": {
+      "issue": "Issue",
+      "idle": "Idle"
+    },
+    "intel": {
+      "territoryTitle": "Territory Intelligence",
+      "territoryNote": "These geographic markets were identified from your strategy. Your campaign is already configured to target them.",
+      "upcomingEvents": "Upcoming Events",
+      "localizationTips": "Localization Tips",
+      "audienceDiscovery": "Audience Discovery",
+      "audienceNote": "These are audience segments not yet covered by your active campaigns. Select one to add it to your targeting.",
+      "discoverAudiences": "Discover Audiences",
+      "discovering": "Discovering...",
+      "audienceAddNote": "These segments were identified based on your strategy and business profile. Add them to refine your campaign targeting.",
+      "competitorIntel": "Competitive Intelligence",
+      "connectMetaCompetitor": "Connect Meta to unlock competitor intelligence",
+      "competitorNote": "Uses Facebook Ad Library — shows all active ads in your market",
+      "connectMeta": "Connect Meta →",
+      "viewAd": "View Ad →",
+      "variantA": "Variant A",
+      "variantB": "Variant B",
+      "createAbTest": "Create A/B Test",
+      "noAbTests": "No A/B tests running",
+      "activeTests": "Active Tests",
+      "creativeElementTitle": "Creative Element Analytics",
+      "creativeElementNote": "What's working — hook, CTA, color, length, tone",
+      "winningFormula": "Winning Formula",
+      "topElements": "Top Performing Elements",
+      "nextTest": "Next Test to Run",
+      "creativeThemesTitle": "Creative Themes",
+      "topPattern": "Top Performing Pattern",
+      "avoidPattern": "Pattern to Avoid",
+      "themeInsights": "Theme Insights",
+      "applyShifts": "Apply Shifts",
+      "croAudit": "CRO Audit"
     },
     "status": {
       "tiktokSoon": "TikTok — soon",
@@ -990,5 +1048,50 @@
     "ja": "日本語",
     "ko": "한국어",
     "el": "Ελληνικά"
+  },
+  "chat": {
+    "buttonLabel": "Ask Vigmis",
+    "headerTitle": "Ask VIGMIS",
+    "headerSubtitle": "AI Marketing Manager",
+    "loadingHistory": "Loading history…",
+    "emptyTitle": "Ask me anything",
+    "emptyBody": "Campaigns, budgets, posts — I can answer and act.",
+    "errorMsg": "Connection error",
+    "retry": "Retry",
+    "placeholder": "Ask anything… (Enter to send)",
+    "send": "Send",
+    "suggested1": "How are my campaigns performing?",
+    "suggested2": "Create a promotional post",
+    "suggested3": "Pause all campaigns",
+    "actionSuccess": {
+      "pause_campaign": "Paused campaign",
+      "resume_campaign": "Resumed campaign",
+      "update_budget": "Budget updated",
+      "pause_all": "All campaigns paused",
+      "resume_all": "All campaigns resumed",
+      "create_post": "Post created",
+      "write_post": "Post saved",
+      "edit_post": "Post updated",
+      "set_post_image": "Image attached",
+      "approve_post": "Post approved",
+      "reject_post": "Post rejected",
+      "schedule_post": "Post rescheduled",
+      "select_ad_account": "Ad account set"
+    },
+    "actionFail": {
+      "pause_campaign": "Failed to pause campaign",
+      "resume_campaign": "Failed to resume campaign",
+      "update_budget": "Budget update failed",
+      "pause_all": "Failed to pause all campaigns",
+      "resume_all": "Failed to resume all campaigns",
+      "create_post": "Failed to create post",
+      "write_post": "Failed to save post",
+      "edit_post": "Failed to update post",
+      "set_post_image": "Failed to attach image",
+      "approve_post": "Failed to approve",
+      "reject_post": "Failed to reject",
+      "schedule_post": "Failed to reschedule",
+      "select_ad_account": "Failed to set account"
+    }
   }
 }

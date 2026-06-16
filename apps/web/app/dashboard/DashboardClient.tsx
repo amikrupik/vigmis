@@ -336,7 +336,7 @@ export default function DashboardClient() {
           {NAV_GROUPS.map(group => (
             <div key={group.heading} className="mb-4">
               <p className="px-4 mb-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase select-none">
-                {group.heading}
+                {t(`navGroups.${group.heading.toLowerCase()}` as any)}
               </p>
               {group.items.map(item => {
                 const isActive = tab === item.key;
@@ -463,8 +463,9 @@ function ChangeTag({ pct, inverse = false }: { pct: number | null | undefined; i
 // ── Burn gauge (CSS-only circular indicator) ──────────────────────────────────
 
 function BurnGauge({ pctSpent, pctElapsed, status }: { pctSpent: number; pctElapsed: number; status: string }) {
+  const t = useTranslations('dashboard');
   const color = status === 'on_track' ? '#059669' : status === 'overspending' ? '#dc2626' : '#d97706';
-  const label = status === 'on_track' ? 'On Track' : status === 'overspending' ? 'Over' : 'Under';
+  const label = status === 'on_track' ? t('burn.onTrack') : status === 'overspending' ? t('burn.over') : t('burn.under');
   const radius = 38;
   const circ = 2 * Math.PI * radius;
   const offset = circ - (pctSpent / 100) * circ;
@@ -481,7 +482,7 @@ function BurnGauge({ pctSpent, pctElapsed, status }: { pctSpent: number; pctElap
           strokeDasharray={circ} strokeDashoffset={offset}
           strokeLinecap="round" transform="rotate(-90 50 50)" />
         <text x="50" y="46" textAnchor="middle" fontSize="14" fontWeight="800" fill="#0f172a">{pctSpent.toFixed(0)}%</text>
-        <text x="50" y="60" textAnchor="middle" fontSize="9" fill="#64748b">spent</text>
+        <text x="50" y="60" textAnchor="middle" fontSize="9" fill="#64748b">{t('burn.spent')}</text>
       </svg>
       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${status === 'on_track' ? 'bg-emerald-100 text-emerald-700' : status === 'overspending' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{label}</span>
     </div>
@@ -521,6 +522,7 @@ function openPrintWindow(html: string) {
 }
 
 function ExportMenu({ items }: { items: { label: string; action: () => Promise<void> }[] }) {
+  const t = useTranslations('dashboard');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -542,7 +544,7 @@ function ExportMenu({ items }: { items: { label: string; action: () => Promise<v
         {busy ? <span className="w-3 h-3 border border-indigo-600 border-t-transparent rounded-full animate-spin" aria-hidden="true" /> : (
           <svg className="w-3.5 h-3.5" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         )}
-        Export
+        {t('buttons.export')}
         <svg className="w-3 h-3" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
       </button>
       {open && (
@@ -1063,10 +1065,10 @@ function AnalyticsTab() {
       {trend?.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-slate-700">Daily Trend — last {period} days</p>
+            <p className="text-sm font-semibold text-slate-700">{t('analytics.dailyTrend', { period })}</p>
             <div className="flex items-center gap-4 text-xs text-slate-400">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-indigo-500 rounded-sm inline-block" />Spend</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-sm inline-block" />Conversions</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-indigo-500 rounded-sm inline-block" />{t('analytics.spend')}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-sm inline-block" />{t('conversions')}</span>
             </div>
           </div>
           <div className="flex items-end gap-px h-28">
@@ -1075,7 +1077,7 @@ function AnalyticsTab() {
                 <div className="bg-emerald-400 hover:bg-emerald-500 rounded-t-sm transition-colors" style={{ height: `${Math.max(2, (d.conversions / maxConv) * 40)}px` }} />
                 <div className="bg-indigo-500 hover:bg-indigo-600 rounded-t-sm transition-colors" style={{ height: `${Math.max(2, (d.spend / maxSpend) * 60)}px` }} />
                 <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
-                  {d.date}<br />${d.spend} · {d.conversions} conv
+                  {d.date}<br />${d.spend} · {d.conversions} {t('analytics.convShort')}
                 </div>
               </div>
             ))}
@@ -1089,7 +1091,7 @@ function AnalyticsTab() {
       {/* Platform breakdown */}
       {Object.keys(by_platform ?? {}).length > 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700 mb-4">Platform Breakdown</p>
+          <p className="text-sm font-semibold text-slate-700 mb-4">{t('analytics.platformBreakdown')}</p>
           <div className="space-y-5">
             {Object.entries(by_platform).map(([platform, p]: [string, any]) => (
               <div key={platform}>
@@ -1105,7 +1107,7 @@ function AnalyticsTab() {
                 <div className="h-2 bg-slate-100 rounded-full">
                   <div className={`h-2 rounded-full ${platform === 'google' ? 'bg-blue-500' : platform === 'meta' ? 'bg-violet-500' : 'bg-slate-500'}`} style={{ width: `${p.spend_pct}%` }} />
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{p.spend_pct}% of total spend</p>
+                <p className="text-xs text-slate-400 mt-1">{p.spend_pct}{t('analytics.ofTotalSpend')}</p>
               </div>
             ))}
           </div>
@@ -1118,7 +1120,7 @@ function AnalyticsTab() {
           {top_performers?.length > 0 && (
             <div className="bg-white border border-emerald-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-3 bg-emerald-50 border-b border-emerald-100">
-                <p className="text-sm font-bold text-emerald-800">⭐ Top Performers</p>
+                <p className="text-sm font-bold text-emerald-800">{t('analytics.topPerformers')}</p>
               </div>
               <div className="divide-y divide-slate-50">
                 {top_performers.map((c: any, i: number) => (
@@ -1137,7 +1139,7 @@ function AnalyticsTab() {
           {bottom_performers?.length > 0 && (
             <div className="bg-white border border-red-100 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
-                <p className="text-sm font-bold text-red-700">⚠️ Needs Attention</p>
+                <p className="text-sm font-bold text-red-700">{t('analytics.bottomPerformers')}</p>
                 <span className="text-xs text-red-500">ROAS below target — consider pausing or adjusting budget</span>
               </div>
               <div className="divide-y divide-slate-50">
@@ -2611,11 +2613,11 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
       {subTab === 'territory' && territory && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">Territory Intelligence</h3>
+            <h3 className="font-bold text-slate-900">{t('intel.territoryTitle')}</h3>
             <span className="text-sm font-semibold text-indigo-600">{territory.detected_country} · {territory.currency?.symbol}{territory.currency?.code}</span>
           </div>
           <p className="text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5 leading-relaxed">
-            These geographic markets were identified from your strategy. Your campaign is already configured to target them.
+            {t('intel.territoryNote')}
           </p>
           <div className="grid grid-cols-3 gap-4">
             {territory.cpc_benchmarks && Object.entries(territory.cpc_benchmarks).map(([k, v]: [string, any]) => (
@@ -2628,7 +2630,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
           {territory.market_insights && <p dir="ltr" className="text-sm text-slate-600 leading-relaxed text-left">{territory.market_insights}</p>}
           {territory.upcoming_events?.length > 0 && (
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Upcoming Events</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">{t('intel.upcomingEvents')}</p>
               <div className="space-y-2">
                 {territory.upcoming_events.map((e: any, i: number) => (
                   <div key={i} className="flex items-center gap-3 text-sm">
@@ -2642,7 +2644,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
           )}
           {territory.localization_tips?.length > 0 && (
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Localization Tips</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">{t('intel.localizationTips')}</p>
               {territory.localization_tips.map((tip: string, i: number) => <p key={i} dir="auto" className="text-sm text-slate-600 flex gap-2"><span className="text-indigo-400">→</span>{tip}</p>)}
             </div>
           )}
@@ -2661,11 +2663,11 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
           )}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-900">Audience Discovery</h3>
-              <p className="text-sm text-slate-500 mt-0.5">These are audience segments not yet covered by your active campaigns. Select one to add it to your targeting.</p>
+              <h3 className="font-bold text-slate-900">{t('intel.audienceDiscovery')}</h3>
+              <p className="text-sm text-slate-500 mt-0.5">{t('intel.audienceNote')}</p>
             </div>
             <button onClick={handleDiscoverAudiences} disabled={audiencesLoading} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
-              {audiencesLoading ? 'Discovering...' : 'Discover Audiences'}
+              {audiencesLoading ? t('intel.discovering') : t('intel.discoverAudiences')}
             </button>
           </div>
           {audiences.length === 0 && !audiencesLoading && (
@@ -2677,7 +2679,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
           {audiences.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5 leading-relaxed">
-                These segments were identified based on your strategy and business profile. Add them to refine your campaign targeting.
+                {t('intel.audienceAddNote')}
               </p>
               <div className="grid md:grid-cols-2 gap-3">
                 {audiences.map((a: any) => (
@@ -2727,14 +2729,14 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
       {subTab === 'competitors' && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
           <div>
-            <h3 className="font-bold text-slate-900">Competitive Intelligence</h3>
+            <h3 className="font-bold text-slate-900">{t('intel.competitorIntel')}</h3>
             <p className="text-sm text-slate-500 mt-0.5">See what ads your competitors are running (Facebook Ad Library)</p>
           </div>
           {!connected.meta ? (
             <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center space-y-2">
-              <p className="text-sm font-semibold text-slate-600">Connect Meta to unlock competitor intelligence</p>
-              <p className="text-xs text-slate-400">Uses Facebook Ad Library — shows all active ads in your market</p>
-              <a href="/onboarding" className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Connect Meta →</a>
+              <p className="text-sm font-semibold text-slate-600">{t('intel.connectMetaCompetitor')}</p>
+              <p className="text-xs text-slate-400">{t('intel.competitorNote')}</p>
+              <a href="/onboarding" className="text-xs text-indigo-600 font-medium hover:text-indigo-700">{t('intel.connectMeta')}</a>
             </div>
           ) : (
             <div className="flex gap-3">
@@ -2774,7 +2776,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
                       </span>
                     )}
                     {ad.ad_snapshot_url && (
-                      <a href={ad.ad_snapshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View Ad →</a>
+                      <a href={ad.ad_snapshot_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">{t('intel.viewAd')}</a>
                     )}
                   </div>
                 </div>
@@ -2813,12 +2815,12 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant A</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('intel.variantA')}</p>
                   <p dir="auto" className="text-xs font-semibold text-slate-700">{abRecommendation.variant_a?.name}</p>
                   <p dir="auto" className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_a?.description}</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-1">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Variant B</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('intel.variantB')}</p>
                   <p dir="auto" className="text-xs font-semibold text-slate-700">{abRecommendation.variant_b?.name}</p>
                   <p dir="auto" className="text-xs text-slate-600 leading-relaxed">{abRecommendation.variant_b?.description}</p>
                 </div>
@@ -2845,7 +2847,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
           {/* Manual Create Form — shown when no recommendation yet, or user clicked "or create your own" */}
           {(showManualForm || !abRecommendation) && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-              <h3 className="font-bold text-slate-900">Create A/B Test</h3>
+              <h3 className="font-bold text-slate-900">{t('intel.createAbTest')}</h3>
               <div className="grid sm:grid-cols-2 gap-3">
                 <input value={newTest.name} onChange={e => setNewTest(n => ({ ...n, name: e.target.value }))} placeholder="Test name (e.g. Hook style test)" className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 <select value={newTest.platform} onChange={e => setNewTest(n => ({ ...n, platform: e.target.value }))} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -2862,13 +2864,13 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
 
           {abTests.length === 0 && (
             <div className="bg-slate-50 rounded-xl p-6 text-center space-y-1">
-              <p className="text-sm font-semibold text-slate-600">No A/B tests running</p>
+              <p className="text-sm font-semibold text-slate-600">{t('intel.noAbTests')}</p>
               <p className="text-xs text-slate-400">Create your first test above — Vigmis will monitor CTR and declare a winner automatically.</p>
             </div>
           )}
           {abTests.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-6 py-4 border-b border-slate-100"><p className="font-bold text-slate-900 text-sm">Active Tests</p></div>
+              <div className="px-6 py-4 border-b border-slate-100"><p className="font-bold text-slate-900 text-sm">{t('intel.activeTests')}</p></div>
               <div className="divide-y divide-slate-50">
                 {abTests.map((test: any) => (
                   <div key={test.id} className="px-6 py-4 space-y-2">
@@ -2907,8 +2909,8 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-900">Creative Element Analytics</h3>
-              <p className="text-sm text-slate-500 mt-0.5">What's working — hook, CTA, color, length, tone</p>
+              <h3 className="font-bold text-slate-900">{t('intel.creativeElementTitle')}</h3>
+              <p className="text-sm text-slate-500 mt-0.5">{t('intel.creativeElementNote')}</p>
             </div>
             <div className="flex flex-col items-end gap-1">
               <button onClick={handleElementAnalysis} disabled={elementLoading || !campaigns?.length} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors flex items-center gap-2">
@@ -2929,7 +2931,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
             <div className="space-y-4">
               {elementAnalysis.winning_formula && (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                  <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">Winning Formula</p>
+                  <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">{t('intel.winningFormula')}</p>
                   <p dir="auto" className="text-sm text-slate-800">{elementAnalysis.winning_formula}</p>
                 </div>
               )}
@@ -2946,7 +2948,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
               )}
               {elementAnalysis.top_performing_elements?.length > 0 && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Top Performing Elements</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">{t('intel.topElements')}</p>
                   {elementAnalysis.top_performing_elements.map((e: any, i: number) => (
                     <div key={i} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
                       <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">{e.lift}</span>
@@ -2957,7 +2959,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
               )}
               {elementAnalysis.next_test && (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
-                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Next Test to Run</p>
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">{t('intel.nextTest')}</p>
                   <p dir="auto" className="text-sm text-slate-700">{elementAnalysis.next_test}</p>
                 </div>
               )}
@@ -2971,7 +2973,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-900">Creative Themes</h3>
+              <h3 className="font-bold text-slate-900">{t('intel.creativeThemesTitle')}</h3>
               <p className="text-sm text-slate-500 mt-0.5">Patterns in your last 90 days of social posts — what's working and what to avoid</p>
             </div>
             <button
@@ -2994,19 +2996,19 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
             <div className="space-y-4">
               {creativeThemes.topPerforming && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Top Performing Pattern</p>
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">{t('intel.topPattern')}</p>
                   <p dir="auto" className="text-sm text-slate-800">{creativeThemes.topPerforming}</p>
                 </div>
               )}
               {creativeThemes.toAvoid && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Pattern to Avoid</p>
+                  <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">{t('intel.avoidPattern')}</p>
                   <p dir="auto" className="text-sm text-slate-800">{creativeThemes.toAvoid}</p>
                 </div>
               )}
               {creativeThemes.insights?.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Theme Insights</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t('intel.themeInsights')}</p>
                   {creativeThemes.insights.map((ins: any, i: number) => (
                     <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-1 hover:border-indigo-200 transition-colors">
                       <p dir="auto" className="text-sm font-semibold text-slate-900">{ins.theme}</p>
@@ -3064,7 +3066,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
                       <p className="text-xs text-amber-700">Changes take effect immediately on your ad platforms.</p>
                       <div className="flex gap-2">
                         <button onClick={() => setShiftConfirm(false)} className="flex-1 border border-amber-300 text-amber-800 font-semibold py-2 rounded-xl text-sm hover:bg-amber-100 transition-colors">Cancel</button>
-                        <button onClick={() => { setShiftConfirm(false); handleApplyShifts(); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">Apply Shifts</button>
+                        <button onClick={() => { setShiftConfirm(false); handleApplyShifts(); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-xl text-sm transition-colors">{t('intel.applyShifts')}</button>
                       </div>
                     </div>
                   ) : (
@@ -3084,7 +3086,7 @@ function IntelligenceTab({ settings, connected, campaigns, onNavigate }: any) {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-slate-900">CRO Audit</h3>
+              <h3 className="font-bold text-slate-900">{t('intel.croAudit')}</h3>
               <p className="text-sm text-slate-500 mt-0.5">AI audits your landing page for conversion rate issues</p>
             </div>
             <button onClick={handleCroAudit} disabled={croLoading || !settings?.website_url} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">
