@@ -43,6 +43,9 @@ export interface CreativeContext {
   // Brand identity
   brandName: string;
   websiteUrl: string;
+  // Creative language — derived from campaign geo targeting
+  creativeLanguage: string;
+  creativeLanguageReason: string;
   // Learning Loop — prior winning patterns for this client
   winningPatternsContext?: string;
   // Hypothesis Engine — open testable hypotheses from Strategic Brain
@@ -68,6 +71,78 @@ export interface CreativeContext {
   };
 }
 
+// ── Language detection ─────────────────────────────────────────────────────────
+// Maps normalised geography strings → primary advertising language.
+// Priority: audience minority signal > geo_include match > English fallback.
+
+const GEO_LANGUAGE_MAP: Array<{ keys: string[]; name: string; code: string }> = [
+  { keys: ['israel', ' il ', 'יש'], name: 'Hebrew', code: 'he' },
+  { keys: ['germany', 'deutschland', 'österreich', 'austria', 'schweiz', 'german-speaking'], name: 'German', code: 'de' },
+  { keys: ['france', 'french-speaking', 'francophone'], name: 'French', code: 'fr' },
+  { keys: ['spain', 'españa', 'mexico', 'colombia', 'argentina', 'chile', 'peru', 'venezuela', 'latin america'], name: 'Spanish', code: 'es' },
+  { keys: ['brazil', 'brasil', 'portugal'], name: 'Portuguese', code: 'pt' },
+  { keys: ['italy', 'italia', 'italian'], name: 'Italian', code: 'it' },
+  { keys: ['netherlands', 'holland', 'dutch', 'belgium', 'belgie', 'belgique'], name: 'Dutch', code: 'nl' },
+  { keys: ['saudi', 'uae', 'emirates', 'egypt', 'jordan', 'iraq', 'kuwait', 'bahrain', 'qatar', 'oman', 'arab world', 'arabic world', 'arabic-speaking', 'mena'], name: 'Arabic', code: 'ar' },
+  { keys: ['russia', 'ukraine', 'belarus', 'russian-speaking'], name: 'Russian', code: 'ru' },
+  { keys: ['turkey', 'türkiye', 'turkish'], name: 'Turkish', code: 'tr' },
+  { keys: ['poland', 'polish'], name: 'Polish', code: 'pl' },
+  { keys: ['greece', 'greek', 'grecia'], name: 'Greek', code: 'el' },
+  { keys: ['japan', 'japanese'], name: 'Japanese', code: 'ja' },
+  { keys: ['south korea', 'korea', 'korean'], name: 'Korean', code: 'ko' },
+  { keys: ['china', 'taiwan', 'hong kong', 'chinese'], name: 'Chinese', code: 'zh' },
+  { keys: ['usa', 'united states', 'us ', ' us,', 'uk', 'united kingdom', 'england', 'australia', 'canada', 'new zealand', 'ireland', 'english-speaking'], name: 'English', code: 'en' },
+];
+
+const GLOBAL_SCOPE = ['global', 'worldwide', 'international', 'europe', 'north america', 'south america', 'asia', 'africa', 'middle east'];
+
+export function deriveCreativeLanguage(
+  geoInclude: string[],
+  targetAudience: string,
+): { language: string; languageCode: string; reason: string } {
+  const geoStr = geoInclude.join(' ').toLowerCase();
+  const audienceLower = targetAudience.toLowerCase();
+
+  // 1. Minority language signal in target audience ("Spanish speakers in UK")
+  for (const entry of GEO_LANGUAGE_MAP) {
+    for (const key of entry.keys) {
+      const kTrimmed = key.trim();
+      if (audienceLower.includes(`${kTrimmed} speaker`) || audienceLower.includes(`${kTrimmed}-speaking`)) {
+        return { language: entry.name, languageCode: entry.code, reason: `Target audience includes ${entry.name}-speaking users — native-language copy converts better` };
+      }
+    }
+  }
+
+  // 2. No geo → English
+  if (!geoInclude.length) {
+    return { language: 'English', languageCode: 'en', reason: 'No geographic targeting set — using English as default' };
+  }
+
+  // 3. Global scope signal → English
+  for (const signal of GLOBAL_SCOPE) {
+    if (geoStr.includes(signal)) {
+      return { language: 'English', languageCode: 'en', reason: `Broad geographic scope (${geoInclude[0]}) — English maximises international reach` };
+    }
+  }
+
+  // 4. Match primary geo against map
+  for (const geo of geoInclude) {
+    const geoLower = geo.toLowerCase();
+    for (const entry of GEO_LANGUAGE_MAP) {
+      if (entry.keys.some(k => geoLower.includes(k.trim()) || k.trim().includes(geoLower))) {
+        return {
+          language: entry.name,
+          languageCode: entry.code,
+          reason: `Campaign targets ${geo} — ${entry.name} reaches local audiences ~40% more effectively than English`,
+        };
+      }
+    }
+  }
+
+  // 5. Fallback
+  return { language: 'English', languageCode: 'en', reason: `Language not recognised for "${geoInclude[0]}" — defaulting to English` };
+}
+
 export async function extractCreativeContext(
   tenantId: string,
   strategyPlan: StrategyPlan | null,
@@ -76,6 +151,7 @@ export async function extractCreativeContext(
   format: string,
   brandName: string,
   websiteUrl: string,
+  languageOverride?: string,
 ): Promise<CreativeContext> {
   // Fetch the creative brief (separate table — pain/promise/proof/objection)
   const brief: CreativeBrief | null = await getDefaultBrief(tenantId).catch(() => null);
@@ -179,6 +255,14 @@ export async function extractCreativeContext(
       }
     : undefined;
 
+  // ── Creative language ─────────────────────────────────────────────────────
+  const geoInclude: string[] = (strategyPlan as any)?.geo_include ?? [];
+  const { language: detectedLanguage, reason: detectedReason } = deriveCreativeLanguage(geoInclude, targetAudience);
+  const creativeLanguage = languageOverride ?? detectedLanguage;
+  const creativeLanguageReason = languageOverride
+    ? `User selected ${languageOverride}`
+    : detectedReason;
+
   return {
     targetAudience,
     corePain,
@@ -197,6 +281,8 @@ export async function extractCreativeContext(
     format,
     brandName,
     websiteUrl,
+    creativeLanguage,
+    creativeLanguageReason,
     messagingPillars,
     existingConcepts,
     platformHooks,

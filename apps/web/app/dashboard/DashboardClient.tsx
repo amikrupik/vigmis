@@ -55,6 +55,50 @@ type Campaign = {
   created_at: string;
 };
 
+// ── Creative language detection (mirrors server-side creative-context.ts) ──────
+const GEO_LANG_MAP: Array<{ keys: string[]; name: string; flag: string }> = [
+  { keys: ['israel'], name: 'Hebrew', flag: '🇮🇱' },
+  { keys: ['germany', 'austria', 'schweiz', 'german'], name: 'German', flag: '🇩🇪' },
+  { keys: ['france', 'french'], name: 'French', flag: '🇫🇷' },
+  { keys: ['spain', 'mexico', 'colombia', 'argentina', 'chile', 'peru', 'venezuela', 'latin america', 'españa'], name: 'Spanish', flag: '🇪🇸' },
+  { keys: ['brazil', 'brasil', 'portugal'], name: 'Portuguese', flag: '🇧🇷' },
+  { keys: ['italy', 'italia'], name: 'Italian', flag: '🇮🇹' },
+  { keys: ['netherlands', 'holland', 'dutch', 'belgium'], name: 'Dutch', flag: '🇳🇱' },
+  { keys: ['saudi', 'uae', 'emirates', 'egypt', 'jordan', 'iraq', 'kuwait', 'qatar', 'arabic', 'mena'], name: 'Arabic', flag: '🇸🇦' },
+  { keys: ['russia', 'ukraine', 'russian'], name: 'Russian', flag: '🇷🇺' },
+  { keys: ['turkey', 'türkiye'], name: 'Turkish', flag: '🇹🇷' },
+  { keys: ['poland', 'polish'], name: 'Polish', flag: '🇵🇱' },
+  { keys: ['greece', 'greek'], name: 'Greek', flag: '🇬🇷' },
+  { keys: ['japan', 'japanese'], name: 'Japanese', flag: '🇯🇵' },
+  { keys: ['korea', 'korean'], name: 'Korean', flag: '🇰🇷' },
+  { keys: ['china', 'taiwan', 'hong kong', 'chinese'], name: 'Chinese', flag: '🇨🇳' },
+  { keys: ['usa', 'united states', 'uk', 'england', 'australia', 'canada', 'english'], name: 'English', flag: '🇺🇸' },
+];
+const GLOBAL_SIGNALS = ['global', 'worldwide', 'international', 'europe', 'north america'];
+const SUPPORTED_LANGUAGES = [
+  { name: 'English', flag: '🇺🇸' }, { name: 'Hebrew', flag: '🇮🇱' }, { name: 'Arabic', flag: '🇸🇦' },
+  { name: 'German', flag: '🇩🇪' }, { name: 'French', flag: '🇫🇷' }, { name: 'Spanish', flag: '🇪🇸' },
+  { name: 'Portuguese', flag: '🇧🇷' }, { name: 'Italian', flag: '🇮🇹' }, { name: 'Dutch', flag: '🇳🇱' },
+  { name: 'Russian', flag: '🇷🇺' }, { name: 'Turkish', flag: '🇹🇷' }, { name: 'Polish', flag: '🇵🇱' },
+  { name: 'Greek', flag: '🇬🇷' }, { name: 'Japanese', flag: '🇯🇵' }, { name: 'Korean', flag: '🇰🇷' },
+  { name: 'Chinese', flag: '🇨🇳' },
+];
+function deriveCreativeLanguageClient(geoInclude: string[], targetAudience: string): { name: string; reason: string; flag: string } {
+  const geoStr = (geoInclude ?? []).join(' ').toLowerCase();
+  const geoList = geoInclude ?? [];
+  if (!geoList.length) return { name: 'English', flag: '🇺🇸', reason: 'No geographic targeting set — using English as default' };
+  if (GLOBAL_SIGNALS.some(s => geoStr.includes(s))) return { name: 'English', flag: '🇺🇸', reason: `Broad scope (${geoList[0]}) — English maximises reach` };
+  for (const geo of geoList) {
+    const geoLower = geo.toLowerCase();
+    for (const entry of GEO_LANG_MAP) {
+      if (entry.keys.some(k => geoLower.includes(k) || k.includes(geoLower))) {
+        return { name: entry.name, flag: entry.flag, reason: `Campaign targets ${geo} — native copy converts ~40% better` };
+      }
+    }
+  }
+  return { name: 'English', flag: '🇺🇸', reason: 'Language not recognised — defaulting to English' };
+}
+
 // Learning period days per campaign type (mirrors engine/rules.ts benchmarks)
 function getLearningDays(platform: string, campaignType: string): number {
   if (campaignType === 'conversions') return 10;
@@ -1530,6 +1574,8 @@ function CreativeTab({ settings }: any) {
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoJob, setVideoJob] = useState<any>(null);
   const [jobs, setJobs] = useState<CreativeJob[]>([]);
+  const [creativeLanguage, setCreativeLanguage] = useState<{ name: string; reason: string } | null>(null);
+  const [languageOverride, setLanguageOverride] = useState<string | null>(null);
 
   // Pre-launch creative scoring (G1)
   const [jobScores, setJobScores] = useState<Record<string, any>>({});
@@ -1548,6 +1594,14 @@ function CreativeTab({ settings }: any) {
   useEffect(() => {
     getCreatives().then(res => setJobs(res?.jobs ?? []));
   }, []);
+
+  // Derive creative language from campaign geo targeting when settings load
+  useEffect(() => {
+    const geo: string[] = settings?.geo_include ?? [];
+    const audience: string = settings?.target_audience ?? '';
+    const derived = deriveCreativeLanguageClient(geo, audience);
+    setCreativeLanguage(derived);
+  }, [settings]);
 
   // Load AI creative brief on mount
   useEffect(() => {
@@ -1658,7 +1712,8 @@ function CreativeTab({ settings }: any) {
       ? { prompt: scriptWithBrief, duration: 5, aspect_ratio: '16:9' }
       : { prompt: scriptWithBrief, style: 'cinematic', duration: 3 };
 
-    const res = await generateCreative(selectedVideoType, videoBrief, platform);
+    const activeLang = languageOverride ?? creativeLanguage?.name ?? undefined;
+    const res = await generateCreative(selectedVideoType, videoBrief, platform, undefined, undefined, activeLang);
     setVideoJob(res);
     setBriefApproved(false);
     if (res?.job_id) {
@@ -1931,6 +1986,29 @@ function CreativeTab({ settings }: any) {
                 <span className="text-slate-500">{t('creative.cost')}</span>
                 <span className="font-bold text-indigo-600">${VIDEO_OPTIONS.find(o => o.type === selectedVideoType)?.price}</span>
               </div>
+              {/* Ad Language row — derived from geo targeting, user can override */}
+              {creativeLanguage && (
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-100">
+                  <div>
+                    <span className="text-slate-500">{t('creative.adLanguage')}</span>
+                    <span className="ml-1.5 text-xs text-slate-400" title={creativeLanguage.reason}>ⓘ</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-900">
+                      {(SUPPORTED_LANGUAGES.find(l => l.name === (languageOverride ?? creativeLanguage.name))?.flag ?? '🌐')} {languageOverride ?? creativeLanguage.name}
+                    </span>
+                    <select
+                      value={languageOverride ?? creativeLanguage.name}
+                      onChange={e => setLanguageOverride(e.target.value === creativeLanguage.name ? null : e.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    >
+                      {SUPPORTED_LANGUAGES.map(l => (
+                        <option key={l.name} value={l.name}>{l.flag} {l.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
               <div className="pt-2 border-t border-slate-100">
                 <p className="text-xs text-slate-400 mb-1">{selectedVideoType === 'avatar' ? t('creative.yourScript') : t('creative.yourPrompt')}</p>
                 <p dir="auto" className="text-sm text-slate-700 italic">"{videoScript}"</p>

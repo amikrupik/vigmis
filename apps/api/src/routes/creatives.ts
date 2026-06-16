@@ -726,6 +726,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       parent_job_id,
       keep_elements,
       change_request,
+      creative_language,
     } = request.body as {
       type: CreativeType;
       brief: Record<string, any>;
@@ -734,6 +735,7 @@ export async function creativeRoutes(app: FastifyInstance) {
       parent_job_id?: string;
       keep_elements?: string[];
       change_request?: string;
+      creative_language?: string;
     };
 
     if (!type || !brief) {
@@ -805,6 +807,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         type,
         derivedBusinessNameEarly,
         websiteTokenEarly,
+        creative_language,
       );
 
       // Extract the raw user input (before any mutation)

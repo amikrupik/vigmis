@@ -59,6 +59,10 @@ function formatContext(ctx: CreativeContext): string {
   if (ctx.hypothesesContext) {
     lines.push(ctx.hypothesesContext);
   }
+  // Language instruction — always explicit so the model never defaults to English
+  const lang = ctx.creativeLanguage || 'English';
+  lines.push(`\nCREATIVE LANGUAGE: ${lang}`);
+  lines.push(`Write ALL ad copy, headlines, scripts, captions, and text overlays in ${lang}. The target audience is native ${lang} speakers. Do not mix languages. Do not include an English translation.`);
   return lines.join('\n');
 }
 

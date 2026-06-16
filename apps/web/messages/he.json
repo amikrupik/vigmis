@@ -327,6 +327,7 @@
       "type": "סוג",
       "platform": "פלטפורמה",
       "cost": "עלות",
+      "adLanguage": "שפת המודעה",
       "yourScript": "התסריט שלך",
       "yourPrompt": "הפרומפט שלך",
       "policy": "מדיניות",

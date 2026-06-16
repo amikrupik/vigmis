@@ -327,6 +327,7 @@
       "type": "Type",
       "platform": "Platform",
       "cost": "Cost",
+      "adLanguage": "Ad Language",
       "yourScript": "Your script",
       "yourPrompt": "Your prompt",
       "policy": "Policy",
