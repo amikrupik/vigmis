@@ -9,7 +9,7 @@ import {
   getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
-  generateCreative, getCreatives, getCreativeStatus, rejectCreative, deleteCreativeJob,
+  generateCreative, getCreatives, getCreativeStatus, approveCreative, rejectCreative, deleteCreativeJob,
   createAbTest, getAbTests, concludeAbTest, getAbTestRecommendation,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
@@ -1356,11 +1356,11 @@ type CreativeJob = {
   id: string;
   type: VideoType;
   platform: string | null;
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup' | 'rejected';
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup' | 'rejected' | 'approved';
   output_url: string | null;
   brief: Record<string, any>;
   created_at: string;
-  approved?: boolean;
+  approved_at?: string | null;
   revision_requested?: boolean;
 };
 
@@ -1987,7 +1987,7 @@ function CreativeTab({ settings }: any) {
                 const ageMin = Math.round((Date.now() - new Date(job.created_at).getTime()) / 60000);
                 const stuck = (job.status === 'queued' || job.status === 'processing') && ageMin > 15;
                 const isVideo = job.output_url && (job.output_url.endsWith('.mp4') || job.output_url.includes('video'));
-                const needsApproval = job.status === 'completed' && job.output_url && !job.approved;
+                const needsApproval = job.status === 'completed' && job.output_url && !job.approved_at;
                 const price = VIDEO_OPTIONS.find(o => o.type === job.type)?.price ?? 0;
                 return (
                   <div key={job.id} className="border border-slate-100 rounded-xl overflow-hidden">
@@ -1999,9 +1999,9 @@ function CreativeTab({ settings }: any) {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold capitalize ${statusColor(job.status)}`}>
-                          {job.approved ? 'approved' : job.status.replace('_', ' ')}
+                          {(job.status === 'approved' || job.approved_at) ? 'approved' : job.status.replace('_', ' ')}
                         </span>
-                        {job.status === 'completed' && job.output_url && job.approved && (
+                        {(job.status === 'approved' || (job.status === 'completed' && job.approved_at)) && job.output_url && (
                           <a href={job.output_url} download className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-lg transition-colors">Download ↓</a>
                         )}
                         {stuck && <a href="mailto:support@vigmis.com" className="text-xs text-amber-600 hover:underline">Contact support</a>}
@@ -2039,7 +2039,14 @@ function CreativeTab({ settings }: any) {
                         )}
                         <div className="flex gap-2 flex-wrap">
                           <button
-                            onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, approved: true } : j))}
+                            onClick={async () => {
+                              const res = await approveCreative(job.id);
+                              if (res?.checkout_url) {
+                                window.location.href = res.checkout_url;
+                              } else {
+                                setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'approved', approved_at: new Date().toISOString() } : j));
+                              }
+                            }}
                             className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
                             {t('creative.approvePay')} ${price}
@@ -2065,7 +2072,7 @@ function CreativeTab({ settings }: any) {
                     )}
 
                     {/* View link + AI disclosure reminder after approval */}
-                    {job.status === 'completed' && job.output_url && job.approved && (
+                    {(job.status === 'approved' || (job.status === 'completed' && job.approved_at)) && job.output_url && (
                       <div className="px-3 pb-2 space-y-1.5">
                         <a href={job.output_url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
                           {t('creative.viewCreative')}
@@ -2281,7 +2288,7 @@ function CreativeTab({ settings }: any) {
           animation: 'bg-violet-100 text-violet-700',
           image: 'bg-orange-100 text-orange-700',
         };
-        const awaitingCount = visibleJobs.filter(j => j.status === 'completed' && !j.approved).length;
+        const awaitingCount = visibleJobs.filter(j => j.status === 'completed' && !j.approved_at).length;
         return (
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             <button
@@ -2325,8 +2332,8 @@ function CreativeTab({ settings }: any) {
                     {visibleJobs.map(job => {
                       const isVideo = job.output_url && (job.output_url.endsWith('.mp4') || job.output_url.includes('video'));
                       const isProcessing = job.status === 'queued' || job.status === 'processing';
-                      const needsReview = job.status === 'completed' && job.output_url && !job.approved;
-                      const isApproved = job.status === 'completed' && job.output_url && job.approved;
+                      const needsReview = job.status === 'completed' && job.output_url && !job.approved_at;
+                      const isApproved = job.status === 'approved' || (job.status === 'completed' && !!job.approved_at);
                       const ext = isVideo ? 'mp4' : 'jpg';
                       const filename = `vigmis-${job.type}-${job.id.slice(0, 8)}.${ext}`;
                       return (

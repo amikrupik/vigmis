@@ -288,6 +288,10 @@ export async function getCreatives() {
   return apiCall('/creatives');
 }
 
+export async function approveCreative(jobId: string) {
+  return apiCall(`/creatives/${jobId}/approve`, 'POST', {});
+}
+
 export async function rejectCreative(jobId: string) {
   return apiCall(`/creatives/${jobId}/reject`, 'POST', {});
 }
