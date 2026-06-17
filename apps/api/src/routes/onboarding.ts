@@ -655,8 +655,11 @@ export async function onboardingRoutes(app: FastifyInstance) {
       });
     }
 
+    // Limit to last 20 messages — system prompt already carries coveredTopics state,
+    // and long histories cause context overflow when all topics are covered + SUMMARY is needed.
+    const recentHistory = historyArr.slice(-20);
     const messages = [
-      ...historyArr.map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
+      ...recentHistory.map((m: any) => `${m.role === 'user' ? 'Client' : 'Vigmis'}: ${m.content}`),
       `Client: ${message}`,
     ].join('\n\n');
 
@@ -932,8 +935,8 @@ Be sharp, specific, and commercially honest. Avoid generic marketing clichés.`,
     });
     const marketResearch = research.output;
 
-    // Phase 3: Strategy generation — capped at 240s so we stay under Vercel's 300s limit
-    const STRATEGY_TIMEOUT_MS = 240_000;
+    // Phase 3: Strategy generation — capped at 180s (Red Team gets remaining 60s)
+    const STRATEGY_TIMEOUT_MS = 180_000;
     let strategyTimedOut = false;
     const strategyRes = await Promise.race([
       route({
@@ -1058,9 +1061,11 @@ Return ONLY valid JSON (no extra text):
       "ltv_potential": "low | medium | high — and why based on their purchase frequency and average order"
     }
   ],
+  "status_quo_competitor": "What the buyer is doing RIGHT NOW instead of buying from this business. This is often the real competition — not another online store, but inaction, a habit, a local supplier, or a completely different category. Be specific: 'buying from the local market every Thursday' or 'using Excel instead of software' or 'not doing this at all yet'.",
   "real_competitors": [
     {
-      "name": "A real business competing in the same channel, same price tier, for the same buyer. Write their actual name or domain. If no real competitor exists in this channel, say 'No dominant competitors in this channel — write what the buyer's next-best alternative actually is (e.g. buying locally, doing nothing, using a different format).",
+      "name": "A real business competing in the same channel, same price tier, for the same buyer. Write their actual name or domain. If no direct online competitor exists, write the buyer's realistic next-best alternative.",
+      "competitor_type": "direct_online | indirect | substitute — direct_online means same product same channel; indirect means different product solving same need; substitute means completely different approach to the same goal",
       "why_they_compete": "Why a buyer in this channel would consider them as an alternative",
       "their_weakness": "What they can't credibly claim that this business can",
       "win_strategy": "How to position against them specifically"
@@ -1185,7 +1190,19 @@ Return ONLY valid JSON (no extra text):
   ],
   "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
 }`,
-        systemPrompt: `You are a senior CMO and market strategist — not a digital agency. Your job is NOT to recommend campaigns. Your job is to understand how this specific market works, who the real buyers are, why they buy, and THEN decide what campaigns make sense. The difference: an agency asks "what ads should we run?". You ask "why do people buy this, who are they really, and what's our hypothesis?" Start from market understanding, not from ad channels. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text ("run Meta videos", "build brand awareness", "own a niche") is a failure.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, market_thesis, market_segments, real_competitors, strategic_hypotheses, campaign_phases, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
+        systemPrompt: `You are the best market strategist in the world — not a digital agency, not a campaign manager, not a framework applier. You think like a founder who has spent years in this market. Your job is to understand this business deeply enough that you could run it. Not "what ads should we run" — but "why do people buy this, what is really happening in this market, and what is the sharpest possible move given the constraints."
+
+MENTAL PROCESS — complete this before writing a single JSON field:
+1. What would a generic digital marketing agency write for this business? (one sentence to yourself)
+2. Why is that recommendation incomplete or wrong for this specific case?
+3. What does understanding this MARKET deeply — not just the product — change about the strategy?
+Only after answering these three questions, write the JSON.
+
+THE STATUS QUO TEST — before identifying competitors: what is this buyer doing RIGHT NOW instead of buying from this business? That is the real competition. Most businesses compete more with inaction, habit, or a completely different category than with direct online competitors.
+
+STRATEGY QUALITY STANDARD: If you replaced the business name with any other business in this category and the strategy still sounds right — you have failed. Every claim must be provable only for this specific business.
+
+Return only valid JSON, no extra text. Every field must be specific to THIS business.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, market_thesis, market_segments, real_competitors, strategic_hypotheses, campaign_phases, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes, status_quo_competitor, strategic_self_critique fields. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
         options: { maxTokens: 4000, temperature: 0.3 },
       }),
       new Promise<never>((_, reject) =>
@@ -1279,6 +1296,80 @@ Return this exact JSON structure (be concise — max 2 sentences per text field)
           platform_exclusions: [],
         },
       };
+    }
+
+    // Phase 4 — Red Team: adversarial review of the weakest strategic fields.
+    // A separate skeptical agent attacks the output before the user sees it.
+    // Timeout is 45s — failure never blocks the response.
+    try {
+      const s = strategy as any;
+      const competitorNames = (s.real_competitors ?? []).map((c: any) => c.name ?? '—').slice(0, 5).join(', ');
+      const segmentSummary = (s.market_segments ?? []).map((seg: any) => `${seg.segment_name ?? '?'}: ${(seg.trigger ?? '').slice(0, 70)}`).join(' | ');
+      const thesisPreview = (s.market_thesis ?? '').slice(0, 350);
+      const narrativeP1 = ((s.strategy_narrative ?? '').split('\n\n')[0] ?? '').slice(0, 250);
+
+      const redTeamRes = await Promise.race([
+        route({
+          task: 'analysis',
+          prompt: `You are the most skeptical CMO at a top-tier firm. A junior strategist gave you this work. Find what is WRONG or LAZY. Be brutally honest.
+
+BUSINESS (what they actually sell and to whom):
+${websiteAnalysis.slice(0, 500)}
+
+STRATEGY DRAFT:
+market_thesis: ${thesisPreview}
+competitors listed: ${competitorNames || '(none)'}
+segments: ${segmentSummary || '(none)'}
+narrative opening: ${narrativeP1}
+
+ATTACK CRITERIA:
+1. THESIS — Can I copy-paste this thesis onto any other business in this category and have it still make sense? If yes → it's generic and useless.
+2. COMPETITORS — Would these businesses appear on the same Google/Meta search as this business? Same online channel, same price tier? If they're offline stores or mass-market chains competing on a different channel → they're wrong.
+3. SEGMENTS — Are there genuinely 3+ different types of buyers with different triggers and messages? "Health-conscious adults" and "health-focused consumers" are the same segment.
+
+Return ONLY a JSON array. Language: match the language of the strategy fields above. Return [] if all fields are genuinely strong.
+Patches you can make:
+- "market_thesis" — replace with a thesis that is specific to THIS exact business
+- "red_team_competitors" — flag the competitor problem and suggest what to look for instead (string, not array)
+- "red_team_segments" — flag if segments are too similar
+
+[{"field": "market_thesis", "issue": "one sentence: what is wrong", "corrected_value": "the replacement — make it specific"}]`,
+          systemPrompt: 'Return only a valid JSON array of patches. Return [] if the strategy is solid. Never explain yourself outside the JSON.',
+          options: { maxTokens: 700, temperature: 0.15 },
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('red_team_timeout')), 45_000)),
+      ]);
+
+      const patchMatch = redTeamRes.output.match(/\[[\s\S]*?\]/);
+      if (patchMatch) {
+        const patches = JSON.parse(patchMatch[0]) as Array<{ field: string; issue: string; corrected_value?: string }>;
+        const flags: string[] = [];
+        for (const patch of patches) {
+          if (!patch.field || !patch.issue) continue;
+          if (patch.field === 'market_thesis' && patch.corrected_value?.trim()) {
+            s.market_thesis = patch.corrected_value.trim();
+          } else if (patch.field === 'red_team_competitors' && patch.issue) {
+            flags.push(`Competitors: ${patch.issue}${patch.corrected_value ? ` → ${patch.corrected_value}` : ''}`);
+          } else if (patch.field === 'red_team_segments' && patch.issue) {
+            flags.push(`Segments: ${patch.issue}`);
+          }
+        }
+        if (flags.length > 0) s.red_team_flags = flags;
+        if (patches.length > 0) request.log.info({ patches: patches.map(p => p.field) }, 'Red Team patches applied');
+      }
+    } catch (err: unknown) {
+      request.log.warn({ err }, 'Red Team skipped');
+    }
+
+    // Persist the new analysis and strategy back to client_settings so the dashboard reflects it.
+    try {
+      await db.from('client_settings').update({
+        website_analysis: websiteAnalysis,
+        strategy_plan: strategy as any,
+        updated_at: new Date().toISOString(),
+      }).eq('tenant_id', request.tenantId);
+    } catch (saveErr) {
+      request.log.warn({ saveErr }, 'Failed to persist re-analysis — returning result anyway');
     }
 
     return reply.send({ websiteAnalysis, marketResearch, strategy });
