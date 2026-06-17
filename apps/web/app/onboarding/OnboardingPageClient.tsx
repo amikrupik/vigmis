@@ -307,10 +307,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         geo: (settings.geo_include ?? []).join(', '),
       }));
     } catch { /* ignore */ }
-    await runAnalysisFlow(settings);
+    // Pass conversation directly — React state update is async so pendingConversation
+    // would still be empty if we read it inside runAnalysisFlow via closure.
+    await runAnalysisFlow(settings, undefined, false, conversation);
   }
 
-  async function runAnalysisFlow(settings: OnboardingSettings, feedback?: string, skipWebsiteCheck = false) {
+  async function runAnalysisFlow(settings: OnboardingSettings, feedback?: string, skipWebsiteCheck = false, conversationOverride?: ConversationMessage[]) {
     setStep('analysis');
     setAnalysisStep(0);
     setError(null);
@@ -341,9 +343,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 270_000)
       );
-      // Detect language from conversation so strategy matches what the user wrote
+      // Detect language from conversation so strategy matches what the user wrote.
+      // Use conversationOverride when available — pendingConversation state may not
+      // have updated yet (React batches state updates asynchronously).
       const hebrewPattern = /[א-ת]/;
-      const conversationText = pendingConversation.map(m => m.content).join(' ');
+      const conversationToCheck = conversationOverride ?? pendingConversation;
+      const conversationText = conversationToCheck.map(m => m.content).join(' ');
       const langOverride = hebrewPattern.test(conversationText) ? 'he' : undefined;
       const result = await Promise.race([runAnalysis(settingsWithNotes, feedback, langOverride), timeout]);
       clearTimeout(timer1);
@@ -1207,10 +1212,9 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     ))}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-center">
                     {[
                       { label: t('strategy.estClicks'), value: ba.projected_clicks_monthly.toLocaleString() },
-                      { label: t('strategy.estLeads'), value: ba.projected_leads_monthly.toLocaleString() },
                       { label: t('strategy.breakEven'), value: `${ba.break_even_conversions}` },
                     ].map(item => (
                       <div key={item.label} className="bg-white rounded-lg p-3 border border-white/60">
@@ -1514,7 +1518,6 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                         <p className="text-sm text-slate-700">{strategy.budget_analysis.verdict_explanation}</p>
                         <div className="flex gap-4 pt-1">
                           <span className="text-xs text-slate-400">{t('strategy.estClicksLabel')} <strong className="text-slate-700">{strategy.budget_analysis.projected_clicks_monthly.toLocaleString()}/mo</strong></span>
-                          <span className="text-xs text-slate-400">{t('strategy.estLeadsLabel')} <strong className="text-slate-700">{strategy.budget_analysis.projected_leads_monthly.toLocaleString()}/mo</strong></span>
                           <span className="text-xs text-slate-400">{t('strategy.breakEvenLabel')} <strong className="text-slate-700">{strategy.budget_analysis.break_even_conversions} sales</strong></span>
                         </div>
                       </div>
