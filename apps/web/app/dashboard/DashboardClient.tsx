@@ -1569,6 +1569,11 @@ function CreativeTab({ settings }: any) {
   // pendingAction tracks which action opened the brief dialog
   const [pendingAction, setPendingAction] = useState<'video' | 'copy' | null>(null);
 
+  // Image generation
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageJob, setImageJob] = useState<any>(null);
+
   // Video generation
   const [selectedVideoType, setSelectedVideoType] = useState<VideoType>('avatar');
   const [videoScript, setVideoScript] = useState('');
@@ -1746,6 +1751,18 @@ function CreativeTab({ settings }: any) {
     setScoreLoading(false);
   }
 
+  async function handleGenerateImage() {
+    if (!imagePrompt.trim()) return;
+    setImageLoading(true); setImageJob(null);
+    const activeLang = languageOverride ?? creativeLanguage?.name ?? undefined;
+    const res = await generateCreative('image', { prompt: imagePrompt }, platform, undefined, undefined, activeLang);
+    setImageJob(res);
+    setImageLoading(false);
+    if (res?.job_id) {
+      setJobs(prev => [{ id: res.job_id, type: 'image', platform, status: res.status ?? 'processing', output_url: res.output_url ?? null, brief: { prompt: imagePrompt }, created_at: new Date().toISOString() }, ...prev]);
+    }
+  }
+
   async function handleImproveFromScore() {
     if (!scoreResult) return;
     const improvements = (scoreResult.improvements ?? []).join('; ');
@@ -1918,6 +1935,48 @@ function CreativeTab({ settings }: any) {
           </button>
         </div>
       )}
+
+      {/* ── Image Creative Generator ──────────────────────────────────────── */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900">{t('creative.imageTitle')}</h3>
+            <p className="text-sm text-slate-500 mt-0.5">{t('creative.imageSubtitle')}</p>
+          </div>
+          <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-medium">DALL-E · ~30s</span>
+        </div>
+        <textarea
+          dir="auto"
+          value={imagePrompt}
+          onChange={e => setImagePrompt(e.target.value)}
+          placeholder={t('creative.imagePlaceholder')}
+          rows={3}
+          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+        />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleGenerateImage}
+            disabled={imageLoading || !imagePrompt.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            {imageLoading ? t('creative.generatingImage') : t('creative.generateImage')}
+          </button>
+          {imageJob?.output_url && (
+            <a href={imageJob.output_url} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline font-medium">
+              {t('creative.viewImage')} ↗
+            </a>
+          )}
+        </div>
+        {imageJob?.output_url && (
+          <img src={imageJob.output_url} alt="Generated creative" className="rounded-xl border border-slate-200 max-h-64 object-contain w-full" />
+        )}
+        {imageLoading && (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+            {t('creative.imageGenerating')}
+          </div>
+        )}
+      </div>
 
       {/* ── Video Production ──────────────────────────────────────────────── */}
       {(manualFormOpen || briefNoStrategy) && (
