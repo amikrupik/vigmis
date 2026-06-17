@@ -20,7 +20,6 @@ import {
 } from '../billing/stripe.js';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
 import { getUsageSummary } from '../services/usage.js';
-import { executeAccountDeletion } from '../services/account-deletion.js';
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
@@ -109,15 +108,6 @@ export async function billingRoutes(app: FastifyInstance) {
       case 'checkout.session.completed': {
         const tenantId = obj.metadata?.tenantId;
         const customerId = obj.customer;
-
-        // Special case: account deletion payment
-        if (obj.metadata?.action === 'account_deletion' && tenantId) {
-          const clerkUserId = obj.metadata?.clerkUserId || null;
-          await executeAccountDeletion(tenantId, clerkUserId).catch(err =>
-            request.log.error({ err, tenantId }, 'account deletion after payment failed')
-          );
-          break;
-        }
 
         // Special case: creative revision approval payment
         if (obj.metadata?.action === 'creative_approval' && tenantId) {

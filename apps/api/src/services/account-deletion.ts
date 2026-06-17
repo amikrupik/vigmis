@@ -1,5 +1,4 @@
-// Shared account deletion logic — called both from DELETE /account (balance=0)
-// and from Stripe webhook (checkout.session.completed with action=account_deletion).
+// Shared account deletion logic — called from DELETE /account.
 
 import { db, decryptToken } from '@vigmis/db';
 import { createClerkClient } from '@clerk/backend';

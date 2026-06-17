@@ -64,77 +64,61 @@ export async function accountRoutes(app: FastifyInstance) {
     }
 
     // 2. Calculate accrued balance.
+    // Use only actual usage (% on spend + social services) — the monthly floor is a
+    // retention minimum, not an exit fee, so we don't collect it on deletion.
     const fee = await calculateFee(tenantId, currentMonth());
+    const actualChargesUsd = Math.round(
+      (fee.percentageFeeUsd + fee.subscriptionUsd + fee.socialServicesUsd) * 100,
+    ) / 100;
 
-    if (fee.totalUsd <= 0) {
-      // No balance owed → delete immediately.
-      const result = await executeAccountDeletion(tenantId, clerkUserId ?? null);
-      if (!result.success) {
-        return reply.code(500).send({ error: 'Deletion partially failed', details: result.errors });
+    // 3. If there are real charges, try to collect automatically via the stored
+    //    payment method — no redirect, no manual step for the user.
+    if (actualChargesUsd > 0) {
+      try {
+        const { data: billing } = await db
+          .from('billing_customers')
+          .select('stripe_customer_id')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        const customerId = (billing as any)?.stripe_customer_id as string | undefined;
+        if (customerId) {
+          const customer = await stripe.customers.retrieve(customerId) as import('stripe').Stripe.Customer;
+          const paymentMethodId =
+            (customer as any).invoice_settings?.default_payment_method as string | undefined ??
+            (customer as any).default_source as string | undefined;
+
+          if (paymentMethodId) {
+            const amountCents = Math.ceil(actualChargesUsd * 100);
+            await stripe.paymentIntents.create({
+              amount: amountCents,
+              currency: 'usd',
+              customer: customerId,
+              payment_method: paymentMethodId,
+              confirm: true,
+              off_session: true,
+              description: `Vigmis final balance — ${new Date().toISOString().slice(0, 7)}`,
+              metadata: { action: 'account_deletion', tenantId },
+            });
+          }
+        }
+      } catch (err) {
+        // Charge failure is logged but does NOT block deletion — the account
+        // is closed regardless. Finance can follow up on failed charges separately.
+        request.log.warn({ err, tenantId, actualChargesUsd }, 'final-balance charge failed — proceeding with deletion');
       }
-      return reply.send({
-        success: true,
-        message: 'Your account has been deleted. All campaign data has been removed.',
-        warnings: result.errors.length ? result.errors : undefined,
-      });
     }
 
-    // 3. Balance > 0 → require Stripe payment before deletion.
-    // Create a one-time Stripe Checkout session for the owed amount.
-    try {
-      // Ensure the user has a Stripe customer record.
-      const { data: billing } = await db
-        .from('billing_customers')
-        .select('stripe_customer_id')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-
-      let customerId = (billing as any)?.stripe_customer_id as string | undefined;
-      if (!customerId) {
-        const { data: tenant } = await db.from('tenants').select('email').eq('id', tenantId).single();
-        const email = tenant?.email ?? `tenant+${tenantId}@vigmis.com`;
-        const customer = await stripe.customers.create({ email, metadata: { tenantId } });
-        customerId = customer.id;
-        await db.from('billing_customers').upsert(
-          { tenant_id: tenantId, stripe_customer_id: customerId, plan: 'free', updated_at: new Date().toISOString() },
-          { onConflict: 'tenant_id' },
-        );
-      }
-
-      const amountCents = Math.ceil(fee.totalUsd * 100);
-      const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        mode: 'payment',
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            unit_amount: amountCents,
-            product_data: {
-              name: 'Vigmis — Final balance on account closure',
-              description: `Management fee for ${new Date().toISOString().slice(0, 7)} (ad spend + services)`,
-            },
-          },
-          quantity: 1,
-        }],
-        success_url: `${WEB_URL}/sign-in?deleted=1`,
-        cancel_url: `${WEB_URL}/dashboard/settings?cancel_deletion=1`,
-        metadata: {
-          action: 'account_deletion',
-          tenantId,
-          clerkUserId: clerkUserId ?? '',
-        },
-      });
-
-      return reply.code(402).send({
-        payment_required: true,
-        amount_usd: fee.totalUsd,
-        breakdown: fee,
-        checkout_url: session.url,
-      });
-    } catch (err) {
-      request.log.error({ err }, 'failed to create final-payment checkout');
-      return reply.code(500).send({ error: 'Could not initiate final payment. Please contact billing@vigmis.com.' });
+    // 4. Delete the account (always, even if charge failed).
+    const result = await executeAccountDeletion(tenantId, clerkUserId ?? null);
+    if (!result.success) {
+      return reply.code(500).send({ error: 'Deletion partially failed', details: result.errors });
     }
+    return reply.send({
+      success: true,
+      message: 'Your account has been deleted. All campaign data has been removed.',
+      warnings: result.errors.length ? result.errors : undefined,
+    });
   });
 
   // ── Export data ────────────────────────────────────────────────────────────
