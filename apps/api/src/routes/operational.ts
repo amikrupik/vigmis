@@ -10,6 +10,7 @@
 // POST /ops/cron/ai-landscape           → monthly digest email to team (1st of month)
 // POST /ops/cron/ghost-cleanup          → warn/remind inactive tenants with no campaigns
 // POST /ops/cron/creative-discard       → auto-reject unreviewed creative_jobs after 7 days
+// POST /ops/cron/weekly-report          → operator summary: signups, onboardings, creatives, active users
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -152,5 +153,56 @@ export async function operationalRoutes(app: FastifyInstance) {
     });
     request.log.warn({ tenantId: request.tenantId, type, count }, 'operator incident report from client');
     return reply.send({ ok: true });
+  });
+
+  // ── Weekly operator report ────────────────────────────────────────────────
+  // Schedule: every Monday 09:00 UTC via Railway cron
+  app.post('/ops/cron/weekly-report', async (request, reply) => {
+    if (!cronAuth(request)) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekAgoIso = weekAgo.toISOString();
+    const weekLabel = `${weekAgo.toISOString().slice(0, 10)} → ${now.toISOString().slice(0, 10)}`;
+
+    // Run all queries in parallel
+    const [signupsRes, onboardingsRes, creativesRes, approvedRes, activeRes] = await Promise.all([
+      // New tenants (client_settings created this week)
+      db.from('client_settings').select('tenant_id', { count: 'exact', head: true }).gte('created_at', weekAgoIso),
+      // Completed onboardings (has strategy_json)
+      db.from('client_settings').select('tenant_id', { count: 'exact', head: true }).not('strategy_json', 'is', null).gte('created_at', weekAgoIso),
+      // Creatives generated this week
+      db.from('creative_jobs').select('id', { count: 'exact', head: true }).gte('created_at', weekAgoIso),
+      // Creatives approved this week
+      db.from('creative_jobs').select('id', { count: 'exact', head: true }).eq('status', 'approved').gte('approved_at', weekAgoIso),
+      // Active tenants (updated settings or had creatives)
+      db.from('client_settings').select('tenant_id', { count: 'exact', head: true }).gte('updated_at', weekAgoIso),
+    ]);
+
+    const signups = signupsRes.count ?? 0;
+    const onboardings = onboardingsRes.count ?? 0;
+    const creatives = creativesRes.count ?? 0;
+    const approved = approvedRes.count ?? 0;
+    const active = activeRes.count ?? 0;
+    const conversionRate = signups > 0 ? Math.round((onboardings / signups) * 100) : 0;
+
+    const body = [
+      `📅 Week: ${weekLabel}`,
+      ``,
+      `👤 New signups:          ${signups}`,
+      `✅ Completed onboarding: ${onboardings} (${conversionRate}% of signups)`,
+      `🎨 Creatives generated:  ${creatives}`,
+      `💰 Creatives approved:   ${approved}`,
+      `🔥 Active users:         ${active}`,
+    ].join('\n');
+
+    await sendOperatorAlert({
+      title: `Weekly Report — ${now.toISOString().slice(0, 10)}`,
+      body,
+      severity: 'warning',
+    });
+
+    request.log.info({ signups, onboardings, creatives, approved, active }, 'weekly report sent');
+    return reply.send({ ok: true, signups, onboardings, creatives, approved, active });
   });
 }

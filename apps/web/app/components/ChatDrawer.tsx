@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { usePostHog } from 'posthog-js/react';
 import { sendChatMessage, getChatHistory, type ExecutedAction } from './chat-actions';
 
 type Message = {
@@ -51,6 +52,7 @@ function pageContextFor(pathname: string | null): string | undefined {
 export default function ChatDrawer() {
   const t = useTranslations('chat');
   const pathname = usePathname();
+  const posthog = usePostHog();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -79,6 +81,7 @@ export default function ChatDrawer() {
   function handleSend() {
     const text = input.trim();
     if (!text || isLoading) return;
+    posthog?.capture('chat_message_sent');
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: text }]);
     setIsLoading(true);

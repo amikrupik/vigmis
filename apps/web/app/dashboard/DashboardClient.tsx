@@ -176,6 +176,7 @@ export default function DashboardClient() {
   function switchTab(next: Tab) {
     setTab(next);
     window.history.replaceState(null, '', `?tab=${next}`);
+    posthog?.capture('tab_viewed', { tab: next });
   }
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2121,8 +2122,10 @@ function CreativeTab({ settings }: any) {
                             onClick={async () => {
                               const res = await approveCreative(job.id);
                               if (res?.checkout_url) {
+                                posthog?.capture('creative_approved', { job_id: job.id, paid: true });
                                 window.location.href = res.checkout_url;
                               } else {
+                                posthog?.capture('creative_approved', { job_id: job.id, paid: false });
                                 setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'approved', approved_at: new Date().toISOString() } : j));
                               }
                             }}
@@ -2131,7 +2134,7 @@ function CreativeTab({ settings }: any) {
                             {t('creative.approvePay')} ${price}
                           </button>
                           <button
-                            onClick={() => setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j))}
+                            onClick={() => { posthog?.capture('creative_revision_requested', { job_id: job.id }); setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j)); }}
                             disabled={job.revision_requested}
                             className="flex-1 border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
                           >
