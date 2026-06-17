@@ -178,6 +178,19 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     return () => window.removeEventListener('popstate', handler);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the Ask Vigmis context bridge fresh when analysis result arrives.
+  // websiteAnalysis is the richest signal — it tells the AI what the business actually sells.
+  useEffect(() => {
+    if (!analysisResult?.websiteAnalysis) return;
+    try {
+      const existing = JSON.parse(localStorage.getItem('vigmis_onboarding_ctx') ?? '{}');
+      localStorage.setItem('vigmis_onboarding_ctx', JSON.stringify({
+        ...existing,
+        website_summary: analysisResult.websiteAnalysis.slice(0, 600),
+      }));
+    } catch { /* ignore */ }
+  }, [analysisResult]);
+
   // Fetch the real connection status from the API on every mount.
   // The URL param (?connected=meta) only tells us the LAST platform — so connecting Meta
   // would make Google appear disconnected if we used the URL. We ignore the URL entirely

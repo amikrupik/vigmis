@@ -840,15 +840,20 @@ CRITICAL: Only describe what is actually in the content. Do NOT invent products 
     try {
       const webRes = await route({
         task: 'web_research',
-        prompt: `Research the advertising landscape for ${settings.business_type ?? 'a business'} targeting ${geoStr}. I need:
-1. Who are the main competitors advertising online in this space right now?
-2. What ad messaging angles dominate in this category? (specific examples if possible)
-3. Realistic CPC and CPM benchmarks for this industry/geography on Meta and Google (2025-2026)
-4. What are the top customer pain points and purchase triggers for this product/service category?
-5. Any recent market trends, seasonal patterns, or shifts in consumer behavior?
+        prompt: `I have a client and I need specific competitive intelligence. Here is their actual business:
 
-Business context: ${websiteAnalysis.slice(0, 400)}
-Goal: ${settings.goal} | Budget: ~${managedBudgetDisplay}/month`,
+${websiteAnalysis.slice(0, 600)}
+
+Target geography: ${geoStr}
+Advertising goal: ${settings.goal}
+Monthly budget: ~${managedBudgetDisplay}
+
+Research SPECIFICALLY for this business — not the broad category, but this exact product/service/niche:
+1. Who are the actual online competitors for this specific product/service in ${geoStr}? Name real businesses with their websites. Think: who would appear in search results when a buyer searches for this product online? (NOT offline/physical alternatives — only businesses competing in the same online sales channel)
+2. What ad messaging angles are these specific competitors using? What hooks dominate?
+3. Realistic CPC/CPM benchmarks for this specific niche and goal in ${geoStr} (2025-2026)
+4. What are the real purchase triggers and objections for buyers of this specific product in this market?
+5. Seasonal patterns, demand peaks, and timing considerations specific to this product`,
         options: { maxTokens: 1200 },
       });
       webIntelligence = webRes.output;
@@ -1001,12 +1006,14 @@ NOT every business needs 3 phases — high-intent search products can go Phase 2
 Seasonal businesses: build phases around peak seasons, not calendar weeks.
 
 ANTI-GENERIC RULES — violations will make the output useless:
-✗ Do NOT compare to mass-market competitors (supermarkets, Amazon) unless they are the ACTUAL primary competition channel.
+✗ COMPETITORS: A competitor is a business whose ads appear on the same search results page, the same social feed, or the same marketplace — competing for the same buyer in the same channel, at the same price tier. If this business sells online at a premium, the competitors are OTHER ONLINE PREMIUM SELLERS — not offline stores in a different channel, not mass-market options at a different price tier, not the category at large. Ask: "If I searched for this product right now, who would I find?" That's the competitor list. If you genuinely can't find real competitors, say "No dominant online competitors identified in this channel — opportunity to own the niche." Never invent names or list irrelevant channels just to fill the field.
 ✗ Do NOT write "own a niche" or "build trust" without specifying EXACTLY what the niche is and what trust signal to use.
 ✗ Do NOT write "run short video content with direct purchase CTA" — explain what the video SHOWS, SAYS, and why that specific creative triggers this specific audience.
 ✗ Do NOT suggest "retarget site visitors within 7 days" without explaining WHY 7 days is the right window for this product's purchase cycle.
 ✗ Do NOT reference generic benchmarks ("average CTR for ecommerce") without explaining why this business is above or below average.
 ✗ Every creative hook must be a REAL headline someone would read and react to — not a category description.
+✗ Do NOT produce a flat single-phase strategy for any specialty/premium/niche product. These markets require demand creation BEFORE conversion — skipping the awareness phase burns budget on buyers who don't yet understand why this product is worth the premium price.
+✗ market_segments MUST contain at least 3 segments with genuinely different demographics AND different purchase triggers. Writing 3 segments that all say "adults who want quality" is a failure. Each segment needs a different reason to buy, a different message, and a different channel approach.
 
 STRATEGIC DELIVERABLES (all specific to THIS business, no generic filler):
 
@@ -1039,21 +1046,22 @@ Return ONLY valid JSON (no extra text):
   "organic_recommendations": "2-3 specific organic growth actions tied to this business's strengths",
   "competitive_advantage": "What this business can credibly own vs. competitors — or honest assessment if none exists",
   "strategy_narrative": "Paragraph 1: strategic insight and why this approach. Paragraph 2: exact customer psychographic and purchase trigger. Paragraph 3: execution logic and sequencing rationale.",
-  "market_thesis": "Why do people buy THIS specific version of this product/service — not the generic category, but THIS business's version? What need, desire, or identity drives purchase? This is the core strategic insight everything else flows from.",
+  "market_thesis": "The single most important strategic insight: why do people buy THIS specific version, at THIS price point, from THIS type of seller — not the generic category from a supermarket. What desire, identity signal, or unmet need causes them to seek out something better? Example: 'Buyers of premium farm-direct dates are not buying dates — they are buying the ability to give or consume something that signals taste, health consciousness, and generosity. The supermarket shelf cannot provide that signal.' Write the actual insight, 2-3 sentences, specific to this business.",
   "market_segments": [
     {
-      "segment_name": "Short label for this segment",
+      "note": "PROVIDE EXACTLY 3 SEGMENTS MINIMUM. Each must be genuinely different — different demographics, different life context, different purchase trigger, different message. Copy-paste with minor age variation is not segmentation.",
+      "segment_name": "Specific label — name the persona, not the category (e.g. 'Pre-Rosh Hashana gifter' not 'holiday buyer')",
       "size": "small | medium | large",
-      "trigger": "The specific moment or context that causes THIS segment to buy — what happens in their life, what emotion or need drives it",
-      "message": "The one message that resonates with this segment above all else",
-      "channel": "Best channel to reach them and why",
-      "ltv_potential": "low | medium | high — and why"
+      "trigger": "The specific moment or life event that makes them buy TODAY — not 'wants quality', but 'their parent is ill and they want to bring a meaningful healthy gift to the hospital'",
+      "message": "The ONE message that stops this specific person mid-scroll and makes them click — write it as an actual headline",
+      "channel": "Best channel AND format to reach them — why this format fits this segment's media consumption",
+      "ltv_potential": "low | medium | high — and why based on their purchase frequency and average order"
     }
   ],
   "real_competitors": [
     {
-      "name": "Competitor name or category",
-      "why_they_compete": "Why buyers consider this as an alternative to this business",
+      "name": "A real business competing in the same channel, same price tier, for the same buyer. Write their actual name or domain. If no real competitor exists in this channel, say 'No dominant competitors in this channel — write what the buyer's next-best alternative actually is (e.g. buying locally, doing nothing, using a different format).",
+      "why_they_compete": "Why a buyer in this channel would consider them as an alternative",
       "their_weakness": "What they can't credibly claim that this business can",
       "win_strategy": "How to position against them specifically"
     }
