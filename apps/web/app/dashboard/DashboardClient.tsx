@@ -1972,6 +1972,13 @@ function CreativeTab({ settings }: any) {
           rows={3}
           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
         />
+        {!settings?.logo_url && (
+          <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+            <svg className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <p className="text-xs text-orange-700 flex-1">No logo — image will be generated without your brand.</p>
+            <button onClick={() => document.getElementById('brand-asset-library')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="text-xs font-bold text-orange-700 underline hover:text-orange-900 flex-shrink-0">Add logo →</button>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <button
             onClick={handleGenerateImage}
@@ -2153,6 +2160,23 @@ function CreativeTab({ settings }: any) {
                 <p dir="auto" className="text-sm text-slate-700 italic">"{videoScript}"</p>
               </div>
             </div>
+            {/* Logo warning — shown before generate if logo not uploaded */}
+            {!settings?.logo_url && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start gap-2.5">
+                <svg className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-orange-800">No logo uploaded</p>
+                  <p className="text-xs text-orange-700 mt-0.5">Your creative will be generated without your brand logo.</p>
+                  <button
+                    onClick={() => document.getElementById('brand-asset-library')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="text-xs font-bold text-orange-700 underline mt-1 hover:text-orange-900"
+                  >
+                    Upload logo now →
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
               <p className="font-semibold">{t('creative.policy')}</p>
               <p>{t('creative.policyRevision')}</p>
@@ -4344,7 +4368,7 @@ function BrandAssetLibrary() {
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+    <div id="brand-asset-library" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="font-bold text-slate-900 text-lg">Brand Asset Library</h2>
