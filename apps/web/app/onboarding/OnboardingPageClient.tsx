@@ -111,6 +111,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
+  const [googleAccountError, setGoogleAccountError] = useState<string | null>(null);
 
   // Restore onboarding progress from sessionStorage on mount.
   // Language switch calls window.location.reload() — this ensures the user doesn't
@@ -182,6 +183,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
 
   async function loadGoogleAccountsForOnboarding() {
     setGoogleAccountLoading(true);
+    setGoogleAccountError(null);
     try {
       const token = await getClerkToken();
       const res = await fetch(`${API_URL}/connectors/google/accounts`, {
@@ -192,10 +194,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
         setGoogleAccounts(data.accounts ?? []);
         if (data.selected) setGoogleAccountSelected(data.selected);
       } else {
-        // Show empty list so the "no accounts found" message displays instead of loading forever
+        const data = await res.json().catch(() => ({}));
+        const msg = (data as any)?.error ?? 'Could not load Google Ads accounts.';
+        setGoogleAccountError(msg);
         setGoogleAccounts([]);
       }
     } catch {
+      setGoogleAccountError('Network error — could not reach server.');
       setGoogleAccounts([]);
     }
     setGoogleAccountLoading(false);
@@ -555,10 +560,34 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       {googleAccountSelected ? `✓ ${t('connect.accountSelected')}` : t('connect.chooseAccount')}
                     </p>
                     {googleAccountLoading && <p className="text-xs text-slate-500">{t('connect.loadingAccounts')}</p>}
-                    {!googleAccountLoading && googleAccounts && googleAccounts.length === 0 && (
-                      <p className="text-xs text-amber-700">{t('connect.noAccounts')}</p>
+
+                    {!googleAccountLoading && googleAccountError && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                          {googleAccountError}
+                        </p>
+                        <button
+                          onClick={() => handleConnect('google')}
+                          className="text-xs text-indigo-600 hover:underline font-medium"
+                        >
+                          ↻ Reconnect with a different Google account
+                        </button>
+                      </div>
                     )}
-                    {!googleAccountLoading && googleAccounts?.map(a => (
+
+                    {!googleAccountLoading && !googleAccountError && googleAccounts && googleAccounts.length === 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-amber-700">{t('connect.noAccounts')}</p>
+                        <button
+                          onClick={() => handleConnect('google')}
+                          className="text-xs text-indigo-600 hover:underline font-medium"
+                        >
+                          ↻ Try a different Google account
+                        </button>
+                      </div>
+                    )}
+
+                    {!googleAccountLoading && !googleAccountError && googleAccounts?.map(a => (
                       <button
                         key={a.id}
                         onClick={() => handleSelectGoogleAccountOnboarding(a.id)}

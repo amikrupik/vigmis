@@ -106,15 +106,33 @@ export async function connectorRoutes(app: FastifyInstance) {
 
       const { data: tokenRow } = await db
         .from('platform_tokens')
-        .select('access_token, account_id')
+        .select('access_token, expires_at, account_id')
         .eq('tenant_id', request.tenantId)
         .eq('platform', 'google')
         .maybeSingle();
 
       if (!tokenRow) return reply.code(404).send({ error: 'Google not connected' });
 
-      const { decryptToken } = await import('@vigmis/db');
-      const accessToken = decryptToken(tokenRow.access_token);
+      // Auto-refresh if the access token has expired or will expire within 60s.
+      let accessToken: string;
+      const expired = tokenRow.expires_at
+        ? new Date(tokenRow.expires_at).getTime() - Date.now() < 60_000
+        : false;
+
+      if (expired) {
+        try {
+          const refreshed = await google.refreshTokens(request.tenantId);
+          accessToken = refreshed.accessToken;
+        } catch (refreshErr) {
+          app.log.warn({ refreshErr }, 'Google token refresh failed before accounts list');
+          // Fall through and try with the existing token — it might still work.
+          const { decryptToken } = await import('@vigmis/db');
+          accessToken = decryptToken(tokenRow.access_token);
+        }
+      } else {
+        const { decryptToken } = await import('@vigmis/db');
+        accessToken = decryptToken(tokenRow.access_token);
+      }
 
       const res = await fetch(
         `https://googleads.googleapis.com/v20/customers:listAccessibleCustomers`,
@@ -123,8 +141,17 @@ export async function connectorRoutes(app: FastifyInstance) {
 
       if (!res.ok) {
         const body = await res.text();
-        app.log.error({ body }, 'Google listAccessibleCustomers failed');
-        return reply.code(502).send({ error: 'Could not load Google Ads accounts' });
+        app.log.error({ body, status: res.status }, 'Google listAccessibleCustomers failed');
+        // Parse Google's error for a human-readable message.
+        let reason = 'Could not load Google Ads accounts.';
+        try {
+          const parsed = JSON.parse(body);
+          const detail = parsed?.error?.details?.[0]?.errors?.[0]?.message
+            ?? parsed?.error?.message
+            ?? null;
+          if (detail) reason = detail;
+        } catch {}
+        return reply.code(502).send({ error: reason, raw: body });
       }
 
       const json = await res.json() as { resourceNames: string[] };
