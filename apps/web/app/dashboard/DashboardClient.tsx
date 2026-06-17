@@ -1680,16 +1680,26 @@ function CreativeTab({ settings }: any) {
 
   async function runGenerateCopy(brief: CreativeBriefData | null) {
     setCopyLoading(true); setCopyResult(null);
-    // Pass brief context via the goal/website fields so the existing API receives it.
-    // The AI will use these hints naturally in the generated copy.
     const goal = [settings?.goal ?? 'leads', brief?.message].filter(Boolean).join(' — ');
-    const website = [settings?.website_url ?? '', brief?.cta].filter(Boolean).join(' ');
-    const audience = [
-      (settings?.geo_include ?? []).join(', '),
-      brief?.product ? `Product: ${brief.product}` : '',
-      brief?.style ? `Style: ${brief.style}` : '',
-    ].filter(Boolean).join('. ');
-    const res = await generateAdCopy(platform, goal, website, audience);
+    const website = settings?.website_url ?? '';
+    const territory = (settings?.geo_include ?? []).join(', ');
+    const lang = languageOverride ?? creativeLanguage?.name ?? 'English';
+
+    // Build strategy context from strategy_plan for rich copy generation
+    const sp = (settings as any)?.strategy_plan;
+    const strategyParts: string[] = [];
+    if (sp?.market_thesis) strategyParts.push(`MARKET THESIS: ${sp.market_thesis}`);
+    if (sp?.real_competitors?.length) strategyParts.push(`COMPETITORS: ${(sp.real_competitors as string[]).slice(0, 4).join(', ')}`);
+    if (sp?.market_segments?.length) {
+      const segs = (sp.market_segments as Array<{name?: string; trigger?: string; barrier?: string; message?: string}>).slice(0, 3);
+      strategyParts.push(`CUSTOMER SEGMENTS:\n${segs.map(s => `- ${s.name ?? ''}: trigger="${s.trigger ?? ''}" barrier="${s.barrier ?? ''}" message="${s.message ?? ''}"`).join('\n')}`);
+    }
+    if (sp?.strategy_narrative) strategyParts.push(`POSITIONING: ${String(sp.strategy_narrative).slice(0, 300)}`);
+    if (brief?.product) strategyParts.push(`SPECIFIC PRODUCT/SERVICE: ${brief.product}`);
+    if (brief?.style) strategyParts.push(`BRAND TONE: ${brief.style}`);
+    const strategyContext = strategyParts.length ? strategyParts.join('\n\n') : undefined;
+
+    const res = await generateAdCopy(platform, goal, website, territory, lang, strategyContext);
     setCopyResult(res);
     setCopyLoading(false);
   }

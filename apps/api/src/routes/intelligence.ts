@@ -22,49 +22,90 @@ export async function intelligenceRoutes(app: FastifyInstance) {
 
   // ── Ad Copy Generator ────────────────────────────────────────────────────────
   app.post('/intelligence/ad-copy', { preHandler: authenticate }, async (request, reply) => {
-    const { platform, goal, websiteContext, tone, territory } = request.body as any;
+    const { platform, goal, websiteContext, tone, territory, language, strategyContext } = request.body as any;
 
-    const limits = {
-      google: { headline: 30, description: 90 },
-      meta:   { headline: 40, description: 125 },
-      tiktok: { headline: 100, description: 150 },
+    const lang = language ?? 'English';
+    const platformKey = (platform ?? 'google') as string;
+
+    const platformInstructions = {
+      google: `PLATFORM: Google RSA (Responsive Search Ads)
+FORMAT PER VARIATION:
+- headline_1: max 30 chars — match search intent, include product keyword
+- headline_2: max 30 chars — unique advantage or differentiator
+- headline_3: max 30 chars — CTA or social proof
+- description_1: max 90 chars — expand main benefit, mention specific product detail
+- description_2: max 90 chars — address main objection + action prompt
+- sitelinks: array of 4 {title: max 25 chars, desc: max 35 chars}
+MINDSET: People searched for something specific. Your headline must match what they typed.`,
+      meta: `PLATFORM: Meta (Facebook/Instagram Feed)
+FORMAT PER VARIATION:
+- body: max 125 chars — scroll-stopping first line, emotional hook
+- headline_1: max 40 chars — benefit-led, not clever-led
+- description_1: max 30 chars — reinforce or CTA
+- cta: button label (Shop Now / Learn More / Get Offer / etc.)
+MINDSET: People were NOT searching. You interrupted their scroll. Earn their attention in 1.5 seconds.`,
+      tiktok: `PLATFORM: TikTok
+FORMAT PER VARIATION:
+- hook: max 100 chars — first 3 seconds of the video script (verbal hook)
+- body: max 150 chars — caption text shown under video
+- cta: CTA overlay text
+MINDSET: Native, not polished. Feels like a creator talking, not a brand advertising.`,
     };
-    const lim = limits[platform as keyof typeof limits] ?? limits.google;
 
-    const res = await route({
-      task: 'analysis',
-      prompt: `Generate 6 ad copy variations for ${platform} ads.
+    const formatInstructions = platformInstructions[platformKey as keyof typeof platformInstructions] ?? platformInstructions.google;
 
-Business context: ${websiteContext ?? 'Not provided'}
-Goal: ${goal}
-Tone: ${tone ?? 'professional and friendly'}
-Territory/Market: ${territory ?? 'Global'}
+    const prompt = `You are a senior performance copywriter. You think before you write.
 
-Character limits:
-- Headline: max ${lim.headline} characters
-- Description: max ${lim.description} characters
-${platform === 'google' ? '- Google needs 3 headlines and 2 descriptions per variation\n- Include a strong CTA in description' : ''}
-${platform === 'meta' ? '- Meta needs primary text (125 chars), headline, description, and CTA button label' : ''}
-${platform === 'tiktok' ? '- TikTok needs a hook (first 3 seconds script) and a brief caption' : ''}
+${strategyContext ? `STRATEGY INTELLIGENCE:\n${strategyContext}\n` : ''}BUSINESS/PRODUCT CONTEXT: ${websiteContext ?? 'Not provided'}
+ADVERTISING GOAL: ${goal}
+TERRITORY: ${territory ?? 'Not specified'}
+LANGUAGE: Write ALL copy in ${lang}. Every word of every headline, description, body, sitelink — in ${lang}. Non-negotiable.
 
-Return ONLY a JSON array of 6 variations:
+${formatInstructions}
+
+STEP 1 — PSYCHOLOGICAL MAP (think through before writing, do NOT output this):
+- PRIMARY PAIN: what frustrates the customer before finding this product?
+- DESIRED OUTCOME: the feeling/result they want (not features)
+- TOP OBJECTION: what would stop them from clicking?
+- UNIQUE EDGE: what can this business claim that a competitor cannot?
+- 8 MESSAGING ANGLES: e.g. freshness / premium / hospitality / health / gifting / speed / value / local / trust / problem-solved
+
+STEP 2 — WRITE 6 VARIATIONS, each from a different angle.
+Each variation MUST:
+1. Name the SPECIFIC PRODUCT or SERVICE — never write "quality products" or "great service"
+2. Speak to ONE specific pain or desire from your map
+3. State one advantage a competitor cannot copy
+4. PASS THIS TEST: replace the business name with a competitor's name — if the ad still works, rewrite it
+
+QA BEFORE OUTPUTTING EACH VARIATION:
+✓ Specific product named? If not → rewrite
+✓ A real pain or desire expressed? If not → rewrite
+✓ Business name cannot be swapped? If it can → rewrite
+✓ Correct ${lang} language throughout? If not → rewrite
+
+Return ONLY a valid JSON array of 6 objects. No other text, no explanation.
 [
   {
     "variation": 1,
-    "headline_1": "...",
-    "headline_2": "...",
-    "headline_3": "...",
-    "description_1": "...",
-    "description_2": "...",
-    "cta": "...",
-    "body": "...",
-    "predicted_score": 72,
-    "tone_tag": "urgency|benefit|social_proof|question|emotional|direct"
+    "headline_1": "",
+    "headline_2": "",
+    "headline_3": "",
+    "description_1": "",
+    "description_2": "",
+    "body": "",
+    "cta": "",
+    "sitelinks": [{"title":"","desc":""},{"title":"","desc":""},{"title":"","desc":""},{"title":"","desc":""}],
+    "predicted_score": 0,
+    "tone_tag": "freshness|premium|hospitality|health|gifting|local|value|urgency|social_proof|question|emotional|direct",
+    "angle_rationale": ""
   }
-]
-Keep every string within its character limit.`,
-      systemPrompt: 'You are a world-class performance ad copywriter. Return only valid JSON. No extra text.',
-      options: { maxTokens: 2000, temperature: 0.7 },
+]`;
+
+    const res = await route({
+      task: 'analysis',
+      prompt,
+      systemPrompt: `You are a senior performance copywriter who thinks like a creative director. You build a psychological map of the customer before writing a single word. You never write generic copy — if the business name can be replaced without losing meaning, you rewrite. Return only valid JSON.`,
+      options: { maxTokens: 3000, temperature: 0.75 },
     });
 
     let variations;

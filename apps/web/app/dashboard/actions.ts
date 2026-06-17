@@ -111,8 +111,8 @@ export async function getTrackingStatus() {
 
 // ── Intelligence ──────────────────────────────────────────────────────────────
 
-export async function generateAdCopy(platform: string, goal: string, websiteContext: string, territory?: string) {
-  return apiCall('/intelligence/ad-copy', 'POST', { platform, goal, websiteContext, territory });
+export async function generateAdCopy(platform: string, goal: string, websiteContext: string, territory?: string, language?: string, strategyContext?: string) {
+  return apiCall('/intelligence/ad-copy', 'POST', { platform, goal, websiteContext, territory, language, strategyContext });
 }
 
 export async function scoreCreative(type: string, description: string, targetAudience: string, platform: string, goal: string) {
