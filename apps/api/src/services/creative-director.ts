@@ -83,7 +83,7 @@ function avatarPrompt(ctx: CreativeContext, userInput: string): string {
 
 USER REQUEST: "${userInput}"
 
-Write a 30-45 second talking-head video SCRIPT (spoken aloud by an on-screen presenter).
+Write a 15-20 second talking-head video SCRIPT (spoken aloud by an on-screen presenter). MAX 40 WORDS TOTAL — count every word.
 
 SCRIPT RULES:
 1. DO NOT start with the brand name "${ctx.brandName}" — open with pain, a question, or a bold statement

@@ -9,7 +9,7 @@ import {
   getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
-  generateCreative, getCreatives, getCreativeStatus, approveCreative, rejectCreative, deleteCreativeJob,
+  generateCreative, getCreatives, getCreativeStatus, approveCreative, rejectCreative, deleteCreativeJob, getCreativeAvatars,
   createAbTest, getAbTests, concludeAbTest, getAbTestRecommendation,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
@@ -1588,6 +1588,15 @@ function CreativeTab({ settings }: any) {
   const [jobScores, setJobScores] = useState<Record<string, any>>({});
   const [scoringJobId, setScoringJobId] = useState<string | null>(null);
 
+  // Avatar picker
+  const [availableAvatars, setAvailableAvatars] = useState<Array<{ id: string; name: string; preview_url: string | null }>>([]);
+  const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
+  const [avatarsLoading, setAvatarsLoading] = useState(false);
+
+  // Revision notes per job
+  const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({});
+  const [revisionSubmitting, setRevisionSubmitting] = useState<string | null>(null);
+
   // Agency Brain: AI creative recommendations
   const [creativeBrief, setCreativeBrief] = useState<CreativeBriefExtended | null>(null);
   const [briefLoading, setBriefLoading] = useState(true);
@@ -1601,6 +1610,15 @@ function CreativeTab({ settings }: any) {
   useEffect(() => {
     getCreatives().then(res => setJobs(res?.jobs ?? []));
   }, []);
+
+  useEffect(() => {
+    if (selectedVideoType !== 'avatar' || availableAvatars.length > 0) return;
+    setAvatarsLoading(true);
+    getCreativeAvatars().then(res => {
+      setAvailableAvatars(res?.avatars ?? []);
+      setAvatarsLoading(false);
+    });
+  }, [selectedVideoType]);
 
   // Derive creative language from campaign geo targeting when settings load
   useEffect(() => {
@@ -1725,7 +1743,7 @@ function CreativeTab({ settings }: any) {
       : videoScript;
 
     const videoBrief = selectedVideoType === 'avatar'
-      ? { script: scriptWithBrief }
+      ? { script: scriptWithBrief, ...(selectedAvatarId ? { avatar_id: selectedAvatarId } : {}) }
       : selectedVideoType === 'cinematic'
       ? { prompt: scriptWithBrief, duration: 5, aspect_ratio: '16:9' }
       : { prompt: scriptWithBrief, style: 'cinematic', duration: 3 };
@@ -2012,6 +2030,41 @@ function CreativeTab({ settings }: any) {
           </div>
         </div>
 
+        {/* Avatar picker — only shown when Avatar type is selected */}
+        {selectedVideoType === 'avatar' && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-700">Choose your presenter</p>
+            {avatarsLoading && (
+              <div className="flex gap-2">
+                {[1,2,3].map(i => <div key={i} className="w-16 h-20 bg-slate-100 rounded-xl animate-pulse" />)}
+              </div>
+            )}
+            {!avatarsLoading && availableAvatars.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {availableAvatars.map(av => (
+                  <button
+                    key={av.id}
+                    onClick={() => setSelectedAvatarId(av.id)}
+                    className={`flex-shrink-0 flex flex-col items-center gap-1 p-1 rounded-xl border-2 transition-colors ${selectedAvatarId === av.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
+                  >
+                    {av.preview_url ? (
+                      <img src={av.preview_url} alt={av.name} className="w-14 h-16 object-cover rounded-lg" />
+                    ) : (
+                      <div className="w-14 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400">
+                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+                      </div>
+                    )}
+                    <span className="text-[10px] text-slate-600 max-w-[56px] truncate">{av.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!avatarsLoading && availableAvatars.length === 0 && (
+              <p className="text-xs text-slate-400">No avatars available — HeyGen not configured.</p>
+            )}
+          </div>
+        )}
+
         {/* Step 2: Write your script or description */}
         <div>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{t('creative.step2')}</p>
@@ -2217,13 +2270,57 @@ function CreativeTab({ settings }: any) {
                           >
                             {t('creative.approvePay')} ${price}
                           </button>
-                          <button
-                            onClick={() => { posthog?.capture('creative_revision_requested', { job_id: job.id }); setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j)); }}
-                            disabled={job.revision_requested}
-                            className="flex-1 border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
-                          >
-                            {job.revision_requested ? t('creative.revisionRequested') : t('creative.requestRevision')}
-                          </button>
+                          {!job.revision_requested ? (
+                            <button
+                              onClick={() => {
+                                posthog?.capture('creative_revision_requested', { job_id: job.id });
+                                setJobs(prev => prev.map(j => j.id === job.id ? { ...j, revision_requested: true } : j));
+                              }}
+                              className="flex-1 border border-amber-300 text-amber-700 hover:bg-amber-50 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+                            >
+                              {t('creative.requestRevision')}
+                            </button>
+                          ) : (
+                            <div className="flex-1 space-y-2">
+                              {job.brief?.script && (
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Original script</p>
+                                  <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">{job.brief.script}</p>
+                                </div>
+                              )}
+                              <textarea
+                                value={revisionNotes[job.id] ?? ''}
+                                onChange={e => setRevisionNotes(prev => ({ ...prev, [job.id]: e.target.value }))}
+                                placeholder="What should change? E.g. 'speak Hebrew, shorter, mention dates product, add logo'"
+                                rows={3}
+                                className="w-full text-xs border border-amber-300 rounded-xl p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                              />
+                              <button
+                                disabled={revisionSubmitting === job.id || !revisionNotes[job.id]?.trim()}
+                                onClick={async () => {
+                                  setRevisionSubmitting(job.id);
+                                  const notes = revisionNotes[job.id] ?? '';
+                                  const res = await generateCreative(
+                                    job.type as any,
+                                    { ...job.brief, change_request: notes },
+                                    job.platform,
+                                    undefined,
+                                    job.id,
+                                    creativeLanguage?.name,
+                                  );
+                                  if (res?.job_id) {
+                                    const newJob = await getCreativeStatus(res.job_id);
+                                    setJobs(prev => [{ ...newJob, id: res.job_id, status: res.status, type: job.type, platform: job.platform, brief: job.brief }, ...prev]);
+                                    setRevisionNotes(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+                                  }
+                                  setRevisionSubmitting(null);
+                                }}
+                                className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-semibold py-2 px-3 rounded-xl text-sm transition-colors"
+                              >
+                                {revisionSubmitting === job.id ? 'Submitting…' : 'Submit revision'}
+                              </button>
+                            </div>
+                          )}
                           <button
                             onClick={async () => {
                               await rejectCreative(job.id);

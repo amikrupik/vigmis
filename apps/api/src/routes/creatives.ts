@@ -344,7 +344,7 @@ async function submitHeyGenJob(brief: {
           voice: {
             type: 'text',
             input_text: brief.script,
-            voice_id: brief.voice_id ?? 'f8c69e517f424cafaecde32dde57096b',
+            voice_id: brief.voice_id ?? heygenVoiceForLanguage((brief as any)._creative_language),
           },
           background: brief.background
             ? { type: 'image', url: brief.background }
@@ -388,6 +388,23 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
   if (s === 'completed') return { status: 'completed', url: json.data?.video_url };
   if (s === 'failed') return { status: 'failed', reason: 'HeyGen reported video generation failed' };
   return { status: 'processing' };
+}
+
+// Known HeyGen voice IDs per language — covers most common markets.
+// Fallback to the default English voice when language is not in the map.
+const HEYGEN_LANGUAGE_VOICES: Record<string, string> = {
+  hebrew: 'he-IL-AvriNeural',
+  english: 'f8c69e517f424cafaecde32dde57096b',
+  spanish: 'es-ES-AlvaroNeural',
+  arabic: 'ar-SA-HamedNeural',
+  german: 'de-DE-ConradNeural',
+  french: 'fr-FR-HenriNeural',
+};
+
+function heygenVoiceForLanguage(lang?: string): string {
+  if (!lang) return HEYGEN_LANGUAGE_VOICES.english;
+  const key = lang.toLowerCase().trim();
+  return HEYGEN_LANGUAGE_VOICES[key] ?? HEYGEN_LANGUAGE_VOICES.english;
 }
 
 // ── Replicate — Cinematic + Animation ────────────────────────────────────────
@@ -782,6 +799,8 @@ export async function creativeRoutes(app: FastifyInstance) {
       ? (type === 'avatar' ? { script: brief } : { prompt: brief })
       : (brief ?? {});
     const enrichedBrief = { ...rawBrief };
+    // Carry language through to provider so HeyGen can pick the right voice
+    if (creative_language) enrichedBrief._creative_language = creative_language;
 
     // ── Creative Director AI ──────────────────────────────────────────────────
     // Before touching any provider, run the user's brief through a Creative Director
