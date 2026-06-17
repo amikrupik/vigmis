@@ -1210,8 +1210,9 @@ Return this exact JSON structure (be concise — max 2 sentences per text field)
 
   // ── Website quick understanding check ────────────────────────────────────────
   app.post('/onboarding/website-check', { preHandler: authenticate }, async (request, reply) => {
-    const { website_url } = request.body as any;
-    if (!website_url) return reply.code(400).send({ error: 'website_url required' });
+    const { website_url: rawWebsiteUrl } = request.body as any;
+    if (!rawWebsiteUrl) return reply.code(400).send({ error: 'website_url required' });
+    const website_url = /^https?:\/\//i.test(rawWebsiteUrl) ? rawWebsiteUrl : `https://${rawWebsiteUrl}`;
 
     let websiteText = '';
     try {

@@ -109,7 +109,9 @@ async function fetchHtml(url: string): Promise<string | null> {
   }
 }
 
-export async function scrapeWebsite(rootUrl: string): Promise<ScrapedSite | null> {
+export async function scrapeWebsite(rawUrl: string): Promise<ScrapedSite | null> {
+  // Normalise: add https:// if no protocol given (e.g. "goodland.co.il")
+  const rootUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   const root = origin(rootUrl);
   if (!root) return null;
 
