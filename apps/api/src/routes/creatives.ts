@@ -375,7 +375,10 @@ async function checkHeyGenStatus(jobId: string): Promise<{ status: JobStatus; ur
     headers: { 'X-Api-Key': apiKey },
   });
 
-  if (!res.ok) return { status: 'processing' };
+  if (!res.ok) {
+    console.error(`[heygen] status check failed: ${res.status} ${res.statusText}`);
+    return { status: 'processing' };
+  }
 
   const json = await res.json() as {
     data?: { status: string; video_url?: string }
@@ -1197,6 +1200,17 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     if (!job.provider_job_id) {
       return reply.send({ job_id: job.id, status: job.status, type: job.type });
+    }
+
+    // Auto-fail jobs that have been processing for more than 15 minutes
+    const createdAt = new Date((job as any).created_at ?? 0).getTime();
+    if (job.status === 'processing' && Date.now() - createdAt > 15 * 60 * 1000) {
+      await db.from('creative_jobs').update({
+        status: 'failed',
+        error_message: 'Generation timed out after 15 minutes. Please try again.',
+        updated_at: new Date().toISOString(),
+      }).eq('id', job.id);
+      return reply.send({ job_id: job.id, status: 'failed', type: job.type, error_message: 'Generation timed out after 15 minutes. Please try again.' });
     }
 
     try {

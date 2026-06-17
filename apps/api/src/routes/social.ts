@@ -552,10 +552,7 @@ export async function socialRoutes(app: FastifyInstance) {
       .maybeSingle();
 
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return reply.code(503).send({ error: 'Image generation not configured' });
-
-    const { OpenAI } = await import('openai');
-    const client = new OpenAI({ apiKey });
+    if (!apiKey) return reply.code(503).send({ error: 'Image generation not configured — OPENAI_API_KEY missing' });
 
     const imgPrompt = prompt ?? `Professional social media image for a ${post.platform} post.
 Business context: ${settings?.website_url ?? 'local business'}.
@@ -563,15 +560,33 @@ Post text: ${post.content?.slice(0, 200)}.
 Style: vibrant, modern, engaging. No text overlay. Square format.`;
 
     try {
-      const res = await client.images.generate({
-        model: 'dall-e-3',
-        prompt: imgPrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
+      const genRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: imgPrompt, n: 1, size: '1024x1024', quality: 'medium' }),
       });
-      const imageUrl = res.data?.[0]?.url;
-      if (!imageUrl) return reply.code(500).send({ error: 'Image generation returned no URL' });
+
+      if (!genRes.ok) {
+        const body = await genRes.text().catch(() => '');
+        let msg = 'Image generation failed';
+        try { msg = (JSON.parse(body) as any)?.error?.message ?? msg; } catch { /* not JSON */ }
+        return reply.code(500).send({ error: msg });
+      }
+
+      const genData = await genRes.json() as { data: Array<{ b64_json?: string }> };
+      const b64 = genData.data?.[0]?.b64_json;
+      if (!b64) return reply.code(500).send({ error: 'Image generation returned no data' });
+
+      // Upload to Supabase Storage
+      const buffer = Buffer.from(b64, 'base64');
+      const storagePath = `${request.tenantId}/post_${id}_${Date.now()}.png`;
+      const { error: uploadErr } = await db.storage.from('brand_assets').upload(storagePath, buffer, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+      if (uploadErr) return reply.code(500).send({ error: 'Failed to save image' });
+      const { data: urlData } = db.storage.from('brand_assets').getPublicUrl(storagePath);
+      const imageUrl = urlData.publicUrl;
 
       await db.from('social_posts')
         .update({ image_url: imageUrl, updated_at: new Date().toISOString() })

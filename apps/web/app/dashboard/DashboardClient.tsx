@@ -448,7 +448,7 @@ export default function DashboardClient() {
         {tab === 'geo' && <GeoTab settings={settings} />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'protocols' && <ProtocolsTab />}
-        {tab === 'social' && <SocialTab metaConnected={connected.meta} googleConnected={connected.google} />}
+        {tab === 'social' && <SocialTab metaConnected={connected.meta} googleConnected={connected.google} brandSettings={settings} />}
         {tab === 'settings' && <SettingsTab settings={settings} connected={connected} />}
         </main>
       </div>
@@ -5515,7 +5515,7 @@ function PostActions({ post, onChange }: { post: any; onChange: () => Promise<vo
   );
 }
 
-function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean; googleConnected: boolean }) {
+function SocialTab({ metaConnected, googleConnected, brandSettings }: { metaConnected: boolean; googleConnected: boolean; brandSettings?: any }) {
   const t = useTranslations('dashboard');
   const posthog = usePostHog();
   const searchParams = useSearchParams();
@@ -6133,52 +6133,100 @@ function SocialTab({ metaConnected, googleConnected }: { metaConnected: boolean;
                   <span className="text-xs text-amber-600 font-semibold flex-shrink-0">${post.cost_usd}</span>
                 </div>
 
-                {/* Social post preview — mirrors how it'll look on Facebook/Instagram */}
+                {/* Social post preview — realistic Facebook-style mockup */}
                 {(() => {
                   const imgUrl = postImageOverrides[post.id] !== undefined ? postImageOverrides[post.id] : post.image_url;
+                  const bizName = brandSettings?.business_name || brandSettings?.brand_name || t('social.yourBusiness');
+                  const logoUrl = brandSettings?.logo_url || null;
+                  const postText = editPost?.id === post.id ? editPost!.content : post.content;
+                  const isFacebook = post.platform === 'facebook' || post.platform === 'instagram';
+                  const isTikTok = post.platform === 'tiktok';
+
                   return (
-                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                      {/* Platform header */}
-                      <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-slate-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 leading-none">{t('social.yourBusiness')}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{post.platform} · {t('social.scheduledLabel')}</p>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[post.platform] ?? 'bg-slate-100 text-slate-500'}`}>{post.platform}</span>
-                      </div>
-                      {/* Post text */}
-                      <div className="px-3 py-2">
-                        {post.content_language && (
-                          <span className="inline-block text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mb-1 mr-1">{post.content_language}</span>
-                        )}
-                        <p dir="auto" className="text-xs text-slate-800 leading-relaxed whitespace-pre-line line-clamp-4">{editPost?.id === post.id ? editPost!.content : post.content}</p>
-                        {post.hashtags?.length > 0 && (
-                          <p className="text-[10px] text-indigo-500 mt-1">{(post.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
-                        )}
-                        {post.content_translation && (
-                          <div className="mt-1.5 border-t border-slate-100 pt-1.5">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">תרגום לעברית</p>
-                            <p dir="rtl" className="text-[11px] text-slate-600 leading-relaxed">{post.content_translation}</p>
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      {/* Facebook-style header */}
+                      <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                        <div className="flex items-center gap-2.5">
+                          {/* Business avatar / logo */}
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-indigo-100 flex-shrink-0 border border-slate-200">
+                            {logoUrl ? (
+                              <img src={logoUrl} alt={bizName} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-indigo-600 text-white text-sm font-bold">
+                                {bizName.charAt(0).toUpperCase()}
+                              </div>
+                            )}
                           </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-slate-900 leading-tight">{bizName}</p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <p className="text-[11px] text-slate-400">
+                                {post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : t('social.scheduledLabel')}
+                              </p>
+                              <span className="text-slate-300">·</span>
+                              {/* Platform globe/lock icon */}
+                              <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm-.5 2.05V5H4.75A5.5 5.5 0 017.5 2.05zM4.25 6.5H7.5v3H4.38A5.5 5.5 0 014.25 8c0-.52.07-1.03.19-1.5zm.5 4.5H7.5v2.95A5.5 5.5 0 014.75 11zm3.25 2.95V11h2.75A5.5 5.5 0 018.5 13.95zM8.5 9.5V6.5h3.25c.12.47.19.98.19 1.5s-.07 1.03-.19 1.5H8.5zm2.75-4.5H8.5V2.05A5.5 5.5 0 0111.25 5z"/></svg>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Three dots */}
+                        <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                      </div>
+
+                      {/* Post text */}
+                      <div className="px-3 pb-2">
+                        <p dir="auto" className="text-[13px] text-slate-900 leading-snug whitespace-pre-line line-clamp-5">{postText}</p>
+                        {post.hashtags?.length > 0 && (
+                          <p className="text-[12px] text-[#1877F2] mt-1">{(post.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
                         )}
                       </div>
+
                       {/* Image */}
                       {imgUrl ? (
                         <div className="relative group">
-                          <img src={imgUrl} alt="Post visual" className="w-full aspect-video object-cover" />
+                          <img
+                            src={imgUrl}
+                            alt="Post visual"
+                            className={`w-full object-cover ${isTikTok ? 'aspect-[9/16] max-h-64' : 'aspect-[1/1]'}`}
+                          />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button onClick={() => openMediaPicker(post.id)} className="bg-white text-slate-900 text-xs font-semibold px-3 py-1.5 rounded-lg">Change</button>
                             <button onClick={() => handleSetPostImage(post.id, null)} className="bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Remove</button>
                           </div>
                         </div>
                       ) : (
-                        <div className="mx-3 mb-3 border-2 border-dashed border-slate-200 rounded-lg h-24 flex items-center justify-center">
+                        <div className="mx-3 mb-2 border-2 border-dashed border-slate-200 rounded-lg h-28 flex items-center justify-center bg-slate-50">
                           <button onClick={() => openMediaPicker(post.id)} className="text-xs text-slate-400 hover:text-indigo-600 transition-colors">{t('social.addImage')}</button>
                         </div>
                       )}
+
+                      {/* Facebook-style reaction bar */}
+                      {isFacebook && (
+                        <div className="border-t border-slate-100 mx-3">
+                          <div className="flex items-center justify-between py-2">
+                            <button className="flex items-center gap-1.5 text-slate-500 hover:text-[#1877F2] text-[12px] font-medium px-2 py-1 rounded transition-colors flex-1 justify-center">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+                              Like
+                            </button>
+                            <button className="flex items-center gap-1.5 text-slate-500 text-[12px] font-medium px-2 py-1 rounded flex-1 justify-center">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                              Comment
+                            </button>
+                            <button className="flex items-center gap-1.5 text-slate-500 text-[12px] font-medium px-2 py-1 rounded flex-1 justify-center">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                              Share
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Platform badge */}
+                      <div className="px-3 pb-2 flex items-center gap-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${PLATFORM_SOCIAL_BADGE[post.platform] ?? 'bg-slate-100 text-slate-500'}`}>{post.platform}</span>
+                        {post.content_language && (
+                          <span className="text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{post.content_language}</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
