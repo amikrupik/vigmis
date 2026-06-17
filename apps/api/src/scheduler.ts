@@ -118,6 +118,7 @@ export function startScheduler(): void {
   daily(0, 30, () => {
     if (new Date().getUTCDate() === 1) post('/ops/cron/ai-landscape');
   });
+  weekly(1, 9, 30, () => post('/ops/cron/weekly-report'));  // Mon 09:30 UTC = 11:30 Israel
 
   // ── History ───────────────────────────────────────────────────────────────
   // History snapshot is triggered from /notifications/monthly (already chained).
