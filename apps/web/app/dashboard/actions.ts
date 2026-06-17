@@ -550,15 +550,32 @@ export async function deleteBrandAsset(id: string) {
 export async function uploadBrandAsset(file: File): Promise<{ public_url: string; id: string; kind: string } | null> {
   const { getToken } = await auth();
   const token = await getToken();
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch(`${API_URL}/assets/upload`, {
+
+  // Step 1: get signed URL from server (validates auth + file type)
+  const signRes = await fetch(`${API_URL}/assets/signed-url`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, mime_type: file.type, size_bytes: file.size }),
   });
-  if (!res.ok) return null;
-  return res.json();
+  if (!signRes.ok) return null;
+  const { signed_url, path, public_url } = await signRes.json();
+
+  // Step 2: upload file directly to Supabase Storage (browser → Supabase, no Railway hop)
+  const uploadRes = await fetch(signed_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!uploadRes.ok) return null;
+
+  // Step 3: register asset in DB
+  const regRes = await fetch(`${API_URL}/assets/register`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, public_url, filename: file.name, mime_type: file.type, size_bytes: file.size }),
+  });
+  if (!regRes.ok) return null;
+  return regRes.json();
 }
 
 // ── Export (returns raw text/csv or text/html) ────────────────────────────────

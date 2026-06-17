@@ -56,6 +56,56 @@ export async function assetRoutes(app: FastifyInstance) {
     return reply.code(201).send(row);
   });
 
+  // ── Direct upload: get signed URL ────────────────────────────────────────
+  // Browser uploads file directly to Supabase Storage (no Railway round-trip).
+  app.post('/assets/signed-url', { preHandler: authenticate }, async (request, reply) => {
+    const { filename, mime_type, size_bytes } = request.body as { filename: string; mime_type: string; size_bytes: number };
+
+    if (!filename || !mime_type) return reply.code(400).send({ error: 'filename and mime_type required' });
+    if (size_bytes && size_bytes > MAX_SIZE) return reply.code(400).send({ error: 'File too large — maximum 10 MB' });
+
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime'];
+    if (!allowed.includes(mime_type)) return reply.code(400).send({ error: 'Unsupported file type' });
+
+    const ext = mime_type.split('/')[1].replace('quicktime', 'mov');
+    const safeName = filename.replace(/[^a-z0-9._-]/gi, '_');
+    const path = `${request.tenantId}/${Date.now()}_${safeName}`;
+
+    const { data, error } = await db.storage.from(BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return reply.code(500).send({ error: error?.message ?? 'Failed to create signed URL' });
+
+    const { data: urlData } = db.storage.from(BUCKET).getPublicUrl(path);
+
+    return reply.send({
+      signed_url: data.signedUrl,
+      token: data.token,
+      path,
+      public_url: urlData.publicUrl,
+    });
+  });
+
+  // ── Direct upload: register after browser upload completes ──────────────
+  app.post('/assets/register', { preHandler: authenticate }, async (request, reply) => {
+    const { path, public_url, filename, mime_type, size_bytes } = request.body as any;
+
+    if (!path || !public_url || !mime_type) return reply.code(400).send({ error: 'path, public_url, mime_type required' });
+
+    const kind = mime_type.startsWith('video/') ? 'video' : 'image';
+
+    const { data: row, error: dbError } = await db.from('brand_assets').insert({
+      tenant_id: request.tenantId,
+      storage_path: path,
+      public_url,
+      filename: filename ?? path.split('/').pop(),
+      mime_type,
+      size_bytes: size_bytes ?? 0,
+      kind,
+    }).select().single();
+
+    if (dbError) return reply.code(500).send({ error: dbError.message });
+    return reply.code(201).send(row);
+  });
+
   // ── List brand assets ──────────────────────────────────────────────────────
   app.get('/assets', { preHandler: authenticate }, async (request, reply) => {
     const { kind } = request.query as { kind?: string };
