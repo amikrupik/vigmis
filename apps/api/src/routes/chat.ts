@@ -15,6 +15,7 @@ import { generateSocialContent } from '../services/social-content.js';
 import { classifyIntent } from '../services/intent-router.js';
 import { checkChatQuota, recordAiCost } from '../services/usage.js';
 import { neutralizeActionTags, parseActions } from './chat-actions.js';
+import { createProtocol } from './protocols.js';
 
 type ExecutedAction = {
   type: string;
@@ -32,6 +33,7 @@ function isPlatform(p: string): p is 'facebook' | 'instagram' | 'tiktok' {
 async function executeActions(
   actions: Array<{ type: string; args: string[] }>,
   tenantId: string,
+  log?: { error: (obj: any, msg: string) => void },
 ): Promise<ExecutedAction[]> {
   const results: ExecutedAction[] = [];
 
@@ -278,6 +280,53 @@ async function executeActions(
       await db.from('audit_log').insert({ tenant_id: tenantId, action: 'campaigns.resumed_all_via_chat', actor: 'ai', payload: { resumed } });
       results.push({ type, success: true, detail: `${resumed} campaign${resumed !== 1 ? 's' : ''} resumed` });
     }
+
+    else if (type === 'save_strategy_patch') {
+      // save_strategy_patch|JSON_PAYLOAD
+      // Creates a Decision Protocol of type strategy_patch awaiting client approval.
+      const jsonStr = args[0];
+      if (!jsonStr) { results.push({ type, success: false, detail: 'No patch payload' }); continue; }
+      try {
+        const patch = JSON.parse(jsonStr) as {
+          trigger: string;
+          description: string;
+          additions: Record<string, any>;
+          notes: string;
+        };
+        const title = `Strategy update: ${patch.description ?? patch.trigger}`;
+        const recommendation = [
+          `**Trigger:** ${patch.trigger}`,
+          `**What changed:** ${patch.description}`,
+          '',
+          patch.additions.market_thesis_note ? `**Market insight:** ${patch.additions.market_thesis_note}` : '',
+          patch.additions.new_segments?.length ? `**New segments:** ${(patch.additions.new_segments as any[]).map((s: any) => s.segment_name).join(', ')}` : '',
+          patch.additions.new_competitors?.length ? `**New competitors:** ${(patch.additions.new_competitors as any[]).map((c: any) => c.name).join(', ')}` : '',
+          patch.additions.new_hooks?.length ? `**New hooks:** ${(patch.additions.new_hooks as string[]).join(' | ')}` : '',
+          '',
+          `**Recommendation:** ${patch.notes}`,
+        ].filter(Boolean).join('\n');
+
+        const protocolId = await createProtocol({
+          tenantId,
+          type: 'strategy_patch',
+          title,
+          recommendation,
+          approvalText: `I approve updating the strategy: ${patch.description}`,
+          approvalSummary: patch.description,
+          actionPayload: {
+            trigger: patch.trigger,
+            description: patch.description,
+            additions: patch.additions,
+            notes: patch.notes,
+          },
+        });
+        if (!protocolId) throw new Error('createProtocol returned null');
+        results.push({ type, success: true, detail: `Proposal created — review in Decision Protocols` });
+      } catch (err: unknown) {
+        log?.error({ err }, 'save_strategy_patch failed');
+        results.push({ type, success: false, detail: err instanceof Error ? err.message : 'Failed to save patch' });
+      }
+    }
   }
 
   return results;
@@ -334,6 +383,15 @@ Social actions:
 6. Reply in the same language the client uses in their CURRENT message — not historical messages. If they write in English now, reply in English, even if past messages were in Hebrew.
 7. Write creative — ad copy, headlines, post captions, CTAs — immediately. Never say "I can't help with creative." Use the brand context below.
 8. If the Meta Ad Account is blank: tell them to open Dashboard → Social → Connect → Meta Ad Account.
+9. Strategy patch: use ONLY when client explicitly mentions a significant business change — new product/service, new market, major competitor move, seasonal event (sale/holiday), price or rebrand change. DO NOT use for operational questions.
+
+## Strategy patch action
+When a strategy update is warranted, embed this tag anywhere in your response:
+[ACTION:save_strategy_patch|JSON]
+JSON must be a single line (no newlines inside), format:
+{"trigger":"new_product","description":"one sentence what changed","additions":{"new_segments":[{"segment_name":"Name","trigger":"what makes them buy","message":"headline copy","channel":"Meta Reels"}],"new_competitors":[{"name":"real competitor","competitor_type":"direct_online","why_they_compete":"reason","their_weakness":"gap","win_strategy":"how to beat"}],"new_hooks":["Hook text 1","Hook text 2"],"market_thesis_note":"optional update"},"notes":"your recommendation in 2 sentences"}
+Allowed trigger values: new_product | new_market | competitor_move | seasonal_event | price_change | rebrand | crisis | other
+After the tag, tell the client (in their language): the proposal is in Decision Protocols (Intelligence → Protocols) for review and approval.
 
 ## Platform rules (hard knowledge — do not rely on general training data)
 **Meta:** Prohibited: health claims, before/after weight loss images, financial guarantees, shocking content, adult content unless age-gated. Frequency > 3 in prospecting = creative fatigue. CTR benchmark: 0.9-1.5% feed, 1.5-3% stories. Learning phase = 50 conversions per ad set.
@@ -624,7 +682,7 @@ export async function chatRoutes(app: FastifyInstance) {
 
       const parsedActions = parseActions(rawOutput);
       const executedActions = parsedActions.length > 0
-        ? await executeActions(parsedActions, tenantId)
+        ? await executeActions(parsedActions, tenantId, request.log)
         : [];
 
       const visibleMessage = rawOutput

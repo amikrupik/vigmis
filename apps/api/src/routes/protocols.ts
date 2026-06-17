@@ -179,6 +179,63 @@ Respond honestly and directly. If the client disagrees, engage with their specif
       await applyBenchmarkRecalibration(request.tenantId, payload.suggestions as any).catch(() => {});
     }
 
+    // Strategy patch — merge additions into strategy_plan
+    if (protocol.type === 'strategy_patch' && payload?.additions) {
+      try {
+        const { data: cs } = await db
+          .from('client_settings')
+          .select('strategy_plan')
+          .eq('tenant_id', request.tenantId)
+          .maybeSingle();
+        const plan = (cs?.strategy_plan ?? {}) as Record<string, any>;
+
+        const additions = payload.additions as Record<string, any>;
+
+        // Merge arrays — append new items without duplicates (by name field)
+        if (Array.isArray(additions.new_segments)) {
+          const existing: any[] = plan.market_segments ?? [];
+          const newNames = new Set(additions.new_segments.map((s: any) => s.segment_name));
+          plan.market_segments = [...existing.filter(s => !newNames.has(s.segment_name)), ...additions.new_segments];
+        }
+        if (Array.isArray(additions.new_competitors)) {
+          const existing: any[] = plan.real_competitors ?? [];
+          const newNames = new Set(additions.new_competitors.map((c: any) => c.name));
+          plan.real_competitors = [...existing.filter(c => !newNames.has(c.name)), ...additions.new_competitors];
+        }
+        if (Array.isArray(additions.new_hooks) && Array.isArray(plan.creative_brief)) {
+          plan.creative_brief = plan.creative_brief.map((brief: any) => ({
+            ...brief,
+            hooks: [...(brief.hooks ?? []), ...additions.new_hooks],
+          }));
+        }
+        if (additions.market_thesis_note) {
+          plan.market_thesis = `${plan.market_thesis ?? ''}\n\n[Update ${new Date().toLocaleDateString()}]: ${additions.market_thesis_note}`.trim();
+        }
+        if (Array.isArray(additions.new_hypotheses)) {
+          plan.strategic_hypotheses = [...(plan.strategic_hypotheses ?? []), ...additions.new_hypotheses];
+        }
+        // Append a note to open_notes for traceability
+        plan._patch_notes = [...(plan._patch_notes ?? []), {
+          date: now,
+          trigger: payload.trigger,
+          description: payload.description,
+        }];
+
+        await db.from('client_settings')
+          .update({ strategy_plan: plan, updated_at: now })
+          .eq('tenant_id', request.tenantId);
+
+        await db.from('audit_log').insert({
+          tenant_id: request.tenantId,
+          action: 'strategy.patch_applied',
+          actor: 'user',
+          payload: { protocolId: id, trigger: payload.trigger, description: payload.description },
+        });
+      } catch (err: unknown) {
+        request.log.error({ err }, 'Failed to apply strategy patch');
+      }
+    }
+
     // Schedule outcome check — measure in 10 days whether this decision worked
     const measurableTypes = ['campaign_scale', 'budget_change', 'campaign_pause', 'campaign_resume', 'portfolio_reallocation'];
     if (measurableTypes.includes(protocol.type)) {
