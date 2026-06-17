@@ -105,6 +105,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [isRevising, setIsRevising] = useState(false);
   const [creativeChoice, setCreativeChoice] = useState<CreativeChoice>(null);
   const [discussionResponse, setDiscussionResponse] = useState<string | null>(null);
+  const [discussionChangeNeeded, setDiscussionChangeNeeded] = useState(false);
   const [isDiscussing, setIsDiscussing] = useState(false);
   const [planApproved, setPlanApproved] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -1433,18 +1434,27 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">{discussionResponse}</p>
                     <div className="flex gap-2 pt-1">
                       <button
-                        onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); }}
+                        onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); setDiscussionChangeNeeded(false); }}
                         className="flex-1 border border-slate-200 text-slate-600 text-xs font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors"
                       >
                         {t('strategy.modifyRequest')}
                       </button>
-                      <button
-                        onClick={handleRevise}
-                        disabled={isRevising}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
-                      >
-                        {isRevising ? t('strategy.updating') : t('strategy.proceedDecision')}
-                      </button>
+                      {discussionChangeNeeded ? (
+                        <button
+                          onClick={handleRevise}
+                          disabled={isRevising}
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                        >
+                          {isRevising ? t('strategy.updating') : t('strategy.proceedDecision')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); setDiscussionChangeNeeded(false); }}
+                          className="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2 rounded-xl transition-colors"
+                        >
+                          {t('strategy.gotIt')}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1462,10 +1472,12 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                         if (!strategyFeedback.trim() || !pendingSettings || !analysisResult) return;
                         setIsDiscussing(true);
                         try {
-                          const opinion = await discussStrategy(analysisResult.strategy, strategyFeedback, pendingSettings);
-                          setDiscussionResponse(opinion);
+                          const { response, changeNeeded } = await discussStrategy(analysisResult.strategy, strategyFeedback, pendingSettings);
+                          setDiscussionResponse(response);
+                          setDiscussionChangeNeeded(changeNeeded);
                         } catch {
                           setDiscussionResponse(t('strategy.discussError'));
+                          setDiscussionChangeNeeded(false);
                         } finally {
                           setIsDiscussing(false);
                         }

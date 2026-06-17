@@ -1483,7 +1483,7 @@ CURRENT STRATEGY SUMMARY:
 - Recommended budget: $${strategy.budget_analysis?.recommended_steady_usd ?? managedBudget}/mo
 - Estimated CPC: ${strategy.estimated_cpc ?? 'unknown'}
 
-CLIENT'S REQUESTED CHANGES:
+CLIENT'S MESSAGE:
 "${clientRequest}"
 
 Your job: respond honestly and directly.
@@ -1492,12 +1492,20 @@ Your job: respond honestly and directly.
 - If you disagree: explain your concern clearly and specifically. Don't be vague. Don't just say "it depends".
 - Always end by acknowledging that the final decision is theirs. You will update the plan according to their decision.
 - Be concise. 3-5 sentences max. Don't lecture. Don't repeat the strategy back to them.
-- Write as a trusted advisor, not as a salesperson or a yes-man.`,
+- Write as a trusted advisor, not as a salesperson or a yes-man.
+
+After your response, on a new line, output exactly one of:
+[CHANGE_NEEDED] — if the strategy should be regenerated (client wants to add/remove/change a platform, budget split, audience, goal, or other strategic element)
+[NO_CHANGE_NEEDED] — if the client asked a question, flagged a display issue, or their message doesn't require a strategy regeneration`,
       systemPrompt: 'You are Vigmis, an honest marketing advisor. Be direct and concise.',
-      options: { maxTokens: 400, temperature: 0.5 },
+      options: { maxTokens: 450, temperature: 0.5 },
     });
 
-    return reply.send({ response: res.output });
+    const raw = res.output;
+    const changeNeeded = /\[CHANGE_NEEDED\]/.test(raw) && !/\[NO_CHANGE_NEEDED\]/.test(raw);
+    const response = raw.replace(/\[(CHANGE_NEEDED|NO_CHANGE_NEEDED)\]/g, '').trim();
+
+    return reply.send({ response, changeNeeded });
   });
 
   // ── Strategy viewer ──────────────────────────────────────────────────────────

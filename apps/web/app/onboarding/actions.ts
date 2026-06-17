@@ -99,7 +99,7 @@ export async function discussStrategy(
   strategy: object,
   clientRequest: string,
   settings: OnboardingSettings,
-): Promise<string> {
+): Promise<{ response: string; changeNeeded: boolean }> {
   const token = await getToken();
 
   const res = await fetch(`${API_URL}/onboarding/discuss`, {
@@ -114,7 +114,7 @@ export async function discussStrategy(
   }
 
   const data = await res.json();
-  return data.response as string;
+  return { response: data.response as string, changeNeeded: data.changeNeeded === true };
 }
 
 // ── Website understanding quick check — before full analysis ──────────────────
