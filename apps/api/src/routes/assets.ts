@@ -83,8 +83,11 @@ export async function assetRoutes(app: FastifyInstance) {
 
     if (!row) return reply.code(404).send({ error: 'Asset not found' });
 
-    await db.storage.from(BUCKET).remove([row.storage_path]);
-    await db.from('brand_assets').delete().eq('id', id).eq('tenant_id', request.tenantId);
+    // Storage removal failure is non-fatal (orphaned file is acceptable — it won't be served)
+    await db.storage.from(BUCKET).remove([row.storage_path]).catch(() => {});
+
+    const { error: delErr } = await db.from('brand_assets').delete().eq('id', id).eq('tenant_id', request.tenantId);
+    if (delErr) return reply.code(500).send({ error: delErr.message });
 
     return reply.send({ success: true });
   });

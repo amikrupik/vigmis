@@ -353,12 +353,7 @@ export async function resumeAllCampaigns() {
 
 // ── Account ───────────────────────────────────────────────────────────────────
 
-export async function deleteAccount(): Promise<{
-  success?: boolean;
-  payment_required?: boolean;
-  amount_usd?: number;
-  checkout_url?: string;
-} | null> {
+export async function deleteAccount(): Promise<{ success?: boolean; warnings?: string[] } | null> {
   const { getToken } = await auth();
   const token = await getToken();
   const res = await fetch(`${API_URL}/account`, {
@@ -366,7 +361,7 @@ export async function deleteAccount(): Promise<{
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
-  if (res.status === 402 || res.ok) return res.json();
+  if (res.ok) return res.json();
   return null;
 }
 

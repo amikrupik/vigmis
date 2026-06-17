@@ -13,13 +13,15 @@ export async function feedbackRoutes(app: FastifyInstance) {
 
   // ── Pending prompt ────────────────────────────────────────────────────────
   app.get('/feedback/pending', { preHandler: authenticate }, async (request, reply) => {
-    const { data: tenant } = await db
-      .from('tenants')
-      .select('last_feedback_at, onboarded_at, created_at')
-      .eq('id', request.tenantId)
-      .single();
+    const [{ data: tenant }, { data: settings }] = await Promise.all([
+      db.from('tenants').select('last_feedback_at, onboarded_at, created_at').eq('id', request.tenantId).single(),
+      db.from('client_settings').select('strategy_plan').eq('tenant_id', request.tenantId).maybeSingle(),
+    ]);
 
     if (!tenant) return reply.send(null);
+
+    // Gate: only ask after the user has a saved strategy (i.e. real usage, not just sign-up)
+    if (!settings?.strategy_plan) return reply.send(null);
 
     const now = new Date();
 

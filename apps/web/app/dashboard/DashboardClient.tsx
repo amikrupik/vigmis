@@ -2480,8 +2480,12 @@ function CreativeTab({ settings }: any) {
                               <button
                                 onClick={async () => {
                                   if (!confirm('Delete this creative?')) return;
-                                  await deleteCreativeJob(job.id);
-                                  setJobs(prev => prev.filter(j => j.id !== job.id));
+                                  try {
+                                    await deleteCreativeJob(job.id);
+                                    setJobs(prev => prev.filter(j => j.id !== job.id));
+                                  } catch {
+                                    alert('Delete failed — please try again.');
+                                  }
                                 }}
                                 className="text-red-400 hover:text-red-600 font-semibold"
                               >
@@ -4041,9 +4045,14 @@ function BrandAssetLibrary() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this asset? This cannot be undone.')) return;
     setDeleting(id);
-    await deleteBrandAsset(id);
-    setAssets(prev => prev?.filter(a => a.id !== id) ?? null);
-    setDeleting(null);
+    try {
+      await deleteBrandAsset(id);
+      setAssets(prev => prev?.filter(a => a.id !== id) ?? null);
+    } catch {
+      alert('Delete failed — please try again.');
+    } finally {
+      setDeleting(null);
+    }
   }
 
   return (
@@ -4596,12 +4605,8 @@ function SettingsTab({ settings, connected }: any) {
                   disabled={deleteConfirmText !== 'DELETE' || deleting}
                   onClick={async () => {
                     setDeleting(true);
-                    const result = await deleteAccount();
-                    if (result?.payment_required && result.checkout_url) {
-                      window.location.href = result.checkout_url;
-                    } else {
-                      router.push('/sign-in?deleted=1');
-                    }
+                    await deleteAccount();
+                    router.push('/sign-in?deleted=1');
                   }}
                   className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                 >

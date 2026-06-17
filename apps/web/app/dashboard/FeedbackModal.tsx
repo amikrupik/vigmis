@@ -14,6 +14,10 @@ export default function FeedbackModal() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      // Don't show if the user snoozed via "Later"
+      const snoozedUntil = localStorage.getItem('vigmis_feedback_snoozed_until');
+      if (snoozedUntil && Date.now() < Number(snoozedUntil)) return;
+
       getPendingFeedback()
         .then(p => { if (p) setPrompt(p); })
         .catch(() => {});
@@ -130,7 +134,10 @@ export default function FeedbackModal() {
 
         <div className="flex gap-3">
           <button
-            onClick={() => setPrompt(null)}
+            onClick={() => {
+              localStorage.setItem('vigmis_feedback_snoozed_until', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+              setPrompt(null);
+            }}
             className="flex-1 border border-slate-200 text-slate-500 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors"
           >
             Later
