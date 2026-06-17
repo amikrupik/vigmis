@@ -981,12 +981,35 @@ For each platform the client will use, set minCtr (underperforming threshold), g
 
 SOCIAL MEDIA ORGANIC POSTING — Vigmis posts organic content (FB/IG $1/post, TikTok $3/post). Assess whether this client benefits and which platforms/pillars.
 
+DEMAND MATURITY ANALYSIS — answer this FIRST before building any strategy:
+Ask yourself: does strong, existing purchase intent already exist for this product/category (people actively searching and ready to buy), or is there latent demand that needs to be educated and awakened first?
+- CAPTURED DEMAND (high intent, active search): e.g. "accountant near me", "buy iPhone 15" — conversion-first strategy works. Google Search is primary.
+- LATENT DEMAND (people don't know they need it, or don't know THIS version exists): e.g. premium farm-direct food, niche B2B software, specialty wellness products — must invest in awareness and demand CREATION before conversion will work. Skipping this phase burns budget.
+- MIXED: some terms have intent, most of the TAM is unaware — phased approach required.
+Identify which type this is. It determines whether the strategy leads with conversion OR with awareness+education. NEVER default to conversion-first without justifying demand maturity.
+
+CAMPAIGN PHASES — the strategy MUST be structured in explicit phases. Do not plan a single flat campaign.
+Each phase has a distinct objective, budget weight, and success metric. Typical structure:
+- Phase 1 (Warm-up/Brand): Build brand recognition + pixel audience. Low direct-response pressure. 2–4 weeks, 20–30% of budget.
+- Phase 2 (Demand Activation): Convert awareness into intent. Educational content, problem-agitation, category creation messaging. 3–6 weeks, 30–40% of budget.
+- Phase 3 (Conversion): Retarget warm audiences from phases 1+2 with direct purchase/lead CTAs. Ongoing, 40–50% of budget.
+NOT every business needs 3 phases — high-intent search products can go Phase 2+3 immediately. But you MUST JUSTIFY skipping Phase 1.
+Seasonal businesses: build phases around peak seasons, not calendar weeks.
+
+ANTI-GENERIC RULES — violations will make the output useless:
+✗ Do NOT compare to mass-market competitors (supermarkets, Amazon) unless they are the ACTUAL primary competition channel.
+✗ Do NOT write "own a niche" or "build trust" without specifying EXACTLY what the niche is and what trust signal to use.
+✗ Do NOT write "run short video content with direct purchase CTA" — explain what the video SHOWS, SAYS, and why that specific creative triggers this specific audience.
+✗ Do NOT suggest "retarget site visitors within 7 days" without explaining WHY 7 days is the right window for this product's purchase cycle.
+✗ Do NOT reference generic benchmarks ("average CTR for ecommerce") without explaining why this business is above or below average.
+✗ Every creative hook must be a REAL headline someone would read and react to — not a category description.
+
 STRATEGIC DELIVERABLES (all specific to THIS business, no generic filler):
 
-strategy_narrative: 3 paragraphs — (1) strategic insight; (2) exact customer psychographic and purchase trigger; (3) execution logic and sequencing. No filler.
-competitive_advantage: What this business can credibly claim vs. competitors — or honest assessment if none.
+strategy_narrative: 3 paragraphs — (1) demand maturity diagnosis and why it determines the approach; (2) exact customer psychographic WITH the specific moment/trigger that causes them to buy (what happens in their life that makes them search or respond to this ad TODAY); (3) phase sequencing logic — why these phases in this order for this business.
+competitive_advantage: What this business can credibly own vs. competitors — or honest assessment if none.
 funnel_strategy: What runs at each funnel stage — formats, messages, audience layers.
-creative_brief: Per platform — formats, asset count, 3 specific hooks (name the angle), CTA, creative direction.
+creative_brief: Per platform — formats, asset count, 3 specific hooks (write the ACTUAL headline text, not the angle name), CTA, creative direction.
 first_30_days: Week-by-week plan — what to test, what signals to look for, what triggers scale.
 message_testing_matrix: 4 A/B angles — hypothesis, hook, target segment, win signal.
 missing_platforms: Unconnected platforms that would help, with specific reasoning.
@@ -1012,6 +1035,47 @@ Return ONLY valid JSON (no extra text):
   "organic_recommendations": "2-3 specific organic growth actions tied to this business's strengths",
   "competitive_advantage": "What this business can credibly own vs. competitors — or honest assessment if none exists",
   "strategy_narrative": "Paragraph 1: strategic insight and why this approach. Paragraph 2: exact customer psychographic and purchase trigger. Paragraph 3: execution logic and sequencing rationale.",
+  "market_thesis": "Why do people buy THIS specific version of this product/service — not the generic category, but THIS business's version? What need, desire, or identity drives purchase? This is the core strategic insight everything else flows from.",
+  "market_segments": [
+    {
+      "segment_name": "Short label for this segment",
+      "size": "small | medium | large",
+      "trigger": "The specific moment or context that causes THIS segment to buy — what happens in their life, what emotion or need drives it",
+      "message": "The one message that resonates with this segment above all else",
+      "channel": "Best channel to reach them and why",
+      "ltv_potential": "low | medium | high — and why"
+    }
+  ],
+  "real_competitors": [
+    {
+      "name": "Competitor name or category",
+      "why_they_compete": "Why buyers consider this as an alternative to this business",
+      "their_weakness": "What they can't credibly claim that this business can",
+      "win_strategy": "How to position against them specifically"
+    }
+  ],
+  "strategic_hypotheses": [
+    {
+      "hypothesis": "Testable bet about what will drive growth — not a strategy, a hypothesis",
+      "why_we_believe_it": "Evidence from the website, market, or research that supports this",
+      "how_to_test": "Specific experiment to validate or invalidate",
+      "if_true": "What we do next if this is confirmed",
+      "if_false": "What we do instead if this fails"
+    }
+  ],
+  "campaign_phases": [
+    {
+      "phase": 1,
+      "name": "Phase name tied to objective, not a generic label",
+      "objective": "What cognitive or behavioral shift we are trying to create in the audience",
+      "duration_weeks": 3,
+      "budget_percentage": 25,
+      "channels": ["meta"],
+      "content_focus": "What the content SHOWS and SAYS — specific, not 'brand awareness'",
+      "success_metric": "The one number that tells us this phase is working",
+      "skip_if": "Condition under which we skip or compress this phase"
+    }
+  ],
   "funnel_strategy": {
     "awareness": "Top of funnel: audience, message, format, and what we're trying to do",
     "consideration": "Mid funnel: retargeting who, with what offer, format",
@@ -1109,7 +1173,7 @@ Return ONLY valid JSON (no extra text):
   ],
   "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
 }`,
-        systemPrompt: `You are a Chief Strategy Officer at a world-class digital agency. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text is unacceptable.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
+        systemPrompt: `You are a senior CMO and market strategist — not a digital agency. Your job is NOT to recommend campaigns. Your job is to understand how this specific market works, who the real buyers are, why they buy, and THEN decide what campaigns make sense. The difference: an agency asks "what ads should we run?". You ask "why do people buy this, who are they really, and what's our hypothesis?" Start from market understanding, not from ad channels. Return only valid JSON, no extra text. Every field must be specific to THIS business — generic placeholder text ("run Meta videos", "build brand awareness", "own a niche") is a failure.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, market_thesis, market_segments, real_competitors, strategic_hypotheses, campaign_phases, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
         options: { maxTokens: 4000, temperature: 0.3 },
       }),
       new Promise<never>((_, reject) =>
