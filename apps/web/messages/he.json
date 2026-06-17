@@ -363,7 +363,8 @@
       "needsTweaks": "דורש שינויים",
       "reworkNeeded": "נדרשת עבודה מחדש",
       "strengths": "חוזקות",
-      "improve": "שיפור"
+      "improve": "שיפור",
+      "generateImproved": "צור קופי משופר על פי משוב זה →"
     },
     "intelligence": {
       "convReadiness": "מוכנות להמרה",

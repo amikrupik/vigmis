@@ -1746,6 +1746,20 @@ function CreativeTab({ settings }: any) {
     setScoreLoading(false);
   }
 
+  async function handleImproveFromScore() {
+    if (!scoreResult) return;
+    const improvements = (scoreResult.improvements ?? []).join('; ');
+    const brief = {
+      product: scoreForm.description.slice(0, 200),
+      message: improvements,
+      style: scoreResult.strengths?.slice(0, 2).join(', ') ?? '',
+      cta: '',
+    } as CreativeBriefData;
+    await runGenerateCopy(brief);
+    const el = document.getElementById('copy-result-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }
+
   async function handleScoreJob(jobId: string, imageUrl: string) {
     setScoringJobId(jobId);
     const res = await scoreCreativeAsset(imageUrl, platform, settings?.goal ?? 'awareness');
@@ -2241,7 +2255,7 @@ function CreativeTab({ settings }: any) {
       )} {/* end manualFormOpen || briefNoStrategy */}
 
       {/* ── Ad Copy Generator ─────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+      <div id="copy-result-section" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-slate-900">{t('creative.adCopyTitle')}</h3>
@@ -2366,6 +2380,16 @@ function CreativeTab({ settings }: any) {
                 {scoreResult.improvements?.map((s: string, i: number) => <p key={i} dir="auto" className="text-slate-600 flex gap-1.5"><span className="text-amber-500">→</span>{s}</p>)}
               </div>
             </div>
+            {scoreResult.recommended_action !== 'launch' && (
+              <button
+                onClick={handleImproveFromScore}
+                disabled={copyLoading}
+                className="w-full mt-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {copyLoading ? t('creative.generating') : t('creative.generateImproved')}
+                {!copyLoading && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>}
+              </button>
+            )}
           </div>
         )}
       </div>

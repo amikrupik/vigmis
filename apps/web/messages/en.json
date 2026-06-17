@@ -363,7 +363,8 @@
       "needsTweaks": "Needs tweaks",
       "reworkNeeded": "Rework needed",
       "strengths": "Strengths",
-      "improve": "Improve"
+      "improve": "Improve",
+      "generateImproved": "Generate improved copy based on this feedback →"
     },
     "intelligence": {
       "convReadiness": "Conversion Readiness",
