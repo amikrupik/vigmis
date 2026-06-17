@@ -18,6 +18,7 @@ import { extractCreativeBrief, saveCreativeBrief } from '../services/creative-br
 import { auditConversionReadiness } from '../services/conversion-readiness.js';
 import { getIndustryBenchmarks } from '../services/benchmark-aggregator.js';
 import { getWinningThemes } from '../services/creative-performance.js';
+import { sendOperatorAlert } from '../services/operator-alert.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -676,6 +677,13 @@ export async function onboardingRoutes(app: FastifyInstance) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      // Fire-and-forget — alert never blocks the reply
+      sendOperatorAlert({
+        title: 'Onboarding chat AI failure',
+        body: `AI model error during onboarding chat.\n\nError: ${msg}\nMessage: ${String(message).slice(0, 200)}`,
+        severity: 'warning',
+        tenantId: request.tenantId,
+      });
       return reply.send({
         message: `AI error: ${msg}. Please try again.`,
         coveredTopics,

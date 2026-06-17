@@ -8,7 +8,7 @@ import Image from 'next/image';
 import OnboardingChat from '../components/OnboardingChat';
 import LanguageSelector from '../components/LanguageSelector';
 import type { OnboardingSettings, AnalysisResult, WebsiteCheck, PixelSnippet } from './actions';
-import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect } from './actions';
+import { runAnalysis, discussStrategy, checkWebsite, getPixelSnippet, verifyPixel, startShopifyConnect, reportIncident } from './actions';
 import { recordAttestation } from '../components/attestation-actions';
 import {
   getMetaPages, selectMetaPage, type MetaPage,
@@ -66,6 +66,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorCode] = useState<string | null>(initialError ?? null);
+  const consecutiveErrorsRef = useRef(0);
 
   // Track onboarding_started once on mount
   useEffect(() => {
@@ -297,18 +298,29 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
           setError(null);
           setStep('website_describe');
         } else {
+          consecutiveErrorsRef.current += 1;
           setError(result.message);
           setStep('chat');
+          if (consecutiveErrorsRef.current >= 3) {
+            reportIncident('analysis_failed', result.message, consecutiveErrorsRef.current);
+          }
         }
         return;
       }
+      // Success — reset error counter
+      consecutiveErrorsRef.current = 0;
       setAnalysisStep(3);
       await new Promise(r => setTimeout(r, 500));
       setAnalysisResult(result);
       setStep('strategy');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
+      consecutiveErrorsRef.current += 1;
+      setError(msg);
       setStep('chat');
+      if (consecutiveErrorsRef.current >= 3) {
+        reportIncident('analysis_failed', msg, consecutiveErrorsRef.current);
+      }
     }
   }
 

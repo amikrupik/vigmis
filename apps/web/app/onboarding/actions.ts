@@ -164,6 +164,21 @@ export async function runAnalysis(settings: OnboardingSettings, feedback?: strin
   return res.json();
 }
 
+// ── Operator incident report ──────────────────────────────────────────────────
+
+export async function reportIncident(type: string, message: string, count: number): Promise<void> {
+  try {
+    const { getToken } = await auth();
+    const token = await getToken();
+    if (!token) return;
+    await fetch(`${API_URL}/ops/report-incident`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, message, path: '/onboarding', count }),
+    });
+  } catch { /* best-effort — never crash the caller */ }
+}
+
 // ── Tracking / Conversion Intelligence ───────────────────────────────────────
 
 export interface TrackingStatus {

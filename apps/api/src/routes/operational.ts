@@ -22,6 +22,7 @@ import { dispatchShopifySyncCron } from '../services/shopify-sync.js';
 import { runAiLandscapeDigest } from '../services/ai-landscape.js';
 import { runGhostCleanup, runCreativeDiscard } from '../services/maintenance.js';
 import { hasValidCronSecret } from '../middleware/secrets.js';
+import { sendOperatorAlert } from '../services/operator-alert.js';
 
 function cronAuth(req: FastifyRequest): boolean {
   return hasValidCronSecret(req);
@@ -127,5 +128,29 @@ export async function operationalRoutes(app: FastifyInstance) {
     const log = (msg: string) => { request.log.info(msg); logs.push(msg); };
     const result = await runCreativeDiscard(log);
     return reply.send({ ...result, log: logs });
+  });
+
+  // ── Operator incident report from client ──────────────────────────────────
+  // Called by the web app when a user hits repeated failures.
+  // Authenticated — so we know which tenant is struggling.
+  app.post('/ops/report-incident', { preHandler: authenticate }, async (request, reply) => {
+    const { type, message, path, count } = request.body as {
+      type: string;
+      message: string;
+      path?: string;
+      count?: number;
+    };
+    if (!type || !message) return reply.code(400).send({ error: 'type and message required' });
+
+    const countLabel = count ? ` (×${count})` : '';
+    sendOperatorAlert({
+      title: `User stuck: ${type}${countLabel}`,
+      body: `A user is experiencing repeated failures and needs attention.\n\nType: ${type}\nMessage: ${message}\nPath: ${path ?? 'unknown'}\nFailures: ${count ?? 1}`,
+      severity: count && count >= 3 ? 'critical' : 'warning',
+      tenantId: request.tenantId,
+      meta: { type, path: path ?? '', count: count ?? 1 },
+    });
+    request.log.warn({ tenantId: request.tenantId, type, count }, 'operator incident report from client');
+    return reply.send({ ok: true });
   });
 }
