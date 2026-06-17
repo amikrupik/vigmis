@@ -38,6 +38,19 @@ const STEP_INDEX: Record<Step, number> = {
 const ANALYSIS_STEP_KEYS = ['analysis.scanningWebsite', 'analysis.researchingMarket', 'analysis.buildingPlan'] as const;
 const ANALYSIS_STEP_IDS = ['website', 'research', 'strategy'] as const;
 
+function prevStepFor(s: Step): Step | null {
+  switch (s) {
+    case 'meta_assets': return 'connect';
+    case 'chat': return 'connect';
+    case 'website_check':
+    case 'website_describe': return 'chat';
+    case 'strategy': return 'chat';
+    case 'creative': return 'strategy';
+    case 'tracking': return 'creative';
+    default: return null;
+  }
+}
+
 const PLATFORM_BAR: Record<string, string> = {
   google: 'bg-blue-500',
   meta: 'bg-violet-500',
@@ -147,6 +160,23 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       }));
     } catch { /* ignore — storage full */ }
   }, [step, pendingConversation, pendingSettings, analysisResult, websiteNotes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Push a browser history entry for each step so the browser back button
+  // navigates within the onboarding flow instead of leaving the page.
+  useEffect(() => {
+    window.history.pushState({ onboarding: step }, '');
+  }, [step]);
+
+  useEffect(() => {
+    const handler = (e: PopStateEvent) => {
+      // Always keep an entry so subsequent back presses also stay here.
+      window.history.pushState({ onboarding: step }, '');
+      const prev = prevStepFor(step);
+      if (prev) setStep(prev);
+    };
+    window.addEventListener('popstate', handler);
+    return () => window.removeEventListener('popstate', handler);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch the real connection status from the API on every mount.
   // The URL param (?connected=meta) only tells us the LAST platform — so connecting Meta
@@ -423,9 +453,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     : 'en';
 
   // ── Header ────────────────────────────────────────────────────────────────────
+  const canGoBack = prevStepFor(step) !== null && step !== 'analysis' && step !== 'saving';
   const header = (
     <header className="border-b border-slate-200 bg-white px-4 py-4 flex-shrink-0">
       <div className="flex items-center gap-3">
+        {canGoBack && (
+          <button
+            onClick={() => { const prev = prevStepFor(step); if (prev) setStep(prev); }}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+            aria-label="Back"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
         <Image src="/logo_nav.png" alt="Vigmis" width={140} height={32} priority className="flex-shrink-0" />
         <div className="flex-1 flex items-center min-w-0 mx-2">
           {STEPS.map((s, i) => (
