@@ -29,7 +29,7 @@ const ILS_USD_RATE = 3.75;
 const CONTENT_POLICY_BLOCKED = [
   {
     category: 'firearms',
-    keywords: ['firearm', ' gun ', 'guns', 'weapon', 'ammunition', 'ammo', 'rifle', 'pistol', 'handgun', 'shotgun', 'bump stock', 'ghost gun', 'suppressor', 'silencer', 'holster', 'nra', 'gun shop', 'gun store', 'firearms safety', 'gun accessories', 'נשק', 'אקדח', 'רובה', 'תחמושת', 'נשק חם', 'ירי', 'כלי ירייה'],
+    keywords: ['firearm', ' gun ', 'guns', 'weapon', 'ammunition', 'ammo', 'rifle', 'pistol', 'handgun', 'shotgun', 'bump stock', 'ghost gun', 'suppressor', 'silencer', 'holster', 'nra', 'gun shop', 'gun store', 'firearms safety', 'gun accessories', 'נשק', 'אקדח', 'רובה', 'תחמושת', 'נשק חם', 'הדרכות ירי', 'כלי ירייה', 'חנות נשק', 'מכירת נשק'],
     refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום הנשק, האביזרים, התחמושת, או הדרכות ירי — גם אם העסק חוקי לחלוטין. פלטפורמות הפרסום הגדולות (Meta, Google) אוסרות קמפיינים בקטגוריה זו, מה שמונע מאיתנו לספק שירות אפקטיבי. מאחלים לך הצלחה.',
     refusal_en: "Thank you for reaching out to Vigmis. Unfortunately, we're unable to work with firearms, weapons, ammunition, or related businesses — even when fully legal. Major advertising platforms (Meta, Google) have categorical restrictions on this category that make it impossible for us to run effective campaigns. We wish you the best.",
   },
@@ -96,11 +96,26 @@ function detectContentPolicy(
   for (const policy of CONTENT_POLICY_BLOCKED) {
     if (policy.category === 'firearms' && firearmsNegated) continue;
     if (policy.category === 'illegal_drugs' && drugsNegated) continue;
-    if (policy.keywords.some(kw => combined.includes(kw.toLowerCase()))) {
+    if (policy.keywords.some(kw => matchesKeyword(combined, kw))) {
       return { blocked: true, category: policy.category, refusal_he: policy.refusal_he, refusal_en: policy.refusal_en };
     }
   }
   return { blocked: false };
+}
+
+// Match a keyword against text with proper word boundaries.
+// For purely Hebrew keywords, require non-Hebrew-letter boundaries to prevent
+// substring false positives (e.g. 'ירי' appearing inside 'צעירים').
+function matchesKeyword(text: string, kw: string): boolean {
+  const kwLower = kw.toLowerCase();
+  // Keywords that already carry leading/trailing spaces encode their own boundary — match literally
+  if (kwLower.startsWith(' ') || kwLower.endsWith(' ')) return text.includes(kwLower);
+  // For keywords made entirely of Hebrew letters, require non-Hebrew-letter on both sides
+  if (/^[א-׺]+$/.test(kwLower)) {
+    const escaped = kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![\\u05D0-\\u05FA])${escaped}(?![\\u05D0-\\u05FA])`).test(text);
+  }
+  return text.includes(kwLower);
 }
 
 const ONBOARDING_SYSTEM_PROMPT_BASE = `You are the Vigmis onboarding assistant — an AI marketing manager conducting a friendly intake interview.
@@ -130,14 +145,20 @@ RESTRICTED (warn but proceed): tobacco, cigarettes, vaping, e-cigarettes, alcoho
 You MUST cover these topics before concluding:
 1. business_type — what type of business: "ecommerce" (online store with many products), "hero_product" (one flagship product drives most revenue), "lead_gen" (generates leads/inquiries), "saas" (software subscription), or "general_store" (brick & mortar / local service). Ask this FIRST.
    DISAMBIGUATION RULE: If the client's FIRST message already implies business type (e.g., "online clothing store" = ecommerce; "I sell one product" = hero_product; "dental clinic" = lead_gen; "SaaS platform" = saas), DO NOT ask them to confirm or re-classify. Infer from context and move on. Only ask explicitly if the type is genuinely ambiguous after reading their message.
-2. website — the client's website URL. If they have no website yet: say "No problem — describe your business in 2-3 sentences: what you sell and who your ideal customer is." Store that description in open_notes as "Business description (manual): [text]". Set website_url to null.
+2. website — the client's website URL.
+   - If the client gives you a URL (any text containing a domain like ".co.il", ".com", "www.", "http"): accept it immediately, say "Got it — I'll use [url]." and move straight to the next question. Do NOT ask what the website does or what the business sells — the website will be analyzed automatically later.
+   - If they have no website yet: say "No problem — describe your business in 2-3 sentences: what you sell and who your ideal customer is." Store that description in open_notes as "Business description (manual): [text]". Set website_url to null.
 3. budget — monthly advertising budget.
    CURRENCY RULES:
    - User says "₪X" or "X שקל/שקלים" → ILS, accept directly. Confirm: "Got it — ₪X/month." Set budget_currency="ILS", budget_original_amount=X.
    - User says "$X" or "X dollars" → USD. Confirm in USD only: "Got it — $X/month." Set budget_currency="USD", budget_original_amount=X. Store budget_monthly_ils = X × 3.75 internally.
    - User says "X AED" or "X درهم" → AED (UAE dirham). Confirm in AED: "Got it — X AED/month." Set budget_currency="AED", budget_original_amount=X. Store budget_monthly_ils = X × 1.05 internally.
-   - User provides a bare number with no currency symbol (e.g., "5000" or "my budget is 5000") → ask ONCE: "Is that ILS (₪), USD ($), AED, or another currency?"
-   - If you have ALREADY asked for currency clarification in this conversation AND the client gives another bare number without a symbol — stop asking and ASSUME ILS. Confirm: "Got it — ₪X/month." Do NOT ask again.
+   - User provides a bare number with no currency symbol → ask ONCE with a language-appropriate suggestion:
+       * Hebrew conversation: "₪ (שקל) או מטבע אחר?" (short, one line — make ₪ the obvious default)
+       * Spanish conversation: "¿Es USD ($), EUR (€), u otra moneda?"
+       * English/other: "Is that USD ($), EUR (€), or another currency?"
+     Do NOT assume any currency without asking. Do NOT make ILS the automatic default — the client may operate from any country.
+   - If you have ALREADY asked for currency clarification in this conversation AND the client gives another bare number without a symbol — stop asking and go with the most recently confirmed currency. Confirm and move on.
    MINIMUM BUDGET WARNING: If budget_monthly_ils < 500 (≈ $135), warn ONCE: "Note: a budget under ₪500/month may produce limited results. We recommend at least ₪500 for any measurable ad performance. You can still continue if you wish." Then proceed.
 4. management_percentage — what percentage of the budget should Vigmis manage. Accept any number 1–100. Explain briefly: "Vigmis takes a fee only on the portion it manages."
 5. goal — what counts as success: leads (form/call), purchases, traffic, or brand awareness.
@@ -596,15 +617,28 @@ export async function onboardingRoutes(app: FastifyInstance) {
     const numericAmount = Number(message.replace(/[^0-9.]/g, '') || '0');
 
     const aiAlreadyAskedCurrency = historyArr.some(
-      (m: any) => m.role === 'assistant' && /ILS|USD|AED|currency/i.test(m.content) && /\?/.test(m.content),
+      (m: any) => m.role === 'assistant' && /ILS|USD|AED|EUR|currency|מטבע|moneda/i.test(m.content) && /\?/.test(m.content),
     );
     const budgetAlreadyConfirmed = historyArr.some(
-      (m: any) => m.role === 'assistant' && /₪|shekels?|ILS.*month|USD.*month|AED.*month/i.test(m.content),
+      (m: any) => m.role === 'assistant' && /₪|shekels?|ILS.*month|USD.*month|AED.*month|EUR.*month/i.test(m.content),
     );
     const historyHasHebrew = historyArr.some((m: any) => /[א-׿]/.test(m.content));
+    // AI asked currency in Hebrew context (₪ was the suggested option) → safe to assume ILS on bare number follow-up
+    const aiAskedCurrencyHebrew = historyArr.some(
+      (m: any) => m.role === 'assistant' && /₪.*מטבע|מטבע.*₪|שקל.*או|או.*שקל/i.test(m.content),
+    );
 
-    // A2-5b: AI already asked → bypass AI entirely, assume ILS and confirm
-    if (currentIsBareNumber && numericAmount > 0 && aiAlreadyAskedCurrency && !budgetAlreadyConfirmed) {
+    // A2-5b: AI asked currency in Hebrew context → bypass AI, confirm ILS
+    if (currentIsBareNumber && numericAmount > 0 && aiAskedCurrencyHebrew && !budgetAlreadyConfirmed) {
+      const formatted = numericAmount.toLocaleString('en-US');
+      return reply.send({
+        message: `הבנתי — ₪${formatted} לחודש. מה האחוז מהתקציב שתרצה שוויגמיס ינהל?`,
+        coveredTopics: Array.from(new Set([...(coveredTopics as string[]), 'budget'])),
+        settings: null, // partial — full summary only after all topics covered
+      });
+    }
+    // A2-5b legacy: AI already asked (ILS|USD pattern) and user gives another bare number → confirm with ILS
+    if (currentIsBareNumber && numericAmount > 0 && aiAlreadyAskedCurrency && !aiAskedCurrencyHebrew && !budgetAlreadyConfirmed) {
       const formatted = numericAmount.toLocaleString('en-US');
       const confirmMsg = historyHasHebrew
         ? `הבנתי — ₪${formatted} לחודש. מה האחוז מהתקציב שתרצה שוויגמיס ינהל?`
