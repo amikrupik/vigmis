@@ -862,6 +862,8 @@
       "cancel": "Cancel",
       "thinking": "Thinking...",
       "getOpinion": "Get Vigmis's opinion →",
+      "backToPlan": "Back to plan",
+      "discussError": "Couldn't get a response right now. You can proceed with your changes or approve the current plan.",
       "feedbackPlaceholder": "e.g. I want to include TikTok, or I'd prefer a lower budget, or focus only on Google Search...",
       "summaryTitle": "Campaign Plan Summary",
       "summaryReady": "Ready for your approval",

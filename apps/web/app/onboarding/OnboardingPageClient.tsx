@@ -1461,7 +1461,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                           const opinion = await discussStrategy(analysisResult.strategy, strategyFeedback, pendingSettings);
                           setDiscussionResponse(opinion);
                         } catch {
-                          setDiscussionResponse("I couldn't generate a response right now. You can proceed with your changes directly.");
+                          setDiscussionResponse(t('strategy.discussError'));
                         } finally {
                           setIsDiscussing(false);
                         }
@@ -1473,6 +1473,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     </button>
                   </div>
                 )}
+                {/* Always allow closing the discussion and returning to the plan */}
+                <button
+                  onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); }}
+                  className="w-full text-xs text-slate-400 hover:text-slate-600 transition-colors py-1"
+                >
+                  ← {t('strategy.backToPlan')}
+                </button>
               </div>
             ) : (
               <>
@@ -1589,6 +1596,30 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Approval shortcut shown when feedback panel is open so user is never blocked */}
+            {showFeedback && (
+              <div className="border-2 border-indigo-200 bg-indigo-50 rounded-2xl p-4 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={planApproved}
+                    onChange={e => setPlanApproved(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                  />
+                  <span className="text-xs text-slate-700 leading-relaxed">
+                    {t('strategy.approveConfirm', { budget: `$${managedBudget}` })}
+                  </span>
+                </label>
+                <button
+                  onClick={() => setStep('creative')}
+                  disabled={!planApproved}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors"
+                >
+                  {t('strategy.approveContinue')}
+                </button>
+              </div>
             )}
 
             <button

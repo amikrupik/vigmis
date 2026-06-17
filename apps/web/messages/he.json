@@ -862,6 +862,8 @@
       "cancel": "ביטול",
       "thinking": "חושב...",
       "getOpinion": "‏קבלו את דעתו של Vigmis →",
+      "backToPlan": "חזרה לתוכנית",
+      "discussError": "לא הצלחנו לקבל תגובה כרגע. תוכלו להמשיך עם השינויים שלכם או לאשר את התוכנית הנוכחית.",
       "feedbackPlaceholder": "‏לדוגמה: אני רוצה לכלול TikTok, או שאעדיף תקציב נמוך יותר, או להתמקד רק ב-Google Search...",
       "summaryTitle": "סיכום תוכנית הקמפיין",
       "summaryReady": "מוכן לאישורכם",
