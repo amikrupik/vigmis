@@ -39,6 +39,7 @@ import {
   logEvent,
 } from './actions';
 import FeedbackModal from './FeedbackModal';
+import { useClerk } from '@clerk/nextjs';
 import { ClerkSignOutButton } from '../components/sign-out-button';
 import LanguageSelector from '../components/LanguageSelector';
 import { usePostHog } from 'posthog-js/react';
@@ -4117,6 +4118,7 @@ function BrandAssetLibrary() {
 function SettingsTab({ settings, connected }: any) {
   const t = useTranslations('dashboard');
   const posthog = usePostHog();
+  const { signOut } = useClerk();
   const [alertEmail, setAlertEmail] = useState('');
   const [alertWhatsApp, setAlertWhatsApp] = useState('');
   const [emailEnabled, setEmailEnabled] = useState(false);
@@ -4141,6 +4143,7 @@ function SettingsTab({ settings, connected }: any) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [accountDeleted, setAccountDeleted] = useState(false);
   const [exporting, setExporting] = useState(false);
   const router = useRouter();
 
@@ -4266,6 +4269,26 @@ function SettingsTab({ settings, connected }: any) {
     creative_fatigue: 'Creative fatigue detected',
     no_action: 'No action',
   };
+
+  if (accountDeleted) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="text-center space-y-4 max-w-sm px-6">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">Account deleted</h1>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Your account and all associated data have been permanently removed.<br />
+            To use VIGMIS again, create a new account.
+          </p>
+          <p className="text-xs text-slate-400">Redirecting you to the home page…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -4605,8 +4628,15 @@ function SettingsTab({ settings, connected }: any) {
                   disabled={deleteConfirmText !== 'DELETE' || deleting}
                   onClick={async () => {
                     setDeleting(true);
-                    await deleteAccount();
-                    router.push('/sign-in?deleted=1');
+                    const result = await deleteAccount();
+                    if (result?.success || result !== null) {
+                      setAccountDeleted(true);
+                      try { await signOut(); } catch {}
+                      setTimeout(() => { window.location.href = '/'; }, 3500);
+                    } else {
+                      setDeleting(false);
+                      alert('Account deletion failed. Please try again or contact support@vigmis.com.');
+                    }
                   }}
                   className="flex-1 text-sm font-semibold px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                 >
