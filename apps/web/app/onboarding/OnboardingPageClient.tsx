@@ -298,7 +298,11 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 270_000)
       );
-      const result = await Promise.race([runAnalysis(settingsWithNotes, feedback), timeout]);
+      // Detect language from conversation so strategy matches what the user wrote
+      const hebrewPattern = /[א-ת]/;
+      const conversationText = pendingConversation.map(m => m.content).join(' ');
+      const langOverride = hebrewPattern.test(conversationText) ? 'he' : undefined;
+      const result = await Promise.race([runAnalysis(settingsWithNotes, feedback, langOverride), timeout]);
       clearTimeout(timer1);
       clearTimeout(timer2);
       // Check for returned error object (Server Action returns instead of throws)

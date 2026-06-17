@@ -386,7 +386,11 @@ const ConversationMessageSchema = z.object({
 
 const SaveSettingsSchema = z.object({
   business_type: z.enum(['ecommerce', 'hero_product', 'lead_gen', 'saas', 'general_store']).default('ecommerce'),
-  website_url: z.preprocess(v => (v === '' ? undefined : v), z.string().url().optional()),
+  website_url: z.preprocess(v => {
+    if (v === '' || v == null) return undefined;
+    const s = String(v).trim();
+    return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  }, z.string().url().optional()),
   management_percentage: z.number().min(1).max(100).default(100).transform(v => Math.round(v)),
   budget_monthly_ils: z.number().positive().transform(v => Math.round(v)),
   budget_currency: z.string().default('ILS'),

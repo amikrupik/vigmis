@@ -142,13 +142,13 @@ export async function checkWebsite(websiteUrl: string): Promise<WebsiteCheck> {
 
 // ── Full analysis pipeline — proxied through API ──────────────────────────────
 
-export async function runAnalysis(settings: OnboardingSettings, feedback?: string): Promise<AnalysisResult | AnalysisError> {
+export async function runAnalysis(settings: OnboardingSettings, feedback?: string, langOverride?: string): Promise<AnalysisResult | AnalysisError> {
   const token = await getToken();
 
   // Read vigmis_lang cookie (set by the UI language switcher). Default to 'en'.
   const { cookies } = await import('next/headers');
   const cookieStore = await cookies();
-  const lang = cookieStore.get('vigmis_lang')?.value ?? 'en';
+  const lang = langOverride ?? cookieStore.get('vigmis_lang')?.value ?? 'en';
 
   const res = await fetch(`${API_URL}/onboarding/analyze`, {
     method: 'POST',
