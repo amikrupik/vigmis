@@ -714,7 +714,11 @@ export async function onboardingRoutes(app: FastifyInstance) {
   app.post('/onboarding/analyze', { preHandler: authenticate }, async (request, reply) => {
     const { settings, feedback, lang } = request.body as any;
     if (!settings) return reply.code(400).send({ error: 'settings required' });
-    const strategyLang: 'he' | 'en' = lang === 'he' ? 'he' : 'en';
+    // Server-side Hebrew detection: if ANY text field in settings contains Hebrew chars,
+    // treat as Hebrew regardless of what the client sent — catches cases where the client
+    // cookie is missing or langOverride didn't propagate correctly.
+    const hebrewInSettings = /[א-ת]/.test(JSON.stringify(settings));
+    const strategyLang: 'he' | 'en' = (lang === 'he' || hebrewInSettings) ? 'he' : 'en';
 
     // Phase 1: Website scan + historical data + competitor ads (in parallel)
     let websiteAnalysis = 'Website could not be scanned.';
@@ -1204,7 +1208,7 @@ Return ONLY valid JSON (no extra text):
     ]
   }
 }`,
-        systemPrompt: `You are the best market strategist in the world — not a digital agency, not a campaign manager, not a framework applier. You think like a founder who has spent years in this market. Your job is to understand this business deeply enough that you could run it. Not "what ads should we run" — but "why do people buy this, what is really happening in this market, and what is the sharpest possible move given the constraints."
+        systemPrompt: `${strategyLang === 'he' ? '⚠️ LANGUAGE LOCK — TOP PRIORITY: Write ALL text values in Hebrew (עברית). JSON keys, platform names (Meta, Google, TikTok, LinkedIn), URLs, and numbers stay in English. Every narrative field, every list item, every description must be in Hebrew. This overrides all other instructions.\n\n' : ''}You are the best market strategist in the world — not a digital agency, not a campaign manager, not a framework applier. You think like a founder who has spent years in this market. Your job is to understand this business deeply enough that you could run it. Not "what ads should we run" — but "why do people buy this, what is really happening in this market, and what is the sharpest possible move given the constraints."
 
 MENTAL PROCESS — complete this before writing a single JSON field:
 1. What would a generic digital marketing agency write for this business? (one sentence to yourself)
@@ -1216,7 +1220,7 @@ THE STATUS QUO TEST — before identifying competitors: what is this buyer doing
 
 STRATEGY QUALITY STANDARD: If you replaced the business name with any other business in this category and the strategy still sounds right — you have failed. Every claim must be provable only for this specific business.
 
-Return only valid JSON, no extra text. Every field must be specific to THIS business.${strategyLang === 'he' ? '\n\n⚠️ LANGUAGE INSTRUCTION: Write your entire response in Hebrew (עברית). All text fields must be in Hebrew — strategy_narrative, market_insights, target_audience, market_thesis, market_segments, real_competitors, strategic_hypotheses, campaign_phases, competitive_advantage, funnel_strategy, creative_brief hooks and directions, recommendations, organic_recommendations, first_30_days, message_testing_matrix, risk_factors, budget_split_rationale, what_we_dont_know, counter_argument, confidence_notes, past_performance_notes, status_quo_competitor, strategic_self_critique fields. Platform names (Meta, Google, TikTok, LinkedIn) stay in English. JSON keys stay in English. Numbers, URLs, and technical ad terms stay as-is.' : ''}`,
+Return only valid JSON, no extra text. Every field must be specific to THIS business.${strategyLang === 'he' ? '\n\n⚠️ REMINDER: Hebrew only for all text values — you were instructed at the top.' : ''}`,
         options: { maxTokens: 4000, temperature: 0.3 },
       }),
       new Promise<never>((_, reject) =>
@@ -1274,7 +1278,7 @@ Return this exact JSON structure (be concise — max 2 sentences per text field)
   "organic_recommendations": "<2 organic growth suggestions>",
   "competitive_advantage": "<what this business can credibly own>"
 }`,
-          systemPrompt: 'Return only valid JSON. Be concise.',
+          systemPrompt: `${strategyLang === 'he' ? '⚠️ LANGUAGE LOCK: Write ALL text values in Hebrew (עברית). JSON keys and platform names stay in English.\n\n' : ''}Return only valid JSON. Be concise.`,
           options: { maxTokens: 3000, temperature: 0.3 },
         });
         const retryMatch = retryRes.output.match(/\{[\s\S]*\}/);

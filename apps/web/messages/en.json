@@ -439,6 +439,7 @@
       "rethink": "Rethink strategy",
       "websiteTitle": "What Vigmis understood about your business",
       "noWebsiteAnalysis": "No website analysis was stored. Click \"Re-analyze website\" to scan now — Vigmis will refuse to invent if the site is unreadable.",
+      "fullAudit": "Full website audit ↓",
       "campaignPlan": "Campaign plan",
       "managedLabel": "{amount}/mo managed",
       "marketInsights": "Market insights",

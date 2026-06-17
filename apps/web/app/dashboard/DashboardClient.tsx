@@ -3726,7 +3726,19 @@ function StrategyTab({ settings: _settings }: any) {
             </a>
           )}
         </div>
-        {s.website_analysis ? (
+        {plan?.market_thesis ? (
+          <>
+            <p className="text-sm text-slate-700 leading-relaxed" dir="ltr">{plan.market_thesis as string}</p>
+            {s.website_analysis && (
+              <details className="group">
+                <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600 select-none">
+                  {t('strategy.fullAudit')}
+                </summary>
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed whitespace-pre-wrap border-t border-slate-100 pt-2" dir="ltr">{s.website_analysis}</p>
+              </details>
+            )}
+          </>
+        ) : s.website_analysis ? (
           <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" dir="ltr">{s.website_analysis}</p>
         ) : (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">

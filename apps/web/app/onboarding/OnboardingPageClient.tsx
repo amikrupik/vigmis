@@ -344,13 +344,13 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Analysis is taking longer than expected. Please try again.')), 270_000)
       );
-      // Detect language from conversation so strategy matches what the user wrote.
-      // Use conversationOverride when available — pendingConversation state may not
-      // have updated yet (React batches state updates asynchronously).
+      // Detect Hebrew from conversation + feedback text.
+      // conversationOverride bypasses stale React state (set in handleChatConfirm).
+      // feedback may be in Hebrew (strategy revision path) even when conversation is empty.
       const hebrewPattern = /[א-ת]/;
       const conversationToCheck = conversationOverride ?? pendingConversation;
       const conversationText = conversationToCheck.map(m => m.content).join(' ');
-      const langOverride = hebrewPattern.test(conversationText) ? 'he' : undefined;
+      const langOverride = (hebrewPattern.test(conversationText) || hebrewPattern.test(feedback ?? '')) ? 'he' : undefined;
       const result = await Promise.race([runAnalysis(settingsWithNotes, feedback, langOverride), timeout]);
       clearTimeout(timer1);
       clearTimeout(timer2);
