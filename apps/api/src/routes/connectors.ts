@@ -157,32 +157,50 @@ export async function connectorRoutes(app: FastifyInstance) {
       const json = await res.json() as { resourceNames: string[] };
       const ids = (json.resourceNames ?? []).map((r: string) => r.split('/')[1]);
 
-      // Fetch name + status for each account in parallel (best-effort; fall back to ID if it fails).
+      // Fetch name + status for each account in parallel.
+      // Strategy: GET customers/{id} (REST resource — no GAQL needed, returns name+status directly).
+      // Fallback: GAQL search if the REST endpoint fails (e.g. manager-account sub-accounts).
       const accounts = await Promise.all(ids.map(async (id) => {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${accessToken}`,
+          'developer-token': devToken,
+        };
+
+        // Attempt 1: simple REST GET on the customer resource
         try {
-          const detailRes = await fetch(
+          const r = await fetch(`https://googleads.googleapis.com/v20/customers/${id}`, { headers });
+          if (r.ok) {
+            const d = await r.json() as { descriptiveName?: string; name?: string; status?: string };
+            return {
+              id,
+              name: d.descriptiveName || d.name || `Account ${id}`,
+              status: d.status ?? 'UNKNOWN',
+            };
+          }
+        } catch { /* fall through */ }
+
+        // Attempt 2: GAQL search (works for accounts with login-customer-id not required)
+        try {
+          const r = await fetch(
             `https://googleads.googleapis.com/v20/customers/${id}/googleAds:search`,
             {
               method: 'POST',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'developer-token': devToken,
-                'Content-Type': 'application/json',
-              },
+              headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify({ query: 'SELECT customer.id, customer.descriptive_name, customer.status FROM customer LIMIT 1' }),
             },
           );
-          if (!detailRes.ok) return { id, name: `Google Ads — ${id}`, status: 'UNKNOWN' };
-          const detail = await detailRes.json() as { results?: Array<{ customer: { descriptiveName?: string; status?: string } }> };
-          const customer = detail.results?.[0]?.customer ?? {};
-          return {
-            id,
-            name: customer.descriptiveName || `Google Ads — ${id}`,
-            status: customer.status ?? 'UNKNOWN',
-          };
-        } catch {
-          return { id, name: `Google Ads — ${id}`, status: 'UNKNOWN' };
-        }
+          if (r.ok) {
+            const d = await r.json() as { results?: Array<{ customer: { descriptiveName?: string; descriptive_name?: string; status?: string } }> };
+            const c = d.results?.[0]?.customer ?? {};
+            return {
+              id,
+              name: c.descriptiveName || c.descriptive_name || `Account ${id}`,
+              status: c.status ?? 'UNKNOWN',
+            };
+          }
+        } catch { /* fall through */ }
+
+        return { id, name: `Account ${id}`, status: 'UNKNOWN' };
       }));
 
       return reply.send({ accounts, selected: tokenRow.account_id ?? null });

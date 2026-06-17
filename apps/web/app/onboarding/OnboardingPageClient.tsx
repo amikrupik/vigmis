@@ -107,7 +107,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   const [pixelSnippet, setPixelSnippet] = useState<PixelSnippet | null>(null);
 
   // Google Ads account selector (shown inline in connect step after Google OAuth)
-  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string }[] | null>(null);
+  const [googleAccounts, setGoogleAccounts] = useState<{ id: string; name: string; status?: string }[] | null>(null);
   const [googleAccountSelected, setGoogleAccountSelected] = useState<string | null>(null);
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
   const [googleAccountSaving, setGoogleAccountSaving] = useState(false);
@@ -587,20 +587,48 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                       </div>
                     )}
 
-                    {!googleAccountLoading && !googleAccountError && googleAccounts?.map(a => (
-                      <button
-                        key={a.id}
-                        onClick={() => handleSelectGoogleAccountOnboarding(a.id)}
-                        disabled={googleAccountSaving}
-                        className={`w-full text-left border rounded-lg px-3 py-2 text-xs mb-1 transition-all ${
-                          googleAccountSelected === a.id
-                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold'
-                            : 'border-slate-200 bg-white hover:border-blue-300'
-                        }`}
-                      >
-                        {googleAccountSelected === a.id ? '✓ ' : ''}{a.name}
-                      </button>
-                    ))}
+                    {!googleAccountLoading && !googleAccountError && googleAccounts?.map(a => {
+                      const isCancelled = a.status === 'CANCELLED' || a.status === 'SUSPENDED';
+                      const isSelected = googleAccountSelected === a.id;
+                      return (
+                        <div key={a.id} className="mb-1">
+                          <button
+                            onClick={() => {
+                              if (isCancelled) return;
+                              handleSelectGoogleAccountOnboarding(a.id);
+                            }}
+                            disabled={googleAccountSaving || isCancelled}
+                            className={`w-full text-left border rounded-lg px-3 py-2 text-xs transition-all ${
+                              isSelected
+                                ? 'border-emerald-400 bg-emerald-50 text-emerald-800 font-semibold'
+                                : isCancelled
+                                ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60'
+                                : 'border-slate-200 bg-white hover:border-blue-300'
+                            }`}
+                          >
+                            <span className="flex items-center justify-between gap-2">
+                              <span>{isSelected ? '✓ ' : ''}{a.name}</span>
+                              {a.status && a.status !== 'ENABLED' && a.status !== 'UNKNOWN' && (
+                                <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  isCancelled ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {a.status}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                          {isCancelled && (
+                            <p className="text-[10px] text-red-500 px-3 mt-0.5">
+                              Reactivate at{' '}
+                              <a href="https://ads.google.com" target="_blank" rel="noopener noreferrer" className="underline">
+                                ads.google.com
+                              </a>
+                              {' '}to use with Vigmis
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

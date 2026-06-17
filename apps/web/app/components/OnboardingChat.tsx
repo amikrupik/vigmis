@@ -257,12 +257,12 @@ export default function OnboardingChat({ onConfirm }: Props) {
                   </div>
                   <div className="col-span-2">
                     <span className="font-medium text-slate-500">{L.targeting}:</span>{' '}
-                    {settings.geo_include.join(', ')}
+                    {(settings.geo_include ?? []).join(', ')}
                   </div>
-                  {settings.geo_exclude.length > 0 && (
+                  {(settings.geo_exclude ?? []).length > 0 && (
                     <div className="col-span-2">
                       <span className="font-medium text-slate-500">{L.exclude}:</span>{' '}
-                      {settings.geo_exclude.join(', ')}
+                      {(settings.geo_exclude ?? []).join(', ')}
                     </div>
                   )}
                   {settings.exclusions && (

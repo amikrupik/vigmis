@@ -612,7 +612,7 @@ export async function onboardingRoutes(app: FastifyInstance) {
       return reply.send({
         message: confirmMsg,
         coveredTopics: Array.from(new Set([...(coveredTopics as string[]), 'budget'])),
-        settings: { budget_monthly_ils: numericAmount, budget_currency: 'ILS', budget_original_amount: numericAmount },
+        settings: null, // partial — full summary only after all topics covered
       });
     }
 
