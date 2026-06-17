@@ -1033,6 +1033,7 @@ risk_factors: 3-5 concrete risks — probability/impact/mitigation. Real risks, 
 budget_split_rationale: WHY this ratio — what each dollar buys and why over alternatives.
 what_we_dont_know: 2-5 honest unknowns that would change the plan.
 counter_argument: Steelman the best alternative, then explain why we still chose this path.
+website_recommendations: Honest CRO pre-flight audit. verdict: ready_to_run | fix_first | minor_tweaks. blocker_before_ads = issues that will burn paid budget immediately (structural problems, no pricing, broken checkout). high_impact_quick = changes under 1 day that meaningfully improve conversion. budget_dependent = improvements worth investing in IF budget exists — only if the expected ROAS lift justifies the cost. If the site is solid, return empty arrays — do not invent recommendations.
 
 ${feedback ? `CLIENT FEEDBACK ON PREVIOUS STRATEGY:\n${feedback}\nAdjust accordingly.\n` : ''}
 
@@ -1188,7 +1189,20 @@ Return ONLY valid JSON (no extra text):
     { "claim": "Average Google Search CTR for ecommerce is 2–5%", "source": "WordStream Google Ads Benchmarks 2024", "confidence": "high" },
     { "claim": "Meta retargeting CPM is typically $8–15 in Israel", "source": "Meta Business Insights 2025", "confidence": "medium" }
   ],
-  "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn."
+  "icp_confidence_gap": "Knowing whether buyers are individual consumers or business procurement teams would allow sharper audience segmentation on Meta and LinkedIn.",
+  "website_recommendations": {
+    "verdict": "ready_to_run",
+    "verdict_explanation": "One honest sentence: is this site ready to receive paid traffic, or will they burn budget on a leaky landing page? Be direct — if the site is broken, say so.",
+    "blocker_before_ads": [
+      "Issues that will waste ad budget immediately — fix these BEFORE launching. E.g. 'No price visible — 90% of paid traffic will bounce without a price anchor'. Return [] if none."
+    ],
+    "high_impact_quick": [
+      "Changes that take less than a day and meaningfully improve conversion. E.g. 'Add 3 customer testimonials above the fold', 'Add WhatsApp click-to-chat button'. Return [] if the site is already strong."
+    ],
+    "budget_dependent": [
+      "Changes that require real investment and are worth it IF there is budget headroom. Only include if the potential ROAS improvement justifies the cost. E.g. 'Dedicated landing page for gifting segment — expected 40% CPA improvement'. Return [] if not applicable."
+    ]
+  }
 }`,
         systemPrompt: `You are the best market strategist in the world — not a digital agency, not a campaign manager, not a framework applier. You think like a founder who has spent years in this market. Your job is to understand this business deeply enough that you could run it. Not "what ads should we run" — but "why do people buy this, what is really happening in this market, and what is the sharpest possible move given the constraints."
 

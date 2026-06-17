@@ -484,7 +484,16 @@
       "forecastConfidence": "ביטחון",
       "reanalyzeFailed": "ניתוח מחדש נכשל. נסה שוב מהצ'אט.",
       "reanalyzeSuccess": "נותח מחדש. טען מחדש לראות את האסטרטגיה החדשה.",
-      "details": "פרטים"
+      "details": "פרטים",
+      "websiteRec": {
+        "title": "מוכנות האתר לפרסום ממומן",
+        "readyToRun": "מוכן להרצה",
+        "minorTweaks": "שיפורים קלים",
+        "fixFirst": "לתקן לפני שמריצים",
+        "blockers": "חובה לתקן לפני פרסום",
+        "quickWins": "שיפורים מהירים",
+        "budgetItems": "שווה להשקיע אם יש תקציב"
+      }
     },
     "settings": {
       "title": "הגדרות קמפיין",

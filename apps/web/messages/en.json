@@ -484,7 +484,16 @@
       "forecastConfidence": "Confidence",
       "reanalyzeFailed": "Re-analysis failed. Try again from the chat.",
       "reanalyzeSuccess": "Re-analyzed. Reload to see the new strategy.",
-      "details": "details"
+      "details": "details",
+      "websiteRec": {
+        "title": "Website readiness for paid traffic",
+        "readyToRun": "Ready to run",
+        "minorTweaks": "Minor tweaks needed",
+        "fixFirst": "Fix before running ads",
+        "blockers": "Must fix before ads",
+        "quickWins": "Quick wins",
+        "budgetItems": "Worth investing if budget allows"
+      }
     },
     "settings": {
       "title": "Campaign Settings",

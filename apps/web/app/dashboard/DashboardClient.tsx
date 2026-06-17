@@ -3735,6 +3735,87 @@ function StrategyTab({ settings: _settings }: any) {
         )}
       </div>
 
+      {/* Website recommendations */}
+      {plan?.website_recommendations && (
+        (() => {
+          const wr = plan.website_recommendations as {
+            verdict?: string;
+            verdict_explanation?: string;
+            blocker_before_ads?: string[];
+            high_impact_quick?: string[];
+            budget_dependent?: string[];
+          };
+          const hasContent =
+            wr.blocker_before_ads?.length || wr.high_impact_quick?.length || wr.budget_dependent?.length;
+          if (!hasContent && !wr.verdict_explanation) return null;
+          const verdictColor =
+            wr.verdict === 'fix_first' ? 'border-rose-200 bg-rose-50'
+            : wr.verdict === 'minor_tweaks' ? 'border-amber-200 bg-amber-50'
+            : 'border-emerald-200 bg-emerald-50';
+          const verdictText =
+            wr.verdict === 'fix_first' ? t('strategy.websiteRec.fixFirst')
+            : wr.verdict === 'minor_tweaks' ? t('strategy.websiteRec.minorTweaks')
+            : t('strategy.websiteRec.readyToRun');
+          const verdictDot =
+            wr.verdict === 'fix_first' ? 'bg-rose-400'
+            : wr.verdict === 'minor_tweaks' ? 'bg-amber-400'
+            : 'bg-emerald-400';
+          return (
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">{t('strategy.websiteRec.title')}</h3>
+                <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${verdictColor}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${verdictDot}`} />
+                  {verdictText}
+                </span>
+              </div>
+              {wr.verdict_explanation && (
+                <p className="text-sm text-slate-600 leading-relaxed">{wr.verdict_explanation}</p>
+              )}
+              {wr.blocker_before_ads && wr.blocker_before_ads.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">{t('strategy.websiteRec.blockers')}</p>
+                  <ul className="space-y-1.5">
+                    {wr.blocker_before_ads.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 text-sm text-rose-800">
+                        <span className="mt-0.5 flex-shrink-0 text-rose-400">&#9888;</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {wr.high_impact_quick && wr.high_impact_quick.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">{t('strategy.websiteRec.quickWins')}</p>
+                  <ul className="space-y-1.5">
+                    {wr.high_impact_quick.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 text-sm text-emerald-800">
+                        <span className="mt-0.5 flex-shrink-0 text-emerald-500">&#10003;</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {wr.budget_dependent && wr.budget_dependent.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider">{t('strategy.websiteRec.budgetItems')}</p>
+                  <ul className="space-y-1.5">
+                    {wr.budget_dependent.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-sm text-indigo-800">
+                        <span className="mt-0.5 flex-shrink-0 text-indigo-400">&#36;</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          );
+        })()
+      )}
+
       {/* Plan summary */}
       {plan && (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
