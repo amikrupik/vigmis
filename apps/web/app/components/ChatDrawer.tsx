@@ -41,7 +41,22 @@ function ActionBadge({ action }: { action: ExecutedAction }) {
 
 function pageContextFor(pathname: string | null): string | undefined {
   if (!pathname) return undefined;
-  if (pathname.startsWith('/onboarding')) return 'User is in the Onboarding flow.';
+  if (pathname.startsWith('/onboarding')) {
+    // Enrich with business context stored during chat confirmation
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('vigmis_onboarding_ctx') : null;
+      if (raw) {
+        const ctx = JSON.parse(raw) as { website_url?: string; business_type?: string; goal?: string; geo?: string };
+        const parts = ['User is completing onboarding.'];
+        if (ctx.website_url) parts.push(`Website: ${ctx.website_url}`);
+        if (ctx.business_type) parts.push(`Business type: ${ctx.business_type}`);
+        if (ctx.goal) parts.push(`Goal: ${ctx.goal}`);
+        if (ctx.geo) parts.push(`Target market: ${ctx.geo}`);
+        return parts.join(' ');
+      }
+    } catch { /* ignore */ }
+    return 'User is in the Onboarding flow.';
+  }
   if (pathname.startsWith('/dashboard')) return 'User is on the Dashboard (campaigns, analytics, social, comments).';
   if (pathname.startsWith('/billing')) return 'User is on the Billing page.';
   if (pathname.startsWith('/profile')) return 'User is on the Profile page.';

@@ -255,6 +255,15 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   async function handleChatConfirm(settings: OnboardingSettings, conversation: ConversationMessage[]) {
     setPendingSettings(settings);
     setPendingConversation(conversation);
+    // Seed Ask Vigmis with business context so the chat isn't blind during onboarding
+    try {
+      localStorage.setItem('vigmis_onboarding_ctx', JSON.stringify({
+        website_url: settings.website_url,
+        business_type: settings.business_type,
+        goal: settings.goal,
+        geo: (settings.geo_include ?? []).join(', '),
+      }));
+    } catch { /* ignore */ }
     await runAnalysisFlow(settings);
   }
 
