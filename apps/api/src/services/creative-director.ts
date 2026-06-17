@@ -59,6 +59,15 @@ function formatContext(ctx: CreativeContext): string {
   if (ctx.hypothesesContext) {
     lines.push(ctx.hypothesesContext);
   }
+  if (ctx.creativeDNA?.keep_instructions) {
+    lines.push('\nCREATIVE DNA — STYLE REFERENCE (user uploaded a reference ad — replicate this style):');
+    if (ctx.creativeDNA.visual_style) lines.push(`Visual style: ${ctx.creativeDNA.visual_style}`);
+    if (ctx.creativeDNA.character_description && ctx.creativeDNA.character_description !== 'no person') {
+      lines.push(`Character: ${ctx.creativeDNA.character_description}`);
+    }
+    if (ctx.creativeDNA.emotional_tone) lines.push(`Emotional tone: ${ctx.creativeDNA.emotional_tone}`);
+    lines.push(`STYLE INSTRUCTIONS: ${ctx.creativeDNA.keep_instructions}`);
+  }
   // Language instruction — always explicit so the model never defaults to English
   const lang = ctx.creativeLanguage || 'English';
   lines.push(`\nCREATIVE LANGUAGE: ${lang}`);

@@ -141,4 +141,52 @@ export async function assetRoutes(app: FastifyInstance) {
 
     return reply.send({ success: true });
   });
+
+  // ── Set creative reference ─────────────────────────────────────────────────
+  // Analyzes an image asset with GPT-4o Vision and stores style DNA in
+  // client_settings.creative_dna for injection into future creative briefs.
+  app.post('/assets/:id/set-reference', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { data: asset } = await db.from('brand_assets')
+      .select('public_url, mime_type, filename')
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+
+    if (!asset) return reply.code(404).send({ error: 'Asset not found' });
+
+    const isImage = (asset.mime_type ?? '').startsWith('image/');
+
+    let creativeDna: Record<string, any> = {
+      reference_asset_id: id,
+      reference_url: asset.public_url,
+      analyzed_at: new Date().toISOString(),
+    };
+
+    if (isImage && asset.public_url) {
+      try {
+        const { analyzeCreativeImage } = await import('../services/creative-dna.js');
+        const analysis = await analyzeCreativeImage(asset.public_url, id);
+        creativeDna = { ...creativeDna, ...analysis };
+      } catch (err) {
+        console.error('[assets] DNA analysis failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
+    await db.from('client_settings').upsert(
+      { tenant_id: request.tenantId, creative_dna: creativeDna, updated_at: new Date().toISOString() },
+      { onConflict: 'tenant_id' },
+    );
+
+    return reply.send({ success: true, creative_dna: creativeDna });
+  });
+
+  // ── Clear creative reference ───────────────────────────────────────────────
+  app.delete('/assets/reference', { preHandler: authenticate }, async (request, reply) => {
+    await db.from('client_settings')
+      .update({ creative_dna: null, updated_at: new Date().toISOString() })
+      .eq('tenant_id', request.tenantId);
+    return reply.send({ success: true });
+  });
 }

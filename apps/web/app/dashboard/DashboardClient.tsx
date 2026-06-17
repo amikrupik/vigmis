@@ -9,7 +9,7 @@ import {
   getAnalytics, getAnalyticsDaily, getConversionIntelligence, getTrackingStatus,
   generateAdCopy, scoreCreative, discoverAudiences,
   getTerritoryIntel, getCompetitors, getBudgetPacing, getAlerts, dismissAlert,
-  generateCreative, getCreatives, getCreativeStatus, approveCreative, rejectCreative, deleteCreativeJob, getCreativeAvatars,
+  generateCreative, getCreatives, getCreativeStatus, approveCreative, rejectCreative, deleteCreativeJob, getCreativeAvatars, setCreativeReference, clearCreativeReference,
   createAbTest, getAbTests, concludeAbTest, getAbTestRecommendation,
   analyzeCreativeElements, getBudgetShiftRecommendation, applyBudgetShifts,
   runCroAudit, getAlertSettings, saveAlertSettings, sendTestAlert,
@@ -1588,6 +1588,11 @@ function CreativeTab({ settings }: any) {
   const [jobScores, setJobScores] = useState<Record<string, any>>({});
   const [scoringJobId, setScoringJobId] = useState<string | null>(null);
 
+  // Creative DNA
+  const [creativeDnaActive, setCreativeDnaActive] = useState<{ visual_style?: string; emotional_tone?: string } | null>(
+    settings?.creative_dna ?? null
+  );
+
   // Avatar picker
   const [availableAvatars, setAvailableAvatars] = useState<Array<{ id: string; name: string; preview_url: string | null }>>([]);
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
@@ -2132,6 +2137,26 @@ function CreativeTab({ settings }: any) {
                 <span className="text-slate-500">{t('creative.cost')}</span>
                 <span className="font-bold text-indigo-600">${VIDEO_OPTIONS.find(o => o.type === selectedVideoType)?.price}</span>
               </div>
+              {/* Creative DNA row — shown when a style reference is active */}
+              {creativeDnaActive && (
+                <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500">Style reference</span>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">DNA ACTIVE</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {creativeDnaActive.visual_style && (
+                      <span className="text-xs text-slate-500 italic">{creativeDnaActive.visual_style}</span>
+                    )}
+                    <button
+                      onClick={async () => { await clearCreativeReference(); setCreativeDnaActive(null); }}
+                      className="text-[10px] text-red-500 hover:text-red-700 font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* Ad Language row — derived from geo targeting, user can override */}
               {creativeLanguage && (
                 <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-100">
@@ -2367,6 +2392,25 @@ function CreativeTab({ settings }: any) {
                         <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
                           {t('creative.metaPolicy')}
                         </p>
+                      </div>
+                    )}
+
+                    {/* Generate more like this */}
+                    {(job.status === 'completed' || job.status === 'approved') && job.type !== 'avatar' && (
+                      <div className="px-3 pb-2">
+                        <button
+                          onClick={() => {
+                            const briefDesc = typeof job.brief === 'object' && job.brief !== null
+                              ? ((job.brief as any).prompt ?? (job.brief as any).script ?? '')
+                              : String(job.brief ?? '');
+                            setVideoScript(briefDesc ? `Same style as: "${briefDesc.slice(0, 100)}"` : 'Generate in the same style');
+                            setSelectedVideoType(job.type as any);
+                            document.getElementById('video-production-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors w-full text-center"
+                        >
+                          Generate more like this →
+                        </button>
                       </div>
                     )}
 
@@ -2724,7 +2768,7 @@ function CreativeTab({ settings }: any) {
       })()}
 
       {/* ── Brand & Creative Library ─────────────────────────────────────── */}
-      <BrandAssetLibrary />
+      <BrandAssetLibrary onDnaSet={dna => setCreativeDnaActive(dna)} />
     </div>
   );
 }
@@ -4329,13 +4373,15 @@ function StrategyTab({ settings: _settings }: any) {
 // Shows all images/videos uploaded by the user + AI-generated creatives.
 // Used in Settings tab and as a picker in Social posts.
 
-function BrandAssetLibrary() {
+function BrandAssetLibrary({ onDnaSet }: { onDnaSet?: (dna: any) => void } = {}) {
   const t = useTranslations('dashboard');
   const [assets, setAssets] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [settingRef, setSettingRef] = useState<string | null>(null);
+  const [activeDnaId, setActiveDnaId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -4352,6 +4398,22 @@ function BrandAssetLibrary() {
     setUploading(false);
     if (res) await load();
     else alert('Upload failed. Check file type and size (max 10 MB).');
+  }
+
+  async function handleSetReference(asset: any) {
+    if (asset.kind !== 'image') return;
+    setSettingRef(asset.id);
+    try {
+      const res = await setCreativeReference(asset.id);
+      if (res?.success) {
+        setActiveDnaId(asset.id);
+        onDnaSet?.(res.creative_dna);
+      }
+    } catch {
+      alert('Could not set style reference. Try again.');
+    } finally {
+      setSettingRef(null);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -4408,13 +4470,25 @@ function BrandAssetLibrary() {
                   <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.89L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
                 <a href={asset.public_url} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white text-slate-900 font-semibold px-2 py-1 rounded-lg w-full text-center">View</a>
+                {asset.kind === 'image' && (
+                  <button
+                    onClick={() => handleSetReference(asset)}
+                    disabled={settingRef === asset.id}
+                    className="text-[10px] bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-2 py-1 rounded-lg w-full transition-colors disabled:opacity-50"
+                  >
+                    {settingRef === asset.id ? '...' : activeDnaId === asset.id ? '✓ Reference' : 'Use as ref'}
+                  </button>
+                )}
                 <button onClick={() => handleDelete(asset.id)} disabled={deleting === asset.id}
                   className="text-[10px] bg-red-500 hover:bg-red-600 text-white font-semibold px-2 py-1 rounded-lg w-full transition-colors disabled:opacity-50">
                   {deleting === asset.id ? '...' : 'Delete'}
                 </button>
               </div>
+              {activeDnaId === asset.id && (
+                <div className="absolute top-1 left-1 bg-indigo-600 text-white text-[8px] font-bold px-1 py-0.5 rounded">DNA</div>
+              )}
               <p className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1.5 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">{asset.filename}</p>
             </div>
           ))}

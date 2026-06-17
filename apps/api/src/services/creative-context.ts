@@ -50,6 +50,14 @@ export interface CreativeContext {
   winningPatternsContext?: string;
   // Hypothesis Engine — open testable hypotheses from Strategic Brain
   hypothesesContext?: string;
+  // Creative DNA — extracted style from user's reference ad
+  creativeDNA?: {
+    visual_style?: string;
+    character_description?: string;
+    emotional_tone?: string;
+    keep_instructions?: string;
+    reference_url?: string;
+  } | null;
   // Extended brief data (optional — present when creative_brief_extended exists)
   messagingPillars?: Array<{
     pillar: string;
@@ -159,7 +167,7 @@ export async function extractCreativeContext(
   // Fetch winning_patterns + hypotheses from Learning Loop and Hypothesis Engine
   const { data: settingsForPatterns } = await db
     .from('client_settings')
-    .select('winning_patterns, hypotheses')
+    .select('winning_patterns, hypotheses, creative_dna')
     .eq('tenant_id', tenantId)
     .maybeSingle();
   const winningPatterns = (settingsForPatterns as any)?.winning_patterns ?? null;
@@ -170,6 +178,8 @@ export async function extractCreativeContext(
   const hypothesesContext = openHypotheses.length > 0
     ? `\n\nOPEN HYPOTHESES TO TEST IN THIS CREATIVE:\n${openHypotheses.slice(0, 3).map(h => `  • ${h.text}`).join('\n')}\nIf your brief naturally aligns with one of these, lean into it.`
     : '';
+
+  const creativeDNA = (settingsForPatterns as any)?.creative_dna ?? null;
 
   const extended = strategyPlan?.creative_brief_extended ?? null;
 
@@ -288,5 +298,6 @@ export async function extractCreativeContext(
     platformHooks,
     winningPatternsContext,
     hypothesesContext: hypothesesContext || undefined,
+    creativeDNA: creativeDNA || undefined,
   };
 }

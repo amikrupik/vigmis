@@ -305,6 +305,14 @@ export async function getCreativeAvatars() {
   return apiCall('/creatives/avatars');
 }
 
+export async function setCreativeReference(assetId: string) {
+  return apiCall(`/assets/${assetId}/set-reference`, 'POST', {});
+}
+
+export async function clearCreativeReference() {
+  return apiCall('/assets/reference', 'DELETE');
+}
+
 // ── Agency Brain: Creative Brief Extension ────────────────────────────────────
 
 /**
