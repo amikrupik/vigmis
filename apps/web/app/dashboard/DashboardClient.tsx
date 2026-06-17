@@ -1622,14 +1622,15 @@ function CreativeTab({ settings }: any) {
       }
       if (res.brief) {
         setCreativeBrief(res.brief as CreativeBriefExtended);
+        setBriefLoading(false);
       } else {
-        // No cached brief yet — generate one now
+        // No cached brief yet — generate one now; keep loading until it completes
         generateCreativeBrief({ force_regenerate: false }).then(genRes => {
           if (genRes?.brief) setCreativeBrief(genRes.brief as CreativeBriefExtended);
           else if (genRes?._no_strategy) setBriefNoStrategy(true);
+          setBriefLoading(false);
         });
       }
-      setBriefLoading(false);
     });
   }, []);
 
