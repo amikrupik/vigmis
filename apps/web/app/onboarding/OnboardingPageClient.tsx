@@ -1433,7 +1433,7 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                     <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-line">{discussionResponse}</p>
                     <div className="flex gap-2 pt-1">
                       <button
-                        onClick={() => { setDiscussionResponse(null); setStrategyFeedback(''); }}
+                        onClick={() => { setShowFeedback(false); setStrategyFeedback(''); setDiscussionResponse(null); }}
                         className="flex-1 border border-slate-200 text-slate-600 text-xs font-semibold py-2 rounded-xl hover:bg-slate-50 transition-colors"
                       >
                         {t('strategy.modifyRequest')}
