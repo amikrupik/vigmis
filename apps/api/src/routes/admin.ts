@@ -45,7 +45,8 @@ export async function adminRoutes(app: FastifyInstance) {
       frozen_by: adminId,
     }).eq('id', id);
     if (error) {
-      return reply.code(500).send({ error: 'freeze_failed', detail: error.message });
+      request.log.error({ err: error }, '[admin] freeze failed');
+      return reply.code(500).send({ error: 'freeze_failed' });
     }
     await db.from('audit_log').insert({
       tenant_id: id,
@@ -68,7 +69,8 @@ export async function adminRoutes(app: FastifyInstance) {
       frozen_by: null,
     }).eq('id', id);
     if (error) {
-      return reply.code(500).send({ error: 'unfreeze_failed', detail: error.message });
+      request.log.error({ err: error }, '[admin] unfreeze failed');
+      return reply.code(500).send({ error: 'unfreeze_failed' });
     }
     await db.from('audit_log').insert({
       tenant_id: id,

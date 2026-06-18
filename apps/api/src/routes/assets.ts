@@ -142,6 +142,16 @@ export async function assetRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // ── Get creative reference ─────────────────────────────────────────────────
+  app.get('/assets/reference', { preHandler: authenticate }, async (request, reply) => {
+    const { data, error } = await db.from('client_settings')
+      .select('creative_dna')
+      .eq('tenant_id', request.tenantId)
+      .maybeSingle();
+    if (error) return reply.code(500).send({ error: error.message });
+    return reply.send({ creative_dna: (data as any)?.creative_dna ?? null });
+  });
+
   // ── Set creative reference ─────────────────────────────────────────────────
   // Analyzes an image asset with GPT-4o Vision and stores style DNA in
   // client_settings.creative_dna for injection into future creative briefs.
@@ -174,10 +184,11 @@ export async function assetRoutes(app: FastifyInstance) {
       }
     }
 
-    await db.from('client_settings').upsert(
+    const { error: upsertErr } = await db.from('client_settings').upsert(
       { tenant_id: request.tenantId, creative_dna: creativeDna, updated_at: new Date().toISOString() },
       { onConflict: 'tenant_id' },
     );
+    if (upsertErr) return reply.code(500).send({ error: 'Failed to persist Creative DNA' });
 
     return reply.send({ success: true, creative_dna: creativeDna });
   });

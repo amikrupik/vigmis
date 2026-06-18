@@ -1085,6 +1085,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         const storedUrl = await uploadImageToStorage(finalUrl, job.id, request.tenantId, {
           name: brandNameToken,
           website: websiteToken,
+          logoUrl,
         });
         const outputUrl = storedUrl ?? finalUrl;
 
@@ -1245,12 +1246,16 @@ export async function creativeRoutes(app: FastifyInstance) {
         // Fetch brand settings so the overlay uses the tenant's actual brand name/URL
         const { data: cs } = await db
           .from('client_settings')
-          .select('business_name, website_url')
+          .select('business_name, website_url, logo_url')
           .eq('tenant_id', job.tenant_id)
           .maybeSingle();
+        const overlayLogoUrl = (cs as any)?.logo_url
+          ? (cs as any).logo_url
+          : await fetchLogoForTenant(job.tenant_id).catch(() => null);
         const brandForOverlay = {
           name: (cs as any)?.business_name ?? 'Vigmis',
           website: (cs as any)?.website_url ?? '',
+          logoUrl: overlayLogoUrl,
         };
 
         const storedUrl = await uploadVideoToStorage(result.url, job.id, job.tenant_id, brandForOverlay);

@@ -30,6 +30,26 @@ const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 export async function accountRoutes(app: FastifyInstance) {
 
+  // ── Profile ────────────────────────────────────────────────────────────────
+  app.get('/account', { preHandler: authenticate }, async (request, reply) => {
+    const [settingsRes, tenantRes] = await Promise.all([
+      db.from('client_settings')
+        .select('business_name, website_url, logo_url, content_language, brand_colors, do_not_change_elements, approved_creative_styles')
+        .eq('tenant_id', request.tenantId)
+        .maybeSingle(),
+      db.from('tenants')
+        .select('id, plan, created_at')
+        .eq('id', request.tenantId)
+        .maybeSingle(),
+    ]);
+    return reply.send({
+      tenant_id: request.tenantId,
+      plan: (tenantRes.data as any)?.plan ?? 'free',
+      created_at: (tenantRes.data as any)?.created_at ?? null,
+      ...(settingsRes.data ?? {}),
+    });
+  });
+
   // ── Final balance (before deletion) ───────────────────────────────────────
   app.get('/account/balance', { preHandler: authenticate }, async (request, reply) => {
     const fee = await calculateFee(request.tenantId, currentMonth());

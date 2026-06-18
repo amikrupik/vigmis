@@ -1161,6 +1161,30 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               </div>
             )}
 
+            {/* Campaign phases */}
+            {Array.isArray((strategy as any).campaign_phases) && (strategy as any).campaign_phases.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-700">Campaign Roadmap</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {(strategy as any).campaign_phases.map((ph: any, i: number) => (
+                    <div key={i} className="px-5 py-4 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full">Phase {ph.phase}</span>
+                        <span className="text-sm font-semibold text-slate-900">{ph.name}</span>
+                        {ph.duration && <span className="text-xs text-slate-400">{ph.duration}</span>}
+                        {ph.budget_pct != null && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{ph.budget_pct}% budget</span>}
+                      </div>
+                      {ph.objective && <p className="text-sm text-slate-600 leading-relaxed">{ph.objective}</p>}
+                      {ph.kpi && <p className="text-xs text-slate-400">KPI: {ph.kpi}</p>}
+                      {ph.skip_if && <p className="text-xs text-emerald-600">Skip if: {ph.skip_if}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Budget allocation */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
@@ -1351,6 +1375,57 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                   : <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.organic_recommendations}</p>
                 }
                 <p className="text-xs text-slate-400 mt-3">{t('strategy.organicSub')}</p>
+              </div>
+            )}
+
+            {/* Risk factors */}
+            {Array.isArray((strategy as any).risk_factors) && (strategy as any).risk_factors.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-700">Risks to Watch</p>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {(strategy as any).risk_factors.map((r: any, i: number) => (
+                    <div key={i} className="px-5 py-4 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          r.probability === 'high' ? 'bg-red-100 text-red-700' :
+                          r.probability === 'medium' ? 'bg-amber-100 text-amber-700' :
+                          'bg-slate-100 text-slate-500'
+                        }`}>{r.probability ?? 'medium'}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          r.impact === 'high' ? 'bg-red-50 text-red-600' :
+                          r.impact === 'medium' ? 'bg-amber-50 text-amber-600' :
+                          'bg-slate-50 text-slate-400'
+                        }`}>impact: {r.impact ?? 'medium'}</span>
+                        <span className="text-sm font-medium text-slate-800">{r.risk}</span>
+                      </div>
+                      {r.mitigation && <p className="text-xs text-emerald-700 leading-relaxed">→ {r.mitigation}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Confidence scores */}
+            {(strategy as any).confidence_scores && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Plan Confidence</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {(['icp', 'channel', 'budget', 'overall'] as const).map(dim => {
+                    const score = (strategy as any).confidence_scores?.[dim];
+                    if (score == null) return null;
+                    const color = score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-red-500';
+                    const note = (strategy as any).confidence_notes?.[dim];
+                    return (
+                      <div key={dim} className="bg-white rounded-lg p-3 border border-slate-100 text-center">
+                        <p className={`text-2xl font-black ${color}`}>{score}</p>
+                        <p className="text-xs text-slate-400 capitalize mt-0.5">{dim === 'icp' ? 'Audience' : dim}</p>
+                        {note && <p className="text-xs text-slate-500 mt-1 leading-tight">{note}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

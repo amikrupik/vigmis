@@ -30,7 +30,7 @@ const ILS_USD_RATE = 3.75;
 const CONTENT_POLICY_BLOCKED = [
   {
     category: 'firearms',
-    keywords: ['firearm', ' gun ', 'guns', 'weapon', 'ammunition', 'ammo', 'rifle', 'pistol', 'handgun', 'shotgun', 'bump stock', 'ghost gun', 'suppressor', 'silencer', 'holster', 'nra', 'gun shop', 'gun store', 'firearms safety', 'gun accessories', 'נשק', 'אקדח', 'רובה', 'תחמושת', 'נשק חם', 'הדרכות ירי', 'כלי ירייה', 'חנות נשק', 'מכירת נשק'],
+    keywords: ['firearm', ' gun ', ' guns ', 'ammunition', 'ammo', 'rifle', 'pistol', 'handgun', 'shotgun', 'bump stock', 'ghost gun', 'suppressor', 'silencer', 'gun holster', 'nra ', 'gun shop', 'gun store', 'firearms safety', 'gun accessories', 'נשק', 'אקדח', 'רובה', 'תחמושת', 'נשק חם', 'הדרכות ירי', 'כלי ירייה', 'חנות נשק', 'מכירת נשק'],
     refusal_he: 'תודה שפנית ל-Vigmis. לצערנו, אנחנו לא יכולים לעבוד עם עסקים בתחום הנשק, האביזרים, התחמושת, או הדרכות ירי — גם אם העסק חוקי לחלוטין. פלטפורמות הפרסום הגדולות (Meta, Google) אוסרות קמפיינים בקטגוריה זו, מה שמונע מאיתנו לספק שירות אפקטיבי. מאחלים לך הצלחה.',
     refusal_en: "Thank you for reaching out to Vigmis. Unfortunately, we're unable to work with firearms, weapons, ammunition, or related businesses — even when fully legal. Major advertising platforms (Meta, Google) have categorical restrictions on this category that make it impossible for us to run effective campaigns. We wish you the best.",
   },
@@ -109,14 +109,22 @@ function detectContentPolicy(
 // substring false positives (e.g. 'ירי' appearing inside 'צעירים').
 function matchesKeyword(text: string, kw: string): boolean {
   const kwLower = kw.toLowerCase();
-  // Keywords that already carry leading/trailing spaces encode their own boundary — match literally
-  if (kwLower.startsWith(' ') || kwLower.endsWith(' ')) return text.includes(kwLower);
+  // Space-padded keywords: convert leading/trailing spaces to word-boundary anchors
+  // so ' molly ' matches at start/end of string too (not just mid-sentence)
+  if (kwLower.startsWith(' ') || kwLower.endsWith(' ')) {
+    const core = kwLower.trim();
+    const escaped = core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`).test(text);
+  }
   // For keywords made entirely of Hebrew letters, require non-Hebrew-letter on both sides
   if (/^[א-׺]+$/.test(kwLower)) {
     const escaped = kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(?<![\\u05D0-\\u05FA])${escaped}(?![\\u05D0-\\u05FA])`).test(text);
   }
-  return text.includes(kwLower);
+  // For all other English keywords, use word boundaries to prevent substring false positives
+  // (e.g. 'weapon' matching 'weaponize your marketing', 'guns' matching 'gunshot')
+  const escaped = kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`).test(text);
 }
 
 const ONBOARDING_SYSTEM_PROMPT_BASE = `You are the Vigmis onboarding assistant — an AI marketing manager conducting a friendly intake interview.
