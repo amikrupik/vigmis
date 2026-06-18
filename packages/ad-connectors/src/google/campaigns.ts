@@ -5,7 +5,7 @@
 import { db, decryptToken } from '@vigmis/db';
 import type { CampaignSpec, CampaignResult } from '../campaign.interface.js';
 
-const GOOGLE_ADS_API_VERSION = 'v18';
+const GOOGLE_ADS_API_VERSION = 'v21';
 const BASE = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}`;
 
 // Map our campaign type → Google Ads channel type

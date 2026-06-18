@@ -1247,10 +1247,21 @@ Return only valid JSON, no extra text. Every field must be specific to THIS busi
       });
     }
 
+    // Strip CJK characters (Korean/Chinese/Japanese) that sometimes bleed into Hebrew AI output
+    function sanitizeCjk(val: unknown): unknown {
+      if (typeof val === 'string') return val.replace(/[　-鿿가-퟿]/g, '');
+      if (Array.isArray(val)) return val.map(sanitizeCjk);
+      if (val !== null && typeof val === 'object') {
+        return Object.fromEntries(Object.entries(val as Record<string, unknown>).map(([k, v]) => [k, sanitizeCjk(v)]));
+      }
+      return val;
+    }
+
     let strategy: object;
     try {
       const jsonMatch = strategyRes.output.match(/\{[\s\S]*\}/);
-      strategy = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      strategy = parsed ? sanitizeCjk(parsed) as object : null;
     } catch { strategy = null as any; }
 
     if (!strategy) {

@@ -135,7 +135,7 @@ export async function connectorRoutes(app: FastifyInstance) {
       }
 
       const res = await fetch(
-        `https://googleads.googleapis.com/v20/customers:listAccessibleCustomers`,
+        `https://googleads.googleapis.com/v21/customers:listAccessibleCustomers`,
         { headers: { Authorization: `Bearer ${accessToken}`, 'developer-token': devToken } }
       );
 
@@ -168,7 +168,7 @@ export async function connectorRoutes(app: FastifyInstance) {
 
         // Attempt 1: simple REST GET on the customer resource
         try {
-          const r = await fetch(`https://googleads.googleapis.com/v20/customers/${id}`, { headers });
+          const r = await fetch(`https://googleads.googleapis.com/v21/customers/${id}`, { headers });
           if (r.ok) {
             const d = await r.json() as { descriptiveName?: string; name?: string; status?: string };
             return {
@@ -182,7 +182,7 @@ export async function connectorRoutes(app: FastifyInstance) {
         // Attempt 2: GAQL search (works for accounts with login-customer-id not required)
         try {
           const r = await fetch(
-            `https://googleads.googleapis.com/v20/customers/${id}/googleAds:search`,
+            `https://googleads.googleapis.com/v21/customers/${id}/googleAds:search`,
             {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },

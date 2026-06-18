@@ -49,7 +49,7 @@ async function fetchGoogleHistory(tenantId: string): Promise<PlatformHistoricalD
 
     // List accessible customer accounts
     const accountsRes = await fetch(
-      'https://googleads.googleapis.com/v17/customers:listAccessibleCustomers',
+      'https://googleads.googleapis.com/v21/customers:listAccessibleCustomers',
       {
         headers: { Authorization: `Bearer ${token}`, 'developer-token': devToken },
         signal: AbortSignal.timeout(10000),
@@ -69,7 +69,7 @@ async function fetchGoogleHistory(tenantId: string): Promise<PlatformHistoricalD
 
     // Campaign metrics last 30 days
     const [campaignRes, kwRes] = await Promise.all([
-      fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:search`, {
+      fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -81,7 +81,7 @@ async function fetchGoogleHistory(tenantId: string): Promise<PlatformHistoricalD
         }),
         signal: AbortSignal.timeout(15000),
       }),
-      fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:search`, {
+      fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

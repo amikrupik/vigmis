@@ -1115,6 +1115,31 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
               </div>
             </div>
 
+            {/* Audience segments */}
+            {Array.isArray((strategy as any).market_segments) && (strategy as any).market_segments.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                  <p className="text-sm font-semibold text-slate-700">Audience Segments</p>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {(strategy as any).market_segments.map((seg: any, i: number) => (
+                    <div key={i} className="px-5 py-4 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-slate-900">{seg.segment_name}</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {seg.size && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full capitalize">{seg.size}</span>}
+                          {seg.ltv_potential && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${seg.ltv_potential === 'high' ? 'bg-emerald-100 text-emerald-700' : seg.ltv_potential === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>LTV: {seg.ltv_potential}</span>}
+                        </div>
+                      </div>
+                      {seg.trigger && <p className="text-xs text-slate-600 leading-relaxed"><span className="font-semibold text-slate-500">Trigger: </span>{seg.trigger}</p>}
+                      {seg.message && <p className="text-xs text-indigo-700 font-medium leading-snug border-l-2 border-indigo-300 pl-2 italic">&ldquo;{seg.message}&rdquo;</p>}
+                      {seg.channel && <p className="text-xs text-slate-400">{seg.channel}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Funnel strategy */}
             {strategy.funnel_strategy && (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
