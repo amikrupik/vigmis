@@ -34,6 +34,13 @@ const TYPE_PRICES: Record<string, string> = {
   image: '$5/image',
 };
 
+const REVISION_50PCT_PRICES: Record<string, string> = {
+  avatar: '$7.50',
+  cinematic: '$6.00',
+  animation: '$4.00',
+  image: '$2.50',
+};
+
 const STATUS_BADGE: Record<string, string> = {
   queued: 'bg-blue-100 text-blue-700',
   processing: 'bg-amber-100 text-amber-700',
@@ -348,7 +355,7 @@ function CreativeChain({
               disabled={approvingId === latest.id}
               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
             >
-              {approvingId === latest.id ? 'Processing...' : latest.revision_number >= 3 ? `Approve (50% — ${TYPE_LABELS[latest.type].includes('Video') ? '$7.50' : '$2.50'})` : 'Approve (free)'}
+              {approvingId === latest.id ? 'Processing...' : latest.revision_number >= 3 ? `Approve (50% — ${REVISION_50PCT_PRICES[latest.type] ?? '$2.50'})` : 'Approve (free)'}
             </button>
             <button
               type="button"

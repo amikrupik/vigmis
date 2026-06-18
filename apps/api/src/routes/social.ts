@@ -169,6 +169,7 @@ export async function socialRoutes(app: FastifyInstance) {
 
     if (!post) return reply.code(404).send({ error: 'Not found' });
     if (post.status === 'published') return reply.send({ success: true, alreadyPublished: true });
+    if (post.status === 'approved' || post.status === 'cooling_off') return reply.send({ success: true, alreadyApproved: true });
 
     // Admin freeze gate — Vigmis-internal hard stop.
     const frozen = await isFrozenFor(request.tenantId, 'publish');
@@ -338,7 +339,20 @@ export async function socialRoutes(app: FastifyInstance) {
       });
     }
 
-    await db.from('social_posts').update(update).eq('id', id).eq('tenant_id', request.tenantId);
+    // Conditional update: only proceed if post is still in a pre-approval state.
+    // This prevents double-publish from concurrent approve requests.
+    const { data: locked } = await db
+      .from('social_posts')
+      .update(update)
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId)
+      .not('status', 'in', '("approved","published","cooling_off","blocked_by_policy")')
+      .select('id')
+      .maybeSingle();
+
+    if (!locked) {
+      return reply.send({ success: true, alreadyApproved: true });
+    }
 
     // ── Scale post credits (A5) ───────────────────────────────────────────────
     // Scale plan: 5 posts/month free. Additional posts charged $1 each.
