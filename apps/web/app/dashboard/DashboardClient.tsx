@@ -710,11 +710,11 @@ function OverviewTab({ campaigns, settings, connected, activeCampaigns, pausedCa
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
-              { label: t('overview.kpiSpend'), val: `$${daily.today.spend.toFixed(0)}`, chg: daily.changes?.spend },
-              { label: t('overview.kpiRoas'), val: `${daily.today.roas.toFixed(1)}x`, chg: daily.changes?.roas },
-              { label: t('overview.kpiConv'), val: String(daily.today.conversions), chg: daily.changes?.conversions },
-              { label: t('overview.kpiCpa'), val: `$${daily.today.conversions > 0 ? (daily.today.spend / daily.today.conversions).toFixed(0) : '—'}`, chg: daily.changes?.cpa, inv: true },
-              { label: t('overview.kpiCtr'), val: `${daily.today.ctr.toFixed(1)}%`, chg: daily.changes?.ctr },
+              { label: t('overview.kpiSpend'), val: daily.today.spend != null ? `$${Number(daily.today.spend).toFixed(0)}` : '—', chg: daily.changes?.spend },
+              { label: t('overview.kpiRoas'), val: daily.today.roas != null ? `${Number(daily.today.roas).toFixed(1)}x` : '—', chg: daily.changes?.roas },
+              { label: t('overview.kpiConv'), val: String(daily.today.conversions ?? 0), chg: daily.changes?.conversions },
+              { label: t('overview.kpiCpa'), val: daily.today.conversions > 0 && daily.today.spend != null ? `$${(daily.today.spend / daily.today.conversions).toFixed(0)}` : '—', chg: daily.changes?.cpa, inv: true },
+              { label: t('overview.kpiCtr'), val: daily.today.ctr != null ? `${Number(daily.today.ctr).toFixed(1)}%` : '—', chg: daily.changes?.ctr },
               { label: t('overview.kpiImpr'), val: daily.today.impressions > 0 ? `${(daily.today.impressions / 1000).toFixed(1)}k` : '—', chg: daily.changes?.impressions },
             ].map(({ label, val, chg, inv }) => (
               <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
@@ -799,7 +799,7 @@ function OverviewTab({ campaigns, settings, connected, activeCampaigns, pausedCa
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white rounded-xl p-4 border border-indigo-100 text-center">
                 <p className="text-xs text-slate-400 font-medium mb-1">{t('overview.platformRoas')}</p>
-                <p className="text-2xl font-black text-slate-400">{convIntel.platform_roas.toFixed(1)}x</p>
+                <p className="text-2xl font-black text-slate-400">{convIntel.platform_roas != null ? `${Number(convIntel.platform_roas).toFixed(1)}x` : '—'}</p>
                 <p className="text-xs text-slate-300 mt-1">{t('overview.whatPlatformsClaim')}</p>
               </div>
               <div className={`rounded-xl p-4 border text-center ${
@@ -843,7 +843,7 @@ function OverviewTab({ campaigns, settings, connected, activeCampaigns, pausedCa
                     ? `$${(convIntel.revenue_tracked / 1000).toFixed(1)}k`
                     : `$${convIntel.revenue_tracked.toFixed(0)}`}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">{t('overview.vsSpend', { spend: convIntel.spend.toFixed(0) })}</p>
+                <p className="text-xs text-slate-400 mt-1">{t('overview.vsSpend', { spend: convIntel.spend != null ? Number(convIntel.spend).toFixed(0) : '0' })}</p>
               </div>
             </div>
           )}

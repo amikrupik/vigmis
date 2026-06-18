@@ -1346,8 +1346,54 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
             {strategy.organic_recommendations && (
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">{t('strategy.organic')}</p>
-                <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.organic_recommendations}</p>
+                {Array.isArray(strategy.organic_recommendations)
+                  ? <ul className="space-y-1.5">{strategy.organic_recommendations.map((r: string, i: number) => <li key={i} className="text-sm text-slate-700 leading-relaxed">• {r}</li>)}</ul>
+                  : <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{strategy.organic_recommendations}</p>
+                }
                 <p className="text-xs text-slate-400 mt-3">{t('strategy.organicSub')}</p>
+              </div>
+            )}
+
+            {/* Website recommendations — must be seen before approving */}
+            {(strategy as any).website_recommendations && (strategy as any).website_recommendations.verdict && (
+              <div className={`border-2 rounded-xl p-5 space-y-3 ${
+                (strategy as any).website_recommendations.verdict === 'fix_first'
+                  ? 'border-red-300 bg-red-50'
+                  : (strategy as any).website_recommendations.verdict === 'minor_tweaks'
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-emerald-200 bg-emerald-50'
+              }`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Website Readiness</p>
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    (strategy as any).website_recommendations.verdict === 'fix_first' ? 'bg-red-200 text-red-800' :
+                    (strategy as any).website_recommendations.verdict === 'minor_tweaks' ? 'bg-amber-200 text-amber-800' :
+                    'bg-emerald-200 text-emerald-800'
+                  }`}>
+                    {(strategy as any).website_recommendations.verdict === 'fix_first' ? 'Fix before launching' :
+                     (strategy as any).website_recommendations.verdict === 'minor_tweaks' ? 'Minor tweaks recommended' :
+                     'Ready to run'}
+                  </span>
+                </div>
+                {(strategy as any).website_recommendations.verdict_explanation && (
+                  <p className="text-sm text-slate-700 leading-relaxed">{(strategy as any).website_recommendations.verdict_explanation}</p>
+                )}
+                {(strategy as any).website_recommendations.blocker_before_ads?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-red-600">Fix before launching:</p>
+                    {(strategy as any).website_recommendations.blocker_before_ads.map((b: string, i: number) => (
+                      <p key={i} className="text-xs text-red-700 leading-relaxed">⛔ {b}</p>
+                    ))}
+                  </div>
+                )}
+                {(strategy as any).website_recommendations.high_impact_quick?.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-slate-500">Quick wins (under 1 day):</p>
+                    {(strategy as any).website_recommendations.high_impact_quick.map((b: string, i: number) => (
+                      <p key={i} className="text-xs text-slate-600 leading-relaxed">✓ {b}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

@@ -702,9 +702,12 @@ export async function onboardingRoutes(app: FastifyInstance) {
     const settings = extractSummary(aiMessage);
     const newCoveredTopics = detectCoveredTopics(settings, aiMessage, message as string, coveredTopics as string[]);
     const visibleMessage = aiMessage.replace(/\[SUMMARY\][\s\S]*?\[\/SUMMARY\]/g, '').trim();
+    // Never leak raw [SUMMARY] tags to the client — if stripping leaves nothing and JSON parse also failed, show a neutral message
+    const safeMessage = visibleMessage
+      || (settings ? 'Great! All the details are confirmed.' : 'Got it — let me know if anything needs adjusting.');
 
     return reply.send({
-      message: visibleMessage || (settings ? 'Great! Here is your summary.' : aiMessage),
+      message: safeMessage,
       coveredTopics: newCoveredTopics,
       settings,
     });
@@ -1284,32 +1287,92 @@ Return this exact JSON structure (be concise — max 2 sentences per text field)
   "estimated_cpc": "$X.XX - $X.XX",
   "recommendations": "<top 3 specific actions>",
   "strategy_narrative": "<paragraph 1: strategic insight>\\n\\n<paragraph 2: customer psychographic>\\n\\n<paragraph 3: execution logic>",
+  "market_segments": [{"segment_name":"<name>","size":"medium","trigger":"<what makes them buy today>","message":"<actual headline>","channel":"<platform + format>","ltv_potential":"high"},{"segment_name":"<name>","size":"large","trigger":"<trigger>","message":"<headline>","channel":"<channel>","ltv_potential":"medium"},{"segment_name":"<name>","size":"small","trigger":"<trigger>","message":"<headline>","channel":"<channel>","ltv_potential":"high"}],
+  "funnel_strategy": {"awareness":"<top of funnel approach>","consideration":"<mid funnel retargeting>","conversion":"<bottom funnel CTA>"},
   "creative_brief": [{"platform":"meta","formats":["video_15s","single_image"],"quantity_images":3,"quantity_videos":1,"hooks":["<hook 1>","<hook 2>","<hook 3>"],"cta":"Shop Now","creative_direction":"<what makes this right for this audience>"}],
   "budget_analysis": {"verdict":"sufficient","verdict_explanation":"<one honest sentence>","minimum_monthly_usd":${Math.round(managedBudget * 0.6)},"recommended_learning_usd":${Math.round(managedBudget * 1.2)},"recommended_steady_usd":${managedBudget},"efficiency_ceiling_usd":${Math.round(managedBudget * 2.5)},"projected_clicks_monthly":${Math.round(managedBudget / 1.5)},"projected_leads_monthly":${Math.round((managedBudget / 1.5) * 0.03)},"break_even_conversions":3,"warnings":["<specific warning>"],"platform_exclusions":[]},
-  "organic_recommendations": "<2 organic growth suggestions>",
-  "competitive_advantage": "<what this business can credibly own>"
+  "organic_recommendations": ["<organic action 1>","<organic action 2>"],
+  "competitive_advantage": "<what this business can credibly own>",
+  "risk_factors": [{"risk":"<risk>","probability":"medium","impact":"medium","mitigation":"<fix>"}]
 }`,
           systemPrompt: `${strategyLang === 'he' ? '⚠️ LANGUAGE LOCK: Write ALL text values in Hebrew (עברית). JSON keys and platform names stay in English.\n\n' : ''}Return only valid JSON. Be concise.`,
           options: { maxTokens: 3000, temperature: 0.3 },
         });
         const retryMatch = retryRes.output.match(/\{[\s\S]*\}/);
-        strategy = retryMatch ? JSON.parse(retryMatch[0]) : null;
+        const retryParsed = retryMatch ? JSON.parse(retryMatch[0]) : null;
+        strategy = retryParsed ? sanitizeCjk(retryParsed) as object : null;
       } catch { strategy = null as any; }
     }
 
     // Hard fallback if both AI attempts fail
     if (!strategy) {
       const defaultBudget = managedBudget;
+      const geoLabel = (settings.geo_include ?? []).join(', ') || 'your target market';
       strategy = {
         platforms: [
-          { name: 'google', campaign_types: ['search'], budget_percentage: 60, reasoning: 'High intent traffic for your goal' },
-          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 40, reasoning: 'Audience targeting and remarketing' },
+          { name: 'google', campaign_types: ['search'], budget_percentage: 60, reasoning: 'High-intent search traffic for your goal' },
+          { name: 'meta', campaign_types: ['conversion'], budget_percentage: 40, reasoning: 'Visual audience targeting and remarketing' },
         ],
         market_insights: marketResearch.slice(0, 800),
-        target_audience: (settings.geo_include ?? []).join(', '),
+        target_audience: `Potential customers in ${geoLabel} interested in ${settings.goal === 'purchases' ? 'purchasing' : settings.goal}`,
         estimated_cpc: '$0.50 - $2.00',
-        recommendations: 'Start with search, monitor CPC closely, scale what converts.',
+        recommendations: 'Start with search campaigns targeting high-intent keywords. Monitor CPC closely in the first two weeks and scale what converts.',
         strategy_narrative: 'Strategy is being refined. The research phase completed successfully — full narrative will be available after the first optimization cycle.',
+        market_segments: [
+          {
+            segment_name: 'Active searchers',
+            size: 'medium',
+            trigger: 'Actively searching for this product or service right now',
+            message: 'Find exactly what you are looking for',
+            channel: 'Google Search',
+            ltv_potential: 'high',
+          },
+          {
+            segment_name: 'Discovery audience',
+            size: 'large',
+            trigger: 'Has a need but has not yet searched — can be reached via social',
+            message: 'Discover a better option you did not know existed',
+            channel: 'Meta Feed / Reels',
+            ltv_potential: 'medium',
+          },
+          {
+            segment_name: 'Retargeting pool',
+            size: 'small',
+            trigger: 'Visited the website but did not convert',
+            message: 'Come back and complete your order',
+            channel: 'Meta retargeting',
+            ltv_potential: 'high',
+          },
+        ],
+        funnel_strategy: {
+          awareness: 'Top of funnel: broad audience targeting on Meta with visual content',
+          consideration: 'Mid funnel: retarget website visitors with product-specific ads',
+          conversion: 'Bottom funnel: hot audiences with direct CTA and urgency',
+        },
+        campaign_phases: [
+          {
+            phase: 1,
+            name: 'Learning phase',
+            objective: 'Gather data and find the best-performing audiences and creatives',
+            duration_weeks: 2,
+            budget_percentage: 100,
+            channels: ['google', 'meta'],
+            content_focus: 'Test multiple ad variations to find winning hooks',
+            success_metric: 'CPC under estimated range',
+            skip_if: 'Historical data already available',
+          },
+        ],
+        risk_factors: [
+          { risk: 'Learning phase CPC higher than expected', probability: 'medium', impact: 'medium', mitigation: 'Pause underperforming ad sets after 7 days' },
+          { risk: 'Landing page conversion rate below 1%', probability: 'medium', impact: 'high', mitigation: 'Review landing page UX before scaling spend' },
+        ],
+        confidence_scores: { icp: 55, channel: 60, budget: 65, overall: 60 },
+        confidence_notes: {
+          icp: 'Fallback strategy — limited data available',
+          channel: 'Standard allocation used; refine after first week of data',
+          budget: 'Estimate based on typical market rates',
+          overall: 'Refine after first optimization cycle',
+        },
         creative_brief: [],
         budget_analysis: {
           verdict: 'sufficient',

@@ -456,7 +456,7 @@ export async function chatRoutes(app: FastifyInstance) {
         db.from('platform_tokens').select('account_id').eq('tenant_id', tenantId).eq('platform', 'meta').maybeSingle(),
         db.from('brand_assets').select('filename, public_url, kind').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
         // Phase 2: real-time account intelligence
-        db.from('ga4_daily_metrics').select('date, sessions, conversions, revenue_usd, source, medium').eq('tenant_id', tenantId).order('date', { ascending: false }).limit(14),
+        db.from('ga4_daily_metrics').select('date, sessions, conversions, purchase_revenue, source, medium').eq('tenant_id', tenantId).order('date', { ascending: false }).limit(14),
         db.from('decision_protocols').select('id, type, title, status, created_at').eq('tenant_id', tenantId).eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
         db.from('audit_log').select('action, actor, payload, created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(10),
         db.from('news_alerts').select('title, why_relevant, suggested_action, relevance_score').eq('tenant_id', tenantId).neq('status', 'dismissed').order('relevance_score', { ascending: false }).limit(3),
@@ -501,7 +501,7 @@ export async function chatRoutes(app: FastifyInstance) {
       const ga4Last7 = ga4Metrics.slice(0, 7);
       const ga4TotalSessions = ga4Last7.reduce((s, r) => s + (r.sessions ?? 0), 0);
       const ga4TotalConversions = ga4Last7.reduce((s, r) => s + (r.conversions ?? 0), 0);
-      const ga4TotalRevenue = ga4Last7.reduce((s, r) => s + (r.revenue_usd ?? 0), 0);
+      const ga4TotalRevenue = ga4Last7.reduce((s: number, r: any) => s + (r.purchase_revenue ?? 0), 0);
       const ga4Line = ga4Last7.length > 0
         ? `Last 7 days (GA4 ground truth): ${ga4TotalSessions} sessions | ${ga4TotalConversions} conversions | $${ga4TotalRevenue.toFixed(0)} revenue | Conv. rate: ${ga4TotalSessions > 0 ? ((ga4TotalConversions / ga4TotalSessions) * 100).toFixed(2) : '0'}%`
         : '(no GA4 data yet)';

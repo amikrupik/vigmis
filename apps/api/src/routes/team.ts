@@ -136,6 +136,17 @@ export async function teamRoutes(app: FastifyInstance) {
   // ── Remove a team member ───────────────────────────────────────────────────
   app.delete('/team/members/:id', { preHandler: authenticate }, async (req, reply) => {
     const { id } = req.params as { id: string };
+
+    // Only the tenant owner may remove members
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('clerk_user_id')
+      .eq('id', req.tenantId)
+      .single();
+    if (tenant?.clerk_user_id !== req.clerkUserId) {
+      return reply.code(403).send({ error: 'Only the account owner can remove team members' });
+    }
+
     const { error } = await db
       .from('team_members')
       .delete()

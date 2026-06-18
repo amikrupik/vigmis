@@ -510,7 +510,8 @@ export async function socialRoutes(app: FastifyInstance) {
         cooling_off_until: null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', request.tenantId);
     await db.from('audit_log').insert({
       tenant_id: request.tenantId,
       action: 'social.cooling_off_cancelled',

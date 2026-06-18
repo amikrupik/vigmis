@@ -36,6 +36,19 @@ async function post<T>(path: string, body?: unknown): Promise<T | null> {
   } catch { return null; }
 }
 
+async function put<T>(path: string, body?: unknown): Promise<T | null> {
+  try {
+    const token = await getToken();
+    const res = await fetch(`${API_URL}${path}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch { return null; }
+}
+
 export async function getInsights() {
   return get<{ insights: Array<{ id: string; insight_kind: string; theme: string; occurrence_count: number; suggested_action: string; status: string; last_seen_at: string }> }>('/comments/insights');
 }
@@ -61,7 +74,7 @@ export async function getBriefingPrefs() {
 }
 
 export async function updateBriefingPrefs(prefs: Record<string, unknown>) {
-  return post('/briefings/preferences', prefs);
+  return put('/briefings/preferences', prefs);
 }
 
 export async function sendBriefingNow() {
