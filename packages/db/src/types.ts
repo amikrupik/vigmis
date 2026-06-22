@@ -318,7 +318,7 @@ export interface CreativeJob {
   id: string;
   tenant_id: string;
   campaign_id: string | null;
-  type: 'avatar' | 'cinematic' | 'animation';
+  type: 'avatar' | 'cinematic' | 'animation' | 'image';
   platform: AdPlatform | null;
   brief: Record<string, unknown>;
   status: 'queued' | 'processing' | 'completed' | 'failed' | 'pending_setup';
