@@ -1396,7 +1396,7 @@ const VIDEO_OPTIONS = [
   { type: 'animation' as const, label: 'Animation',      provider: 'Pika',    price: 8,  desc: 'Eye-catching animated video — works great on TikTok & Meta' },
 ] as const;
 
-type VideoType = 'avatar' | 'cinematic' | 'animation';
+type VideoType = 'avatar' | 'cinematic' | 'animation' | 'image';
 
 type CreativeJob = {
   id: string;
@@ -1556,6 +1556,7 @@ function CreativeBriefDialog({
 
 function CreativeTab({ settings }: any) {
   const t = useTranslations('dashboard');
+  const posthog = usePostHog();
   const [platform, setPlatform] = useState('google');
   const [copyResult, setCopyResult] = useState<any>(null);
   const [copyLoading, setCopyLoading] = useState(false);
@@ -2352,7 +2353,7 @@ function CreativeTab({ settings }: any) {
                                   const res = await generateCreative(
                                     job.type as any,
                                     { ...job.brief, change_request: notes },
-                                    job.platform,
+                                    job.platform ?? undefined,
                                     undefined,
                                     job.id,
                                     creativeLanguage?.name,
