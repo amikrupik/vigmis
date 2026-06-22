@@ -11,6 +11,7 @@ import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { assertCronSecret } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
+import { assertSafeUrl } from '../services/website-scraper.js';
 import { createMetaAdSet } from '@vigmis/ad-connectors';
 import { analyzeCreativeThemesForTenant } from '../services/creative-theme-insights.js';
 import { runStrategicBrain, getWeeklyStrategy } from '../services/strategic-brain.js';
@@ -311,7 +312,7 @@ Return ONLY valid JSON:
     }
 
     const country = territory?.toUpperCase() ?? 'US';
-    const fbUrl = new URL('https://graph.facebook.com/v19.0/ads_archive');
+    const fbUrl = new URL('https://graph.facebook.com/v21.0/ads_archive');
     fbUrl.searchParams.set('access_token', fbToken);
     fbUrl.searchParams.set('ad_type', 'ALL');
     fbUrl.searchParams.set('ad_reached_countries', `["${country}"]`);
@@ -704,6 +705,9 @@ Return ONLY valid JSON:
   app.post('/intelligence/cro-audit', { preHandler: authenticate }, async (request, reply) => {
     const { website_url, goal } = request.body as any;
     if (!website_url) return reply.code(400).send({ error: 'website_url required' });
+
+    try { assertSafeUrl(/^https?:\/\//i.test(website_url) ? website_url : `https://${website_url}`); }
+    catch (e) { return reply.code(400).send({ error: `Invalid URL: ${(e as Error).message}` }); }
 
     // Fetch and parse the website
     let pageContent = '';

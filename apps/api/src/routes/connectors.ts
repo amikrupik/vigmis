@@ -13,7 +13,7 @@ import { authenticate } from '../middleware/auth.js';
 import { fetchAndStoreHistoricalData } from '../services/historical.js';
 import crypto from 'crypto';
 
-const META_API_VERSION = 'v19.0';
+const META_API_VERSION = 'v21.0';
 const META_GRAPH = `https://graph.facebook.com/${META_API_VERSION}`;
 
 const google = new GoogleAdsConnector();

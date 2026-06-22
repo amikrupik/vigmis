@@ -21,6 +21,19 @@ const FETCH_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 };
 
+export function assertSafeUrl(rawUrl: string): void {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') throw new Error('Private URL');
+  // Private IP ranges - simple prefix check
+  const privateRanges = ['10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '192.168.', '169.254.'];
+  if (privateRanges.some(r => hostname.startsWith(r))) throw new Error('Private URL');
+  const port = url.port ? parseInt(url.port) : (url.protocol === 'https:' ? 443 : 80);
+  if (![80, 443].includes(port)) throw new Error('Non-standard port');
+}
+
 const CANDIDATE_PATHS = [
   '/',
   '/about', '/about-us', '/our-story',
@@ -99,6 +112,7 @@ function flattenProducts(jsonLd: any[]): ScrapedSite['jsonLdProducts'] {
 
 async function fetchHtml(url: string): Promise<string | null> {
   try {
+    assertSafeUrl(url);
     const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(PER_PAGE_TIMEOUT) });
     if (!res.ok) return null;
     const ct = res.headers.get('content-type') ?? '';
@@ -112,6 +126,7 @@ async function fetchHtml(url: string): Promise<string | null> {
 export async function scrapeWebsite(rawUrl: string): Promise<ScrapedSite | null> {
   // Normalise: add https:// if no protocol given (e.g. "goodland.co.il")
   const rootUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+  try { assertSafeUrl(rootUrl); } catch { return null; }
   const root = origin(rootUrl);
   if (!root) return null;
 

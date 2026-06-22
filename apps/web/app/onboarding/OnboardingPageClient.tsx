@@ -136,11 +136,20 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
       const saved = sessionStorage.getItem(ONBOARDING_PERSIST_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.step && parsed.step !== 'connect') setStep(parsed.step as Step);
         if (parsed.pendingConversation?.length) setPendingConversation(parsed.pendingConversation);
         if (parsed.pendingSettings) setPendingSettings(parsed.pendingSettings);
         if (parsed.analysisResult) setAnalysisResult(parsed.analysisResult);
         if (parsed.websiteNotes) setWebsiteNotes(parsed.websiteNotes);
+        // Validate that required state exists for the restored step before jumping to it.
+        // Restoring to 'strategy' without an analysisResult would show a blank strategy screen.
+        if (parsed.step && parsed.step !== 'connect') {
+          const needsAnalysis: Step[] = ['strategy', 'creative', 'tracking'];
+          if (needsAnalysis.includes(parsed.step as Step) && !parsed.analysisResult) {
+            setStep('chat');
+          } else {
+            setStep(parsed.step as Step);
+          }
+        }
       }
     } catch { /* ignore — corrupted storage */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -255,13 +264,21 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
     setGoogleAccountSaving(true);
     try {
       const token = await getClerkToken();
-      await fetch(`${API_URL}/connectors/google/select-account`, {
+      const res = await fetch(`${API_URL}/connectors/google/select-account`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: id }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setGoogleAccountError((data as any)?.error ?? 'Failed to save Google account selection. Please try again.');
+        setGoogleAccountSaving(false);
+        return;
+      }
       setGoogleAccountSelected(id);
-    } catch { /* silent */ }
+    } catch {
+      setGoogleAccountError('Failed to save Google account selection. Please try again.');
+    }
     setGoogleAccountSaving(false);
   }
   const [pixelCopied, setPixelCopied] = useState(false);
@@ -297,6 +314,16 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
   }
 
   async function handleChatConfirm(settings: OnboardingSettings, conversation: ConversationMessage[]) {
+    // Validate website URL before kicking off analysis
+    if (settings.website_url) {
+      try {
+        const urlToTest = settings.website_url.startsWith('http') ? settings.website_url : `https://${settings.website_url}`;
+        new URL(urlToTest);
+      } catch {
+        setError('Please enter a valid website URL');
+        return;
+      }
+    }
     setPendingSettings(settings);
     setPendingConversation(conversation);
     // Seed Ask Vigmis with business context so the chat isn't blind during onboarding
@@ -1515,9 +1542,10 @@ export default function OnboardingPageClient({ initialConnected, initialError, r
                             return (
                               <button
                                 key={p}
-                                onClick={() => setSocialPlatforms(prev =>
-                                  on ? prev.filter(x => x !== p) : [...prev, p]
-                                )}
+                                onClick={() => setSocialPlatforms(prev => {
+                                  if (on && prev.length <= 1) return prev; // don't deselect the last platform
+                                  return on ? prev.filter(x => x !== p) : [...prev, p];
+                                })}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all capitalize ${on ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
                               >
                                 {p} {on ? `· $${platformCost[p]}/post` : ''}

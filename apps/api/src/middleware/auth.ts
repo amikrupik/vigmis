@@ -13,16 +13,17 @@ declare module 'fastify' {
   }
 }
 
+// Startup guard: VIGMIS_TEST_SECRET is a development backdoor and must never be present in production.
+if (process.env.VIGMIS_TEST_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('VIGMIS_TEST_SECRET must not be set in production');
+}
+
 async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
   let token: string | null = null;
 
   const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.slice(7);
-  } else {
-    // Fallback: accept token from query param for browser-redirect flows (OAuth initiation)
-    const query = request.query as Record<string, string>;
-    if (query.token) token = query.token;
   }
 
   if (!token) {

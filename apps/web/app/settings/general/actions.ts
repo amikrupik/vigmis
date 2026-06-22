@@ -2,7 +2,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 async function apiCall(path: string, method = 'GET', body?: object) {
   const { getToken } = await auth();

@@ -1014,6 +1014,7 @@ function AnalyticsTab() {
   );
 
   const { summary, trend, by_platform, campaigns: campaignMetrics, changes, top_performers, bottom_performers } = data;
+  const isMock = !!data.is_mock;
   const maxSpend = trend?.length ? Math.max(...trend.map((d: any) => d.spend), 0.01) : 1;
   const maxConv = trend?.length ? Math.max(...trend.map((d: any) => d.conversions), 0.01) : 1;
 
@@ -1041,10 +1042,11 @@ function AnalyticsTab() {
 
   return (
     <div className="space-y-6">
-      {data.is_mock && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700 flex items-center gap-2">
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <span><strong>{t('analytics.simulated')}</strong> — {t('analytics.simulatedDesc')}</span>
+      {isMock && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+          <p className="text-sm text-yellow-800">
+            ⚠️ Showing estimated data — connect your ad accounts to see real performance metrics.
+          </p>
         </div>
       )}
 
@@ -1087,9 +1089,9 @@ function AnalyticsTab() {
         <div className="space-y-2">
           {[
             { label: t('analytics.kpiImpressions'), val: summary.impressions, color: 'bg-slate-300', pct: 100 },
-            { label: t('analytics.kpiClicks'), val: summary.clicks, color: 'bg-indigo-400', pct: summary.impressions > 0 ? (summary.clicks / summary.impressions * 100) : 0, rate: `${summary.ctr.toFixed(2)}% CTR` },
+            { label: t('analytics.kpiClicks'), val: summary.clicks, color: 'bg-indigo-400', pct: summary.impressions > 0 ? (summary.clicks / summary.impressions * 100) : 0, rate: `${(summary.ctr ?? 0).toFixed(2)}% CTR` },
             { label: t('analytics.kpiConversions'), val: summary.conversions, color: 'bg-indigo-600', pct: summary.clicks > 0 ? (summary.conversions / summary.clicks * 100) : 0, rate: `${summary.clicks > 0 ? (summary.conversions / summary.clicks * 100).toFixed(1) : 0}% CVR` },
-            { label: t('analytics.kpiConvValue'), val: `$${summary.convValue.toFixed(0)}`, color: 'bg-emerald-500', pct: summary.conversions > 0 ? Math.min(100, summary.convValue / summary.spend * 20) : 0, rate: `$${summary.conversions > 0 ? (summary.convValue / summary.conversions).toFixed(0) : 0} avg` },
+            { label: t('analytics.kpiConvValue'), val: `$${(summary.convValue ?? 0).toFixed(0)}`, color: 'bg-emerald-500', pct: summary.conversions > 0 ? Math.min(100, (summary.convValue ?? 0) / summary.spend * 20) : 0, rate: `$${summary.conversions > 0 ? ((summary.convValue ?? 0) / summary.conversions).toFixed(0) : 0} avg` },
           ].map((row, i) => (
             <div key={i} className="flex items-center gap-3">
               <div className="w-24 text-right">
@@ -1260,6 +1262,7 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
   const [budgetInput, setBudgetInput] = useState('');
   const [budgetSaving, setBudgetSaving] = useState(false);
   const [budgetConfirm, setBudgetConfirm] = useState<{ id: string; oldVal: number; newVal: number } | null>(null);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
 
   function requestBudgetSave(id: string, oldVal: number) {
     const val = parseFloat(budgetInput);
@@ -1274,12 +1277,13 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
   async function confirmBudgetSave(id: string, val: number) {
     setBudgetConfirm(null);
     setBudgetSaving(true);
+    setBudgetError(null);
     try {
       await updateCampaignBudget(id, val);
       setEditingBudget(null);
       onReload?.();
-    } catch {
-      // keep editing state on error
+    } catch (err) {
+      setBudgetError(err instanceof Error ? err.message : 'Failed to save budget. Please try again.');
     } finally {
       setBudgetSaving(false);
     }
@@ -1287,6 +1291,12 @@ function CampaignsTab({ campaigns, isPending, onAction, onReload, activeCampaign
 
   return (
     <div className="space-y-4">
+      {budgetError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between gap-3">
+          <span>{budgetError}</span>
+          <button onClick={() => setBudgetError(null)} className="text-red-400 hover:text-red-600 text-lg leading-none flex-shrink-0">×</button>
+        </div>
+      )}
       {/* Budget change confirmation modal */}
       {budgetConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="budget-confirm-title">
@@ -3611,7 +3621,16 @@ function ProtocolsTab() {
         {['', 'pending', 'in_discussion', 'approved', 'rejected'].map(s => (
           <button
             key={s}
-            onClick={() => { setStatusFilter(s); setTimeout(load, 0); }}
+            onClick={() => {
+              const currentFilter = s;
+              setStatusFilter(currentFilter);
+              setTimeout(async () => {
+                setLoading(true);
+                const res = await getProtocols(currentFilter || undefined);
+                setProtocols(res?.protocols ?? []);
+                setLoading(false);
+              }, 0);
+            }}
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${statusFilter === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-500 hover:border-slate-400'}`}
           >
             {s === '' ? t('protocols.filterAll') : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
@@ -4108,6 +4127,21 @@ function StrategyTab({ settings: _settings }: any) {
               <div dir="ltr" className="text-left">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('strategy.targetAudience')}</p>
                 <p className="leading-relaxed">{plan.target_audience}</p>
+              </div>
+            )}
+            {Array.isArray(plan.market_segments) && plan.market_segments.length > 0 && (
+              <div dir="ltr" className="text-left">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Market Segments</p>
+                <div className="space-y-2">
+                  {(plan.market_segments as Array<{ name?: string; trigger?: string; barrier?: string; message?: string }>).map((seg, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 space-y-1">
+                      {seg.name && <p className="text-sm font-semibold text-slate-800">{seg.name}</p>}
+                      {seg.trigger && <p className="text-xs text-slate-500"><span className="font-medium text-slate-600">Trigger:</span> {seg.trigger}</p>}
+                      {seg.barrier && <p className="text-xs text-slate-500"><span className="font-medium text-slate-600">Barrier:</span> {seg.barrier}</p>}
+                      {seg.message && <p className="text-xs text-indigo-600 font-medium">{seg.message}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {plan.platforms?.length > 0 && (
@@ -5015,7 +5049,7 @@ function SettingsTab({ settings, connected }: any) {
                   onClick={async () => {
                     setDeleting(true);
                     const result = await deleteAccount();
-                    if (result?.success || result !== null) {
+                    if (result?.success) {
                       setAccountDeleted(true);
                       try { await signOut(); } catch {}
                       setTimeout(() => { window.location.href = '/'; }, 3500);
@@ -5343,7 +5377,7 @@ function GeoTab({ settings }: any) {
                   </div>
                   <pre className="bg-slate-900 text-emerald-300 text-xs p-4 rounded-xl overflow-x-auto leading-relaxed whitespace-pre-wrap">
                     {report.schema_code
-                      ? JSON.stringify(JSON.parse(report.schema_code), null, 2)
+                      ? (() => { let schemaDisplay = report.schema_code; try { schemaDisplay = JSON.stringify(JSON.parse(report.schema_code), null, 2); } catch {} return schemaDisplay; })()
                       : 'No schema generated'}
                   </pre>
                 </div>

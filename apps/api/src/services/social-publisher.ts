@@ -77,7 +77,7 @@ export interface PublishResult {
   error?: string;
 }
 
-const META_VERSION = 'v19.0';
+const META_VERSION = 'v21.0';
 const META_BASE = `https://graph.facebook.com/${META_VERSION}`;
 
 async function getMetaToken(tenantId: string): Promise<string> {

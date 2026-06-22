@@ -1272,7 +1272,7 @@ Return only valid JSON, no extra text. Every field must be specific to THIS busi
     try {
       const jsonMatch = strategyRes.output.match(/\{[\s\S]*\}/);
       const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-      strategy = parsed ? sanitizeCjk(parsed) as object : null;
+      strategy = parsed ? sanitizeCjk(parsed) as object : (null as unknown as object);
     } catch { strategy = null as any; }
 
     if (!strategy) {
@@ -1308,7 +1308,7 @@ Return this exact JSON structure (be concise — max 2 sentences per text field)
         });
         const retryMatch = retryRes.output.match(/\{[\s\S]*\}/);
         const retryParsed = retryMatch ? JSON.parse(retryMatch[0]) : null;
-        strategy = retryParsed ? sanitizeCjk(retryParsed) as object : null;
+        strategy = retryParsed ? sanitizeCjk(retryParsed) as object : (null as unknown as object);
       } catch { strategy = null as any; }
     }
 

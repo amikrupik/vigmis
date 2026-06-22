@@ -1,6 +1,7 @@
 // Maintenance cron services:
-//   runGhostCleanup   — warn tenants with no campaigns after 30 days, soft-delete after 60
-//   runCreativeDiscard — auto-discard creative_jobs that are completed but unreviewed after 7 days
+//   runGhostCleanup      — warn tenants with no campaigns after 30 days, soft-delete after 60
+//   runCreativeDiscard   — auto-discard creative_jobs that are completed but unreviewed after 7 days
+//   runStuckJobTimeout   — fail creative_jobs stuck in 'processing' for >30 min; restore credit if original generation
 
 import { db } from '@vigmis/db';
 import { sendEmail } from './notify.js';
@@ -98,6 +99,85 @@ function ghostWarningEmail(name: string, isFinal: boolean): string {
     Questions? Reply to this email or reach us at <a href="mailto:hello@vigmis.com">hello@vigmis.com</a>
   </p>
 </div>`;
+}
+
+// ── Stuck job timeout ─────────────────────────────────────────────────────────
+// creative_jobs with status = 'processing' and updated_at older than 30 min → mark 'failed'
+// Restores scale credit for original generations (revision_number === 0) on pro plan tenants.
+
+export async function runStuckJobTimeout(log: (msg: string) => void) {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  const { data: stuckJobs, error } = await db
+    .from('creative_jobs')
+    .select('id, tenant_id, type, revision_number, credit_consumed')
+    .eq('status', 'processing')
+    .lt('updated_at', cutoff);
+
+  if (error) {
+    log(`stuck-job-timeout query error: ${error.message}`);
+    return { timedOut: 0 };
+  }
+
+  if (!stuckJobs?.length) {
+    log('stuck-job-timeout: nothing to time out');
+    return { timedOut: 0 };
+  }
+
+  let timedOut = 0;
+
+  for (const job of stuckJobs) {
+    const { error: updateErr } = await db
+      .from('creative_jobs')
+      .update({
+        status: 'failed',
+        error_message: 'Job timed out — provider did not respond',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', (job as any).id);
+
+    if (updateErr) {
+      log(`stuck-job-timeout: failed to update job ${(job as any).id}: ${updateErr.message}`);
+      continue;
+    }
+
+    // Restore credit only for original generations (not revisions) where credit was consumed
+    if ((job as any).revision_number === 0 && (job as any).credit_consumed) {
+      await restoreScaleCreditForTimeout((job as any).tenant_id, (job as any).type);
+    }
+
+    log(`stuck-job-timeout: timed out job ${(job as any).id} (tenant=${(job as any).tenant_id}, type=${(job as any).type}, rev=${(job as any).revision_number})`);
+    timedOut++;
+  }
+
+  return { timedOut };
+}
+
+// Inline credit restore — mirrors restoreScaleCredit in routes/creatives.ts (not exported from there)
+async function restoreScaleCreditForTimeout(tenantId: string, jobType: string): Promise<void> {
+  const creditType = jobType === 'image' ? 'image' : 'video';
+
+  const { data: billing } = await db
+    .from('billing_customers')
+    .select('plan, scale_video_credits_used, scale_image_credits_used')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (!billing || (billing as any).plan !== 'pro') return;
+
+  if (creditType === 'video') {
+    const used = Math.max(0, ((billing as any).scale_video_credits_used ?? 1) - 1);
+    await db
+      .from('billing_customers')
+      .update({ scale_video_credits_used: used, updated_at: new Date().toISOString() })
+      .eq('tenant_id', tenantId);
+  } else {
+    const used = Math.max(0, ((billing as any).scale_image_credits_used ?? 1) - 1);
+    await db
+      .from('billing_customers')
+      .update({ scale_image_credits_used: used, updated_at: new Date().toISOString() })
+      .eq('tenant_id', tenantId);
+  }
 }
 
 // ── Auto-discard ───────────────────────────────────────────────────────────────

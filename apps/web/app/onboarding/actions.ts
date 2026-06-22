@@ -3,7 +3,7 @@
 import { auth } from '@clerk/nextjs/server';
 import type { ConversationMessage, StrategyPlan } from '@vigmis/db';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 export type Topic =
   | 'business_type'

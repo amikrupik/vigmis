@@ -4,7 +4,7 @@
 import { db, decryptToken } from '@vigmis/db';
 import type { CampaignSpec, CampaignResult } from '../campaign.interface.js';
 
-const META_API_VERSION = 'v19.0';
+const META_API_VERSION = 'v21.0';
 const BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 // Map our goal → Meta campaign objective

@@ -8,7 +8,8 @@ export type NotifySeverity = 'critical' | 'warning' | 'info';
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
 async function sendWhatsApp(to: string, message: string): Promise<void> {
-  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM } = process.env;
+  const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = process.env;
+  const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || process.env.WHATSAPP_FROM;
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_WHATSAPP_FROM) return;
 
   const from = TWILIO_WHATSAPP_FROM.startsWith('whatsapp:')

@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
+import crypto from 'crypto';
 import { calculateFee, currentMonth } from '../billing/calculator.js';
 import { getStripe } from '../billing/stripe.js';
 import { executeAccountDeletion } from '../services/account-deletion.js';
@@ -27,6 +28,27 @@ async function sendEmail(to: string, subject: string, html: string, from = 'hell
 }
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
+
+const htmlEscape = (s: string) =>
+  String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+function unsubscribeToken(tenantId: string): string {
+  const key = process.env.TOKEN_ENCRYPTION_KEY ?? 'insecure-fallback';
+  return crypto.createHmac('sha256', key).update(tenantId).digest('hex');
+}
+
+function verifyUnsubscribeToken(token: string, tenantId: string): boolean {
+  const expected = unsubscribeToken(tenantId);
+  try {
+    return crypto.timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
 
 export async function accountRoutes(app: FastifyInstance) {
 
@@ -168,7 +190,7 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   // ── Contact form ───────────────────────────────────────────────────────────
-  app.post('/account/contact', async (request, reply) => {
+  app.post('/account/contact', { preHandler: authenticate }, async (request, reply) => {
     const { name, email, subject, category, message } = request.body as Record<string, string>;
 
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
@@ -184,38 +206,50 @@ export async function accountRoutes(app: FastifyInstance) {
     const toAddress = categoryRoutes[category ?? ''] ?? 'hello@vigmis.com';
     const displayCategory = category ? category.charAt(0).toUpperCase() + category.slice(1) : 'General';
 
-    // Send to support team
-    await sendEmail(
-      toAddress,
-      `[Vigmis Support] ${displayCategory}: ${subject ?? message.slice(0, 60)}`,
-      `<div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:#1e293b">New Contact Form Submission</h2>
-        <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:8px;font-weight:600;color:#475569;width:120px">Name</td><td style="padding:8px">${name}</td></tr>
-          <tr><td style="padding:8px;font-weight:600;color:#475569">Email</td><td style="padding:8px"><a href="mailto:${email}">${email}</a></td></tr>
-          <tr><td style="padding:8px;font-weight:600;color:#475569">Category</td><td style="padding:8px">${displayCategory}</td></tr>
-          <tr><td style="padding:8px;font-weight:600;color:#475569">Subject</td><td style="padding:8px">${subject ?? '—'}</td></tr>
-        </table>
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
-        <p style="white-space:pre-wrap;color:#1e293b">${message}</p>
-      </div>`,
-      'support@vigmis.com',
-      'Vigmis Support',
-    );
+    const safeName     = htmlEscape(name);
+    const safeEmail    = htmlEscape(email);
+    const safeSubject  = subject ? htmlEscape(subject) : null;
+    const safeMessage  = htmlEscape(message);
+    const safeCategory = htmlEscape(displayCategory);
 
-    // Auto-reply to sender
-    await sendEmail(
-      email,
-      'We received your message — Vigmis Support',
-      `<div style="font-family:sans-serif;max-width:600px">
-        <h2 style="color:#1e293b">Hi ${name},</h2>
-        <p>Thank you for reaching out. We received your message and will respond within <strong>1–2 business days</strong>.</p>
-        <p style="color:#475569;font-size:14px">Your message:</p>
-        <blockquote style="border-left:3px solid #e2e8f0;margin:0;padding:12px 16px;color:#64748b;font-size:14px">${message.slice(0, 400)}${message.length > 400 ? '...' : ''}</blockquote>
-        <p style="margin-top:24px">If your issue is urgent, please use the AI assistant inside your <a href="${WEB_URL}/dashboard" style="color:#4f46e5">dashboard</a>.</p>
-        <p style="color:#94a3b8;font-size:12px;margin-top:32px">— The Vigmis Team<br>hello@vigmis.com</p>
-      </div>`,
-    );
+    try {
+      // Send to support team
+      await sendEmail(
+        toAddress,
+        `[Vigmis Support] ${safeCategory}: ${safeSubject ?? htmlEscape(message.slice(0, 60))}`,
+        `<div style="font-family:sans-serif;max-width:600px">
+          <h2 style="color:#1e293b">New Contact Form Submission</h2>
+          <table style="width:100%;border-collapse:collapse">
+            <tr><td style="padding:8px;font-weight:600;color:#475569;width:120px">Name</td><td style="padding:8px">${safeName}</td></tr>
+            <tr><td style="padding:8px;font-weight:600;color:#475569">Email</td><td style="padding:8px"><a href="mailto:${safeEmail}">${safeEmail}</a></td></tr>
+            <tr><td style="padding:8px;font-weight:600;color:#475569">Category</td><td style="padding:8px">${safeCategory}</td></tr>
+            <tr><td style="padding:8px;font-weight:600;color:#475569">Subject</td><td style="padding:8px">${safeSubject ?? '—'}</td></tr>
+          </table>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+          <p style="white-space:pre-wrap;color:#1e293b">${safeMessage}</p>
+        </div>`,
+        'support@vigmis.com',
+        'Vigmis Support',
+      );
+
+      // Auto-reply to sender
+      const previewMessage = htmlEscape(message.slice(0, 400));
+      await sendEmail(
+        email,
+        'We received your message — Vigmis Support',
+        `<div style="font-family:sans-serif;max-width:600px">
+          <h2 style="color:#1e293b">Hi ${safeName},</h2>
+          <p>Thank you for reaching out. We received your message and will respond within <strong>1–2 business days</strong>.</p>
+          <p style="color:#475569;font-size:14px">Your message:</p>
+          <blockquote style="border-left:3px solid #e2e8f0;margin:0;padding:12px 16px;color:#64748b;font-size:14px">${previewMessage}${message.length > 400 ? '...' : ''}</blockquote>
+          <p style="margin-top:24px">If your issue is urgent, please use the AI assistant inside your <a href="${WEB_URL}/dashboard" style="color:#4f46e5">dashboard</a>.</p>
+          <p style="color:#94a3b8;font-size:12px;margin-top:32px">— The Vigmis Team<br>hello@vigmis.com</p>
+        </div>`,
+      );
+    } catch (err) {
+      request.log.error({ err }, 'contact form email delivery failed');
+      return reply.code(500).send({ error: 'Failed to send message. Please try again later.' });
+    }
 
     return reply.send({ success: true });
   });
@@ -286,15 +320,27 @@ export async function accountRoutes(app: FastifyInstance) {
     return reply.send({ success: true, language });
   });
 
-  // ── Unsubscribe (no auth — token = tenantId) ───────────────────────────────
+  // ── Unsubscribe (no auth — HMAC-signed token) ─────────────────────────────
+  // Token format: "<tenantId>.<hmac-sha256-hex>"
+  // Generate with: unsubscribeToken(tenantId) → embed as ?token=<tenantId>.<hmac>
   app.post('/account/unsubscribe', async (request, reply) => {
     const { token } = request.body as { token?: string };
     if (!token) return reply.code(400).send({ error: 'token required' });
 
+    const dotIdx = token.lastIndexOf('.');
+    if (dotIdx === -1) return reply.code(400).send({ error: 'Invalid token' });
+
+    const tenantId = token.slice(0, dotIdx);
+    const mac      = token.slice(dotIdx + 1);
+
+    if (!tenantId || !verifyUnsubscribeToken(mac, tenantId)) {
+      return reply.code(400).send({ error: 'Invalid token' });
+    }
+
     const { error } = await db
       .from('alert_settings')
       .update({ email_enabled: false })
-      .eq('tenant_id', token);
+      .eq('tenant_id', tenantId);
 
     if (error) return reply.code(400).send({ error: 'Invalid token' });
     return reply.send({ success: true });

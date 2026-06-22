@@ -18,7 +18,7 @@ async function revokePlatformTokens(tenantId: string, log: (msg: string, err?: u
 
     try {
       if (t.platform === 'meta') {
-        await fetch(`https://graph.facebook.com/v19.0/me/permissions?access_token=${encodeURIComponent(access)}`, { method: 'DELETE' });
+        await fetch(`https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(access)}`, { method: 'DELETE' });
       } else if (t.platform === 'google') {
         const tokenToRevoke = t.refresh_token ? decryptToken(t.refresh_token) : access;
         await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`, {

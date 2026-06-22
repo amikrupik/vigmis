@@ -151,7 +151,7 @@ async function fetchMetaHistory(tenantId: string): Promise<PlatformHistoricalDat
     if (!row?.access_token) return null;
 
     const token = decryptToken(row.access_token);
-    const base = 'https://graph.facebook.com/v19.0';
+    const base = 'https://graph.facebook.com/v21.0';
 
     // Get primary ad account
     const accountsRes = await fetch(
@@ -355,7 +355,7 @@ export async function fetchCompetitorAds(
     const geoKey = (geoInclude[0] ?? '').toLowerCase();
     const country = geoMap[geoKey] ?? 'US';
 
-    const url = new URL('https://graph.facebook.com/v19.0/ads_archive');
+    const url = new URL('https://graph.facebook.com/v21.0/ads_archive');
     url.searchParams.set('search_terms', keyword);
     url.searchParams.set('ad_reached_countries', `["${country}"]`);
     url.searchParams.set('fields', 'ad_creative_bodies,ad_creative_link_titles,page_name,ad_delivery_start_time');

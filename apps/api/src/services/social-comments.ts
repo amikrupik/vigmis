@@ -35,7 +35,7 @@ function detectProvocation(text: string): { is_provocation: boolean; reason: str
 
 export const AUTO_REPLY_CONFIDENCE_THRESHOLD = 0.85;
 
-const META_VERSION = 'v19.0';
+const META_VERSION = 'v21.0';
 const META_BASE = `https://graph.facebook.com/${META_VERSION}`;
 const REPLY_COST = 0.05;
 

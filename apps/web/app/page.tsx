@@ -12,7 +12,7 @@ export default async function Home() {
     try {
       const { getToken } = await auth();
       const token = await getToken();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+      const apiUrl = process.env.API_URL ?? "http://localhost:4000";
       const res = await fetch(`${apiUrl}/onboarding/status`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",

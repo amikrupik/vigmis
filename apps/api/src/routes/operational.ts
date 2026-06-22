@@ -21,7 +21,7 @@ import { scanNewsForTenant, dispatchNewsScanCron } from '../services/news-monito
 import { refreshWeatherForTenant, dispatchWeatherCron } from '../services/weather.js';
 import { dispatchShopifySyncCron } from '../services/shopify-sync.js';
 import { runAiLandscapeDigest } from '../services/ai-landscape.js';
-import { runGhostCleanup, runCreativeDiscard } from '../services/maintenance.js';
+import { runGhostCleanup, runCreativeDiscard, runStuckJobTimeout } from '../services/maintenance.js';
 import { hasValidCronSecret } from '../middleware/secrets.js';
 import { sendOperatorAlert } from '../services/operator-alert.js';
 
@@ -128,6 +128,14 @@ export async function operationalRoutes(app: FastifyInstance) {
     const logs: string[] = [];
     const log = (msg: string) => { request.log.info(msg); logs.push(msg); };
     const result = await runCreativeDiscard(log);
+    return reply.send({ ...result, log: logs });
+  });
+
+  app.post('/ops/cron/stuck-job-timeout', async (request, reply) => {
+    if (!cronAuth(request)) return reply.code(401).send({ error: 'Unauthorized' });
+    const logs: string[] = [];
+    const log = (msg: string) => { request.log.info(msg); logs.push(msg); };
+    const result = await runStuckJobTimeout(log);
     return reply.send({ ...result, log: logs });
   });
 

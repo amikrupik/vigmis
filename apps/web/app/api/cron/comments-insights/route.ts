@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+  const apiUrl = process.env.API_URL ?? 'http://localhost:8080';
   try {
     const res = await fetch(`${apiUrl}/comments/cron/insights`, {
       method: 'POST',

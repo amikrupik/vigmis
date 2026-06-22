@@ -5,7 +5,7 @@
 import { db, encryptToken, decryptToken } from '@vigmis/db';
 import type { AdConnector, OAuthTokens } from '../connector.interface.js';
 
-const META_API_VERSION = 'v19.0';
+const META_API_VERSION = 'v21.0';
 const META_AUTH_URL = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth`;
 const META_TOKEN_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;
 const META_EXCHANGE_URL = `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token`;

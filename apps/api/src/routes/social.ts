@@ -113,8 +113,10 @@ export async function socialRoutes(app: FastifyInstance) {
 
   app.put('/social/settings', { preHandler: authenticate }, async (request, reply) => {
     const body = request.body as any;
+    const allowed = ['approval_mode', 'auto_post_enabled', 'posting_frequency', 'preferred_times', 'whatsapp', 'email', 'email_enabled', 'whatsapp_enabled'];
+    const filtered = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
     await db.from('social_settings').upsert(
-      { tenant_id: request.tenantId, ...body, updated_at: new Date().toISOString() },
+      { tenant_id: request.tenantId, ...filtered, updated_at: new Date().toISOString() },
       { onConflict: 'tenant_id' },
     );
     return reply.send({ success: true });
@@ -1101,7 +1103,7 @@ function getOptimalPostTime(platform: string, baseDate: Date): Date {
 
 // ── Engagement analytics fetch ────────────────────────────────────────────────
 
-const META_VERSION = 'v19.0';
+const META_VERSION = 'v21.0';
 const META_BASE = `https://graph.facebook.com/${META_VERSION}`;
 
 async function fetchEngagementForTenant(tenantId: string): Promise<void> {

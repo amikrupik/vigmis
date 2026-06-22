@@ -2,7 +2,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 export async function acceptInvite(token: string): Promise<{ ok: true } | { error: string }> {
   const { getToken } = await auth();

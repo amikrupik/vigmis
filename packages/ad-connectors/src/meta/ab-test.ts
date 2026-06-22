@@ -4,7 +4,7 @@
 
 import { db, decryptToken } from '@vigmis/db';
 
-const META_API_VERSION = 'v19.0';
+const META_API_VERSION = 'v21.0';
 const BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
 async function getMetaCredentials(tenantId: string): Promise<{ accessToken: string; adAccountId: string }> {

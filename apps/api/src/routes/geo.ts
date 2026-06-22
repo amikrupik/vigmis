@@ -4,6 +4,7 @@
 // POST /geo/refresh — delete existing report and re-run audit
 
 import type { FastifyInstance } from 'fastify';
+import { assertSafeUrl } from '../services/website-scraper.js';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
 import { assertCronSecret } from '../middleware/secrets.js';
@@ -81,6 +82,7 @@ function extractHtmlData(html: string) {
 export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string): Promise<void> {
   let extracted: ReturnType<typeof extractHtmlData>;
   try {
+    assertSafeUrl(websiteUrl);
     const res = await fetch(websiteUrl, {
       headers: { 'User-Agent': 'Vigmis/1.0 (GEO Audit; contact: support@vigmis.com)' },
       signal: AbortSignal.timeout(12000),
@@ -268,6 +270,9 @@ export async function geoRoutes(app: FastifyInstance) {
       websiteUrl = s?.website_url;
     }
     if (!websiteUrl) return reply.code(400).send({ error: 'No website URL found. Please provide website_url.' });
+
+    try { assertSafeUrl(/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`); }
+    catch (e) { return reply.code(400).send({ error: `Invalid URL: ${(e as Error).message}` }); }
 
     await runGeoAuditForTenant(request.tenantId, websiteUrl);
 

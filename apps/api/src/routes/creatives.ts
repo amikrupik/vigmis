@@ -708,26 +708,34 @@ async function consumeScaleCredit(
   const IMAGE_LIMIT = 3;
 
   if (creditType === 'video') {
-    if (videoUsed >= VIDEO_LIMIT) return false; // no credits left, charge normally
-    await db
+    // Atomic update: only succeeds (returns a row) if used < VIDEO_LIMIT
+    const { data: atomicResult } = await db
       .from('billing_customers')
       .update({
         scale_video_credits_used: videoUsed + 1,
         credits_period: currentPeriod,
         updated_at: new Date().toISOString(),
       })
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .lt('scale_video_credits_used', VIDEO_LIMIT)
+      .select()
+      .single();
+    if (!atomicResult) return false; // limit already reached (concurrent request won the race)
     return true;
   } else {
-    if (imageUsed >= IMAGE_LIMIT) return false;
-    await db
+    // Atomic update: only succeeds (returns a row) if used < IMAGE_LIMIT
+    const { data: atomicResult } = await db
       .from('billing_customers')
       .update({
         scale_image_credits_used: imageUsed + 1,
         credits_period: currentPeriod,
         updated_at: new Date().toISOString(),
       })
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .lt('scale_image_credits_used', IMAGE_LIMIT)
+      .select()
+      .single();
+    if (!atomicResult) return false; // limit already reached (concurrent request won the race)
     return true;
   }
 }
@@ -979,19 +987,9 @@ export async function creativeRoutes(app: FastifyInstance) {
       }
     }
 
-    // Check Scale credits for revision 0 (first generation)
-    // Scale gets 1 video / 3 image credits per month
-    let creditConsumed = false;
-    if (revisionNumber === 0) {
-      const creditType = (type === 'image') ? 'image' : 'video';
-      if (['avatar', 'cinematic', 'animation', 'image'].includes(type)) {
-        creditConsumed = await consumeScaleCredit(request.tenantId, creditType as 'video' | 'image');
-      }
-    }
-
     const providerReady = isProviderReady(type);
 
-    // Insert job record
+    // Insert job record — credit consumption happens AFTER successful insert
     const { data: job, error: insertErr } = await db
       .from('creative_jobs')
       .insert({
@@ -1007,7 +1005,7 @@ export async function creativeRoutes(app: FastifyInstance) {
         revision_number: revisionNumber,
         keep_elements: keep_elements ?? [],
         change_request: change_request ?? null,
-        credit_consumed: creditConsumed,
+        credit_consumed: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -1017,6 +1015,22 @@ export async function creativeRoutes(app: FastifyInstance) {
     if (insertErr) {
       console.error('[creatives] DB insert failed:', insertErr.message, insertErr.details, insertErr.hint, JSON.stringify(insertErr));
       return reply.code(500).send({ error: 'Failed to create job' });
+    }
+
+    // Check Scale credits for revision 0 (first generation) — only after successful insert
+    // Scale gets 1 video / 3 image credits per month
+    let creditConsumed = false;
+    if (revisionNumber === 0) {
+      const creditType = (type === 'image') ? 'image' : 'video';
+      if (['avatar', 'cinematic', 'animation', 'image'].includes(type)) {
+        creditConsumed = await consumeScaleCredit(request.tenantId, creditType as 'video' | 'image');
+        if (creditConsumed) {
+          await db
+            .from('creative_jobs')
+            .update({ credit_consumed: true, updated_at: new Date().toISOString() })
+            .eq('id', job.id);
+        }
+      }
     }
 
     // Patch review board metadata onto the job row (extracted from enrichedBrief internal fields)
@@ -1406,11 +1420,16 @@ export async function creativeRoutes(app: FastifyInstance) {
 
     // Revisions 0-2: free
     if (revisionNumber <= 2) {
-      await db
+      const { error: approveError } = await db
         .from('creative_jobs')
         .update({ status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('tenant_id', request.tenantId);
+
+      if (approveError) {
+        request.log?.error({ err: approveError }, 'Failed to update creative status');
+        return reply.status(500).send({ error: 'Failed to approve creative' });
+      }
 
       // Learning Loop — fire-and-forget: record what worked for future briefs
       const { data: jobFull } = await db

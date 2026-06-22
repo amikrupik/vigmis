@@ -541,7 +541,7 @@ export default function StudioClient() {
           type: parentJob.type,
           brief: parentJob.brief,
           platform: parentJob.platform ?? undefined,
-          parent_job_id: parentJob.parent_job_id ?? parentJob.id,
+          parent_job_id: parentJob.id,
           keep_elements: keepElements,
           change_request: changeRequest,
         });
@@ -561,7 +561,7 @@ export default function StudioClient() {
           type: job.type,
           brief: job.brief,
           platform: job.platform ?? undefined,
-          parent_job_id: job.parent_job_id ?? job.id,
+          parent_job_id: job.id,
           change_request: 'Restore to this version',
         });
         await loadJobs();

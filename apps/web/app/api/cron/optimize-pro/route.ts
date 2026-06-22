@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+  const apiUrl = process.env.API_URL ?? 'http://localhost:8080';
 
   const start = Date.now();
   console.log('[cron/optimize-pro] Starting Pro-only optimization run');

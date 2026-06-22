@@ -79,7 +79,7 @@ async function fetchMetaMetrics(
     const dateStr = yesterday.toISOString().slice(0, 10);
 
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${externalId}/insights?` +
+      `https://graph.facebook.com/v21.0/${externalId}/insights?` +
       `fields=clicks,impressions,spend,actions,action_values` +
       `&time_range={"since":"${dateStr}","until":"${dateStr}"}` +
       `&access_token=${accessToken}`
@@ -189,7 +189,7 @@ async function updateMetaBudget(
   const accessToken = decryptToken(data.access_token);
   const budgetCents = Math.round(newDailyBudgetUsd * 100);
 
-  await fetch(`https://graph.facebook.com/v19.0/${externalId}`, {
+  await fetch(`https://graph.facebook.com/v21.0/${externalId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

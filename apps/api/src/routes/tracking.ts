@@ -10,7 +10,7 @@
 // POST /track/shopify/webhook   — receive Shopify order (public, HMAC verified)
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createHash, createHmac } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { db, encryptToken, decryptToken } from '@vigmis/db';
 import { assertCronSecret, safeEqual } from '../middleware/secrets.js';
 import { authenticate } from '../middleware/auth.js';
@@ -320,9 +320,11 @@ export async function trackingRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid Shopify domain — must be yourstore.myshopify.com' });
     }
 
-    // State = tenantId (we verify on callback)
-    const state = `${request.tenantId}:${Date.now()}`;
-    const stateB64 = Buffer.from(state).toString('base64');
+    // State = HMAC-signed payload (prevents CSRF / state forgery)
+    const secret = process.env.SHOPIFY_API_SECRET || process.env.TOKEN_ENCRYPTION_KEY;
+    const payload = JSON.stringify({ tenantId: request.tenantId, ts: Date.now() });
+    const sig = createHmac('sha256', secret!).update(payload).digest('hex');
+    const stateB64 = Buffer.from(JSON.stringify({ payload, sig })).toString('base64url');
 
     const authUrl = new URL(`https://${cleanShop}/admin/oauth/authorize`);
     authUrl.searchParams.set('client_id', SHOPIFY_API_KEY);
@@ -353,11 +355,17 @@ export async function trackingRoutes(app: FastifyInstance) {
       return reply.code(401).send('Invalid HMAC');
     }
 
-    // Decode state to get tenantId
+    // Verify HMAC-signed state and extract tenantId
     let tenantId: string;
     try {
-      const decoded = Buffer.from(state, 'base64').toString('utf8');
-      tenantId = decoded.split(':')[0];
+      const secret = process.env.SHOPIFY_API_SECRET || process.env.TOKEN_ENCRYPTION_KEY;
+      const { payload: p, sig: s } = JSON.parse(Buffer.from(state, 'base64url').toString());
+      const expected = createHmac('sha256', secret!).update(p).digest('hex');
+      if (!timingSafeEqual(Buffer.from(s), Buffer.from(expected))) {
+        return reply.code(400).send('Invalid state');
+      }
+      ({ tenantId } = JSON.parse(p));
+      if (!tenantId) throw new Error('missing tenantId');
     } catch {
       return reply.code(400).send('Invalid state');
     }
