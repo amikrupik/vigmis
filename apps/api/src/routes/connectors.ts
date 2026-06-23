@@ -22,20 +22,26 @@ const tiktok = new TikTokAdsConnector();
 
 const WEB_URL = process.env.WEB_URL ?? 'http://localhost:3000';
 
-// Temporary in-memory store for OAuth state validation (use Redis in production)
-const pendingStates = new Map<string, { tenantId: string; platform: string; expiresAt: number; codeVerifier?: string; returnTo?: string }>();
-
-function generateState(tenantId: string, platform: string, codeVerifier?: string, returnTo?: string): string {
+// OAuth state stored in DB so all API instances share the same state table.
+async function generateState(tenantId: string, platform: string, codeVerifier?: string, returnTo?: string): Promise<string> {
   const state = crypto.randomBytes(16).toString('hex');
-  pendingStates.set(state, { tenantId, platform, expiresAt: Date.now() + 10 * 60 * 1000, codeVerifier, returnTo });
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  // Purge expired states opportunistically to keep the table small.
+  void db.from('oauth_states').delete().lt('expires_at', new Date().toISOString());
+  await db.from('oauth_states').insert({ state, tenant_id: tenantId, platform, code_verifier: codeVerifier ?? null, return_to: returnTo ?? null, expires_at: expiresAt });
   return state;
 }
 
-function consumeState(state: string): { tenantId: string; platform: string; codeVerifier?: string; returnTo?: string } | null {
-  const entry = pendingStates.get(state);
-  pendingStates.delete(state);
-  if (!entry || entry.expiresAt < Date.now()) return null;
-  return { tenantId: entry.tenantId, platform: entry.platform, codeVerifier: entry.codeVerifier };
+async function consumeState(state: string): Promise<{ tenantId: string; platform: string; codeVerifier?: string; returnTo?: string } | null> {
+  const { data } = await db
+    .from('oauth_states')
+    .select('tenant_id, platform, code_verifier, return_to, expires_at')
+    .eq('state', state)
+    .maybeSingle();
+  // Delete regardless (consumed or expired) to prevent replay.
+  await db.from('oauth_states').delete().eq('state', state);
+  if (!data || new Date(data.expires_at) < new Date()) return null;
+  return { tenantId: data.tenant_id, platform: data.platform, codeVerifier: data.code_verifier ?? undefined, returnTo: data.return_to ?? undefined };
 }
 
 // PKCE helpers for TikTok v2 OAuth
@@ -52,7 +58,7 @@ export async function connectorRoutes(app: FastifyInstance) {
 
   app.get('/auth/google', { preHandler: authenticate }, async (request, reply) => {
     const { return: returnTo } = request.query as Record<string, string>;
-    const state = generateState(request.tenantId, 'google', undefined, returnTo);
+    const state = await generateState(request.tenantId, 'google', undefined, returnTo);
     const url = google.getAuthUrl(request.tenantId, state, 'ads');
     return reply.redirect(url);
   });
@@ -64,7 +70,7 @@ export async function connectorRoutes(app: FastifyInstance) {
       return reply.redirect(`${WEB_URL}/onboarding?error=google_denied`);
     }
 
-    const stateData = consumeState(state);
+    const stateData = await consumeState(state);
     if (!stateData || stateData.platform !== 'google') {
       return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
     }
@@ -234,7 +240,7 @@ export async function connectorRoutes(app: FastifyInstance) {
   // ─── Google Analytics (separate OAuth flow) ────────────────────────────────
 
   app.get('/auth/google/analytics', { preHandler: authenticate }, async (request, reply) => {
-    const state = generateState(request.tenantId, 'google_analytics');
+    const state = await generateState(request.tenantId, 'google_analytics');
     const url = google.getAnalyticsAuthUrl(request.tenantId, state);
     return reply.redirect(url);
   });
@@ -244,7 +250,7 @@ export async function connectorRoutes(app: FastifyInstance) {
 
     if (error) return reply.redirect(`${WEB_URL}/onboarding?error=analytics_denied`);
 
-    const stateData = consumeState(state);
+    const stateData = await consumeState(state);
     if (!stateData || stateData.platform !== 'google_analytics') {
       return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
     }
@@ -271,7 +277,7 @@ export async function connectorRoutes(app: FastifyInstance) {
   // ─── Meta ──────────────────────────────────────────────────────────────────
 
   app.get('/auth/meta', { preHandler: authenticate }, async (request, reply) => {
-    const state = generateState(request.tenantId, 'meta');
+    const state = await generateState(request.tenantId, 'meta');
     const url = meta.getAuthUrl(request.tenantId, state);
     return reply.redirect(url);
   });
@@ -283,7 +289,7 @@ export async function connectorRoutes(app: FastifyInstance) {
       return reply.redirect(`${WEB_URL}/onboarding?error=meta_denied`);
     }
 
-    const stateData = consumeState(state);
+    const stateData = await consumeState(state);
     if (!stateData || stateData.platform !== 'meta') {
       return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
     }
@@ -316,7 +322,7 @@ export async function connectorRoutes(app: FastifyInstance) {
   app.get('/auth/tiktok', { preHandler: authenticate }, async (request, reply) => {
     try {
       // TikTok v2 — no PKCE (causes token exchange failure with this app config)
-      const state = generateState(request.tenantId, 'tiktok');
+      const state = await generateState(request.tenantId, 'tiktok');
       const url = tiktok.getAuthUrl(request.tenantId, state);
       return reply.redirect(url);
     } catch (err) {
@@ -333,7 +339,7 @@ export async function connectorRoutes(app: FastifyInstance) {
       return reply.redirect(`${WEB_URL}/onboarding?error=tiktok_denied`);
     }
 
-    const stateData = consumeState(state);
+    const stateData = await consumeState(state);
     if (!stateData || stateData.platform !== 'tiktok') {
       return reply.redirect(`${WEB_URL}/onboarding?error=invalid_state`);
     }
