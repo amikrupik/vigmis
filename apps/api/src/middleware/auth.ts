@@ -13,9 +13,12 @@ declare module 'fastify' {
   }
 }
 
-// Startup guard: VIGMIS_TEST_SECRET is a development backdoor and must never be present in production.
-if (process.env.VIGMIS_TEST_SECRET && process.env.NODE_ENV === 'production') {
-  throw new Error('VIGMIS_TEST_SECRET must not be set in production');
+// Startup guard: VIGMIS_TEST_SECRET is a development backdoor.
+// Reject startup whenever it is set outside of an explicit local-dev environment
+// (NODE_ENV=development). Railway does NOT set NODE_ENV, so the old === 'production'
+// check was dead — this inversion ensures the guard actually fires in any non-dev env.
+if (process.env.VIGMIS_TEST_SECRET && process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+  throw new Error('VIGMIS_TEST_SECRET must not be set outside local development (NODE_ENV must be development or test)');
 }
 
 async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {

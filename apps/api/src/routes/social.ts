@@ -754,7 +754,7 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
           await db.from('social_posts').update({
             status: 'blocked_by_policy',
             updated_at: new Date().toISOString(),
-          }).eq('id', post.id);
+          }).eq('id', post.id).eq('tenant_id', post.tenant_id);
           blocked++;
           continue;
         }
@@ -767,14 +767,14 @@ Style: vibrant, modern, engaging. No text overlay. Square format.`;
             published_at: now,
             billed: true,
             updated_at: now,
-          }).eq('id', post.id);
+          }).eq('id', post.id).eq('tenant_id', post.tenant_id);
 
           published++;
         } else {
-          await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', post.id);
+          await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', post.id).eq('tenant_id', post.tenant_id);
         }
       } catch {
-        await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', post.id);
+        await db.from('social_posts').update({ status: 'failed', updated_at: now }).eq('id', post.id).eq('tenant_id', post.tenant_id);
       }
     }
 

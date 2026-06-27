@@ -114,9 +114,12 @@ export async function runGeoAuditForTenant(tenantId: string, websiteUrl: string)
     report = match ? JSON.parse(match[0]) : null;
   } catch { report = null; }
 
+  // Track whether we have a real AI-generated report (not just the static fallback template)
+  let hasRealReport = report !== null;
+
   if (!report) {
     report = fallbackGeoReport(websiteUrl);
-    // Generate real FAQ + business_description from website_analysis when scraping failed
+    // Attempt to generate real FAQ + business_description from DB context when scraping failed
     try {
       const businessContext = buildBusinessContext(settings, websiteUrl);
       if (businessContext) {
@@ -147,10 +150,18 @@ Return ONLY the description text, no JSON, no markdown.`,
           if (Array.isArray(faqs) && faqs.length > 0) report.faq = faqs;
         }
         const desc = descRes.output.trim();
-        if (desc.length > 40) report.business_description = desc;
+        if (desc.length > 40 && !desc.includes('Run audit again')) {
+          report.business_description = desc;
+          hasRealReport = true; // we generated a real description from DB context
+        }
       }
     } catch { /* leave as fallback — non-fatal */ }
   }
+
+  // Only persist to DB when we have real AI-generated content.
+  // Never save the static fallback template with placeholder text — that would
+  // show developer strings like "Run audit again..." to end users as real data.
+  if (!hasRealReport) return;
 
   // Upsert current report (latest always available)
   const { data: existing } = await db.from('geo_reports').select('id, score').eq('tenant_id', tenantId).maybeSingle();
@@ -158,9 +169,11 @@ Return ONLY the description text, no JSON, no markdown.`,
   const scoreDelta = prevScore !== null && report.score !== undefined ? report.score - prevScore : null;
 
   if (existing?.id) {
-    await db.from('geo_reports').update({ website_url: websiteUrl, ...report, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    const { error: updateErr } = await db.from('geo_reports').update({ website_url: websiteUrl, ...report, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    if (updateErr) console.error('[geo] geo_reports update failed', updateErr);
   } else {
-    await db.from('geo_reports').insert({ tenant_id: tenantId, website_url: websiteUrl, ...report });
+    const { error: insertErr } = await db.from('geo_reports').insert({ tenant_id: tenantId, website_url: websiteUrl, ...report });
+    if (insertErr) console.error('[geo] geo_reports insert failed', insertErr);
   }
 
   // Save historical snapshot (one per month, upsert by month)

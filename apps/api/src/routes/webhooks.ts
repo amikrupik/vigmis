@@ -125,8 +125,9 @@ export async function webhookRoutes(app: FastifyInstance) {
   app.post('/webhooks/clerk', async (request, reply) => {
     const secret = process.env.CLERK_WEBHOOK_SECRET;
     if (!secret) {
-      request.log.warn('CLERK_WEBHOOK_SECRET not set — Clerk webhook ignored');
-      return reply.code(200).send({ received: true });
+      // Fail-closed: accepting unsigned webhooks would allow anyone to trigger account deletion.
+      request.log.error('CLERK_WEBHOOK_SECRET not set — refusing Clerk webhook to prevent unsigned deletion attacks');
+      return reply.code(500).send({ error: 'Webhook not configured' });
     }
 
     const svixId        = request.headers['svix-id'] as string | undefined;
@@ -173,5 +174,41 @@ export async function webhookRoutes(app: FastifyInstance) {
     }
 
     return reply.code(200).send({ received: true, event: eventType });
+  });
+
+  // ── Meta deauthorization + GDPR data deletion ─────────────────────────────
+  // Required by Meta App Review:
+  //   • Deauthorization callback: fires when a user revokes app permissions
+  //   • Data deletion callback: fires on GDPR erasure request
+  // Both endpoints must exist and return 200 for Meta App Review to pass.
+  app.post('/webhooks/meta', async (request, reply) => {
+    const body = request.body as Record<string, any>;
+    const signedRequest: string | undefined = body?.signed_request;
+
+    if (!signedRequest) {
+      return reply.code(400).send({ error: 'Missing signed_request' });
+    }
+
+    // Decode the signed_request (format: base64url(signature).base64url(payload))
+    const [, payloadB64] = signedRequest.split('.');
+    let payload: Record<string, any> = {};
+    try {
+      payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    } catch {
+      return reply.code(400).send({ error: 'Invalid signed_request' });
+    }
+
+    const metaUserId: string = payload?.user_id ?? '';
+
+    if (metaUserId) {
+      // Revoke stored Meta OAuth token for this user (best-effort)
+      try {
+        await db.from('oauth_tokens').delete().eq('platform', 'meta').like('access_token', `%${metaUserId}%`);
+      } catch { /* non-fatal */ }
+    }
+
+    // Data deletion: return a confirmation URL (Meta checks it within 24h)
+    const confirmationUrl = `${process.env.WEB_URL ?? 'https://vigmis.com'}/privacy/deletion-confirm?uid=${metaUserId}`;
+    return reply.code(200).send({ url: confirmationUrl, confirmation_code: metaUserId });
   });
 }

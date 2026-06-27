@@ -9,7 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '@vigmis/db';
 import { authenticate } from '../middleware/auth.js';
-import { assertCronSecret } from '../middleware/secrets.js';
+import { assertCronSecret, safeEqual } from '../middleware/secrets.js';
 import { route } from '@vigmis/ai-router';
 import { assertSafeUrl } from '../services/website-scraper.js';
 import { createMetaAdSet } from '@vigmis/ad-connectors';
@@ -850,7 +850,9 @@ Return ONLY valid JSON:
   // POST /intelligence/weekly-strategy/run — manual trigger OR cron
   app.post('/intelligence/weekly-strategy/run', async (request, reply) => {
     // Accept both: authenticated user (manual) or cron secret (automated)
-    const isCron = request.headers['x-cron-secret'] === process.env.CRON_SECRET;
+    const cronHeader = (request.headers['x-cron-secret'] as string) ?? '';
+    const cronExpected = process.env.CRON_SECRET ?? '';
+    const isCron = cronExpected.length > 0 && safeEqual(cronHeader, cronExpected);
     if (!isCron) {
       // Fall back to user auth
       try { await authenticate(request, reply); } catch { return; }

@@ -37,7 +37,8 @@ const htmlEscape = (s: string) =>
     .replace(/"/g, '&quot;');
 
 function unsubscribeToken(tenantId: string): string {
-  const key = process.env.TOKEN_ENCRYPTION_KEY ?? 'insecure-fallback';
+  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!key) throw new Error('TOKEN_ENCRYPTION_KEY is required — set it in Railway env vars');
   return crypto.createHmac('sha256', key).update(tenantId).digest('hex');
 }
 

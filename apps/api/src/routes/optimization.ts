@@ -134,15 +134,40 @@ export async function optimizationRoutes(app: FastifyInstance) {
 
     if (!req) return reply.code(404).send({ error: 'Request not found or already resolved' });
 
-    // Mark as approved
+    // Mark as approved — include tenant_id filter for defense-in-depth
     await db.from('approval_request').update({
       status: 'approved',
       resolved_at: new Date().toISOString(),
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', request.tenantId);
 
-    // Apply the action — re-use engine logic
-    const { runOptimizationForTenant } = await import('../optimization/engine.js');
-    // Log to audit
+    // Apply the action immediately against the campaigns table.
+    // Platform API propagation happens on the next optimization cycle.
+    const payload = req.payload as any;
+    const campaignId = payload?.campaignId ?? payload?.campaign_id;
+    const actionType = req.action_type as string;
+
+    if (campaignId) {
+      if (actionType === 'scale_up' || actionType === 'scale_down') {
+        const newBudget = payload?.newBudget ?? payload?.new_budget;
+        if (newBudget) {
+          await db.from('campaigns').update({
+            daily_budget_usd: newBudget,
+            updated_at: new Date().toISOString(),
+          }).eq('id', campaignId).eq('tenant_id', request.tenantId);
+        }
+      } else if (actionType === 'pause') {
+        await db.from('campaigns').update({
+          status: 'paused',
+          updated_at: new Date().toISOString(),
+        }).eq('id', campaignId).eq('tenant_id', request.tenantId);
+      } else if (actionType === 'resume') {
+        await db.from('campaigns').update({
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        }).eq('id', campaignId).eq('tenant_id', request.tenantId);
+      }
+    }
+
     await db.from('audit_log').insert({
       tenant_id: request.tenantId,
       action: `optimization.${req.action_type}.approved`,

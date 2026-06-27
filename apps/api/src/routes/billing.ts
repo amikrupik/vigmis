@@ -148,7 +148,10 @@ export async function billingRoutes(app: FastifyInstance) {
           .eq('subscription_id', obj.id)
           .maybeSingle();
 
-        const isCanceled = obj.status === 'canceled';
+        // Stripe sends cancel_at_period_end=true on subscription.updated when user cancels
+        // but the subscription stays 'active' until period end — status only becomes 'canceled'
+        // on subscription.deleted. Check both to set downgrade_requested_at correctly.
+        const isCanceled = obj.status === 'canceled' || obj.cancel_at_period_end === true;
         const plan = obj.status === 'active' ? 'pro' : 'free';
 
         if (billing) {
