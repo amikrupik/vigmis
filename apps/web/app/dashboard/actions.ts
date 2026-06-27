@@ -689,3 +689,41 @@ export async function logEvent(event: string, metadata?: Record<string, unknown>
   // Fire-and-forget — never await this in callers
   apiCall('/analytics/event', 'POST', { event, metadata }).catch(() => {});
 }
+
+// ── Living SWOT ───────────────────────────────────────────────────────────────
+
+export async function getSwotItems(): Promise<{
+  items: Array<{
+    id: string;
+    quadrant: 'strength' | 'weakness' | 'opportunity' | 'threat';
+    title: string;
+    description: string;
+    impact: 'high' | 'medium' | 'low';
+    owner: string | null;
+  }>;
+} | null> {
+  return apiCall('/swot');
+}
+
+export async function refreshSwotAnalysis(): Promise<{ queued: boolean } | null> {
+  return apiCall('/swot/refresh', 'POST');
+}
+
+export async function getSwotRecommendations(): Promise<{
+  recommendations: Array<{
+    id: string;
+    trigger_summary: string;
+    created_at: string;
+    status: string;
+  }>;
+} | null> {
+  return apiCall('/swot/recommendations?status=pending');
+}
+
+export async function approveSwotRecommendation(id: string): Promise<{ ok: boolean } | null> {
+  return apiCall(`/swot/recommendations/${id}/approve`, 'POST');
+}
+
+export async function dismissSwotRecommendation(id: string): Promise<{ ok: boolean } | null> {
+  return apiCall(`/swot/recommendations/${id}/dismiss`, 'POST');
+}

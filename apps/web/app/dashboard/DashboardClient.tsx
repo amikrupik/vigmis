@@ -27,6 +27,7 @@ import {
   updateSocialPost, deleteSocialPost,
   getGa4Properties, getGa4Settings, setGa4Property, runGa4Sync, type Ga4Property,
   getStrategy, rerunAnalysisServer,
+  getSwotItems, refreshSwotAnalysis, getSwotRecommendations, approveSwotRecommendation, dismissSwotRecommendation,
   getReadinessScore, runReadinessAudit,
   runGeoAudit, getGeoReport, getHistoryTimeline,
   exportAnalyticsCSV, exportAnalyticsHTML,
@@ -3919,10 +3920,34 @@ function StrategyTab({ settings: _settings }: any) {
   const [forecastResult, setForecastResult] = useState<any>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
 
+  // Living SWOT
+  const [swotItems, setSwotItems] = useState<Array<{
+    id: string;
+    quadrant: 'strength' | 'weakness' | 'opportunity' | 'threat';
+    title: string;
+    description: string;
+    impact: 'high' | 'medium' | 'low';
+    owner: string | null;
+  }>>([]);
+  const [swotRecommendations, setSwotRecommendations] = useState<Array<{
+    id: string;
+    trigger_summary: string;
+    created_at: string;
+    status: string;
+  }>>([]);
+  const [refreshingSwot, setRefreshingSwot] = useState(false);
+  const [swotRefreshMsg, setSwotRefreshMsg] = useState<string | null>(null);
+
   async function load() {
     setLoading(true);
-    const res = await getStrategy();
-    setData(res);
+    const [stratRes, swotRes, recsRes] = await Promise.all([
+      getStrategy(),
+      getSwotItems(),
+      getSwotRecommendations(),
+    ]);
+    setData(stratRes);
+    setSwotItems(swotRes?.items ?? []);
+    setSwotRecommendations(recsRes?.recommendations ?? []);
     setLoading(false);
   }
 
@@ -3946,6 +3971,25 @@ function StrategyTab({ settings: _settings }: any) {
     const res = await getBudgetForecast(budget);
     setForecastResult(res);
     setForecastLoading(false);
+  }
+
+  async function handleSwotRefresh() {
+    setRefreshingSwot(true);
+    setSwotRefreshMsg(null);
+    const res = await refreshSwotAnalysis();
+    if (!res) setSwotRefreshMsg('Refresh failed — please try again.');
+    else setSwotRefreshMsg('Analysis refresh queued — you\'ll see a recommendation to review.');
+    setRefreshingSwot(false);
+  }
+
+  async function handleSwotApprove(id: string) {
+    await approveSwotRecommendation(id);
+    setSwotRecommendations(prev => prev.filter(r => r.id !== id));
+  }
+
+  async function handleSwotDismiss(id: string) {
+    await dismissSwotRecommendation(id);
+    setSwotRecommendations(prev => prev.filter(r => r.id !== id));
   }
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /></div>;
@@ -4374,6 +4418,129 @@ function StrategyTab({ settings: _settings }: any) {
           </div>
         )}
       </div>
+
+      {/* Strategy Health — Living SWOT */}
+      {(() => {
+        const strategyUpdatedAt = data?.settings?.updated_at ? new Date(data.settings.updated_at) : null;
+        const monthsOld = strategyUpdatedAt
+          ? Math.floor((Date.now() - strategyUpdatedAt.getTime()) / (1000 * 60 * 60 * 24 * 30))
+          : null;
+        const isStale = monthsOld !== null && monthsOld >= 6;
+
+        const quadrants: Array<{ key: 'strength' | 'weakness' | 'opportunity' | 'threat'; label: string; headerClass: string; badgeBase: string }> = [
+          { key: 'strength',    label: 'Strengths',     headerClass: 'bg-emerald-50 border-emerald-200 text-emerald-800', badgeBase: 'emerald' },
+          { key: 'weakness',    label: 'Weaknesses',    headerClass: 'bg-rose-50 border-rose-200 text-rose-800',         badgeBase: 'rose' },
+          { key: 'opportunity', label: 'Opportunities', headerClass: 'bg-indigo-50 border-indigo-200 text-indigo-800',   badgeBase: 'indigo' },
+          { key: 'threat',      label: 'Threats',       headerClass: 'bg-amber-50 border-amber-200 text-amber-800',      badgeBase: 'amber' },
+        ];
+
+        const impactBadge = (impact: 'high' | 'medium' | 'low') => {
+          if (impact === 'high')   return 'bg-emerald-100 text-emerald-700';
+          if (impact === 'medium') return 'bg-amber-100 text-amber-700';
+          return 'bg-slate-100 text-slate-500';
+        };
+
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900">Strategy Health</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Living SWOT — updated automatically as your data changes.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {swotRefreshMsg && (
+                  <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">{swotRefreshMsg}</p>
+                )}
+                <button
+                  onClick={handleSwotRefresh}
+                  disabled={refreshingSwot}
+                  className="text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl transition-colors"
+                >
+                  {refreshingSwot ? 'Refreshing…' : 'Refresh Analysis'}
+                </button>
+              </div>
+            </div>
+
+            {isStale && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                <span className="text-amber-500 text-base leading-none mt-0.5">&#9888;</span>
+                <p className="text-xs text-amber-800">
+                  Your strategy is <strong>{monthsOld} months old</strong>. Consider refreshing to reflect current market conditions.
+                </p>
+              </div>
+            )}
+
+            {swotItems.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">No SWOT data yet — click "Refresh Analysis" to generate your first analysis.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {quadrants.map(({ key, label, headerClass }) => {
+                  const items = swotItems.filter(i => i.quadrant === key);
+                  return (
+                    <div key={key} className={`border rounded-xl overflow-hidden ${headerClass.includes('border-emerald') ? 'border-emerald-200' : headerClass.includes('border-rose') ? 'border-rose-200' : headerClass.includes('border-indigo') ? 'border-indigo-200' : 'border-amber-200'}`}>
+                      <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider ${headerClass}`}>
+                        {label} ({items.length})
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {items.length === 0 ? (
+                          <p className="px-3 py-3 text-xs text-slate-400">None identified yet.</p>
+                        ) : (
+                          items.map(item => (
+                            <div key={item.id} className="px-3 py-2.5 space-y-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-semibold text-slate-800 leading-snug">{item.title}</p>
+                                <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${impactBadge(item.impact)}`}>
+                                  {item.impact}
+                                </span>
+                              </div>
+                              {item.description && (
+                                <p className="text-xs text-slate-500 leading-relaxed">{item.description}</p>
+                              )}
+                              {item.owner && (
+                                <p className="text-[10px] text-slate-400">Owner: <span className="font-medium text-slate-500">{item.owner}</span></p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {swotRecommendations.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Recommendations ({swotRecommendations.length})</p>
+                <div className="space-y-2">
+                  {swotRecommendations.map(rec => (
+                    <div key={rec.id} className="flex items-start justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <p className="text-sm text-slate-700">{rec.trigger_summary}</p>
+                        <p className="text-[10px] text-slate-400">{new Date(rec.created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleSwotApprove(rec.id)}
+                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleSwotDismiss(rec.id)}
+                          className="text-xs border border-slate-200 text-slate-600 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Change history */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">

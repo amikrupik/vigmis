@@ -82,6 +82,14 @@ Respond ONLY with JSON:
             status: 'active',
           });
 
+          // Queue as evidence for materiality assessment
+          await db.from('evidence_events').insert({
+            tenant_id: row.tenant_id,
+            event_type: 'website_change',
+            description: diffResult.change_summary ?? 'Website content changed',
+            magnitude: diffResult.change_type === 'product' || diffResult.change_type === 'pricing' ? 'large' : 'medium',
+          });
+
           // Log to audit
           await db.from('audit_log').insert({
             tenant_id: row.tenant_id,

@@ -19,6 +19,7 @@ import { auditConversionReadiness } from '../services/conversion-readiness.js';
 import { getIndustryBenchmarks } from '../services/benchmark-aggregator.js';
 import { getWinningThemes } from '../services/creative-performance.js';
 import { sendOperatorAlert } from '../services/operator-alert.js';
+import { generateAndSaveSwot } from '../services/swot-generator.js';
 
 // ── AI prompts & helpers ──────────────────────────────────────────────────────
 
@@ -1471,6 +1472,9 @@ Patches you can make:
     } catch (saveErr) {
       request.log.warn({ saveErr }, 'Failed to persist re-analysis — returning result anyway');
     }
+
+    // Seed initial SWOT (fire-and-forget — don't block onboarding response)
+    generateAndSaveSwot(request.tenantId).catch(() => {});
 
     return reply.send({ websiteAnalysis, marketResearch, strategy });
   });
