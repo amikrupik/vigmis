@@ -36,8 +36,15 @@ export async function route(request: AIRequest): Promise<AIResponse> {
 
   try {
     return await provider.run(request);
-  } catch (err) {
-    // Provider failed — fall back to OpenAI
-    return providers["openai"].run(request);
+  } catch (primaryErr) {
+    console.error(`[ai-router] primary provider "${providerKey}" failed for task "${request.task}":`, primaryErr instanceof Error ? primaryErr.message : primaryErr);
+    if (providerKey === 'openai') throw primaryErr; // already the fallback
+    if (!process.env.OPENAI_API_KEY) throw primaryErr; // no fallback available
+    try {
+      return await providers["openai"].run(request);
+    } catch (fallbackErr) {
+      console.error(`[ai-router] OpenAI fallback also failed for task "${request.task}":`, fallbackErr instanceof Error ? fallbackErr.message : fallbackErr);
+      throw fallbackErr;
+    }
   }
 }

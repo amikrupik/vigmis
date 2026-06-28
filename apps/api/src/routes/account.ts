@@ -99,7 +99,7 @@ export async function accountRoutes(app: FastifyInstance) {
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      if (billing?.subscription_id && billing.plan === 'pro') {
+      if (billing?.subscription_id && billing.plan !== 'free') {
         await stripe.subscriptions.cancel(billing.subscription_id);
       }
     } catch (err) {

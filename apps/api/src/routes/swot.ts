@@ -36,7 +36,12 @@ export async function swotRoutes(app: FastifyInstance) {
     }
 
     if (!existing || existing.length === 0) {
-      await generateAndSaveSwot(tenantId);
+      try {
+        await generateAndSaveSwot(tenantId);
+      } catch (genErr) {
+        app.log.error({ err: genErr, tenantId }, 'SWOT auto-generate failed');
+        return reply.send({ items: [], autoGenerateFailed: true });
+      }
 
       const { data: generated, error: genError } = await db
         .from('living_swot')
@@ -70,7 +75,7 @@ export async function swotRoutes(app: FastifyInstance) {
 
     const items = await generateAndSaveSwot(tenantId);
 
-    return reply.send({ success: true, count: Array.isArray(items) ? items.length : 0 });
+    return reply.send({ success: true, count: items.length });
   });
 
   // ── POST /swot/refresh ────────────────────────────────────────────────────────
@@ -81,7 +86,7 @@ export async function swotRoutes(app: FastifyInstance) {
 
     const result = await runStrategyRefresh(tenantId, 'manual');
 
-    return reply.send({ recommendationId: result.recommendationId });
+    return reply.send({ queued: true, recommendationId: result.recommendationId });
   });
 
   // ── GET /swot/recommendations ─────────────────────────────────────────────────
@@ -89,10 +94,12 @@ export async function swotRoutes(app: FastifyInstance) {
   app.get('/swot/recommendations', { preHandler: authenticate }, async (request, reply) => {
     const tenantId = request.tenantId;
 
+    const statusFilter = (request.query as Record<string, string>).status ?? 'pending';
     const { data, error } = await db
       .from('strategy_update_recommendations')
       .select('*')
       .eq('tenant_id', tenantId)
+      .eq('status', statusFilter)
       .order('created_at', { ascending: false })
       .limit(10);
 

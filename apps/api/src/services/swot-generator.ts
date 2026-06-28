@@ -143,7 +143,7 @@ function parseSwotItems(raw: string): SwotItem[] {
     .filter((item) => item.title.length > 0);
 }
 
-export async function generateAndSaveSwot(tenantId: string): Promise<void> {
+export async function generateAndSaveSwot(tenantId: string): Promise<SwotItem[]> {
   // 1. Read client_settings
   const { data: settings, error: settingsError } = await db
     .from('client_settings')
@@ -186,6 +186,23 @@ export async function generateAndSaveSwot(tenantId: string): Promise<void> {
     throw new Error('AI returned zero valid SWOT items');
   }
 
+  // Ensure at least one item per quadrant to prevent empty grid columns.
+  const categories: SwotCategory[] = ['strength', 'weakness', 'opportunity', 'threat'];
+  for (const cat of categories) {
+    if (!items.some(i => i.category === cat)) {
+      items.push({
+        category: cat,
+        title: 'Insufficient data',
+        description: 'Not enough data to identify a specific item in this category.',
+        evidence: [],
+        confidence: 20,
+        impact: 'low',
+        recommended_action: 'Gather more data and refresh the analysis.',
+        owner: 'strategy',
+      });
+    }
+  }
+
   // 5. Delete existing rows for this tenant
   const { error: deleteError } = await db
     .from('living_swot')
@@ -217,4 +234,6 @@ export async function generateAndSaveSwot(tenantId: string): Promise<void> {
   console.log(
     `[swot-generator] tenant=${tenantId} generated ${items.length} SWOT items`,
   );
+
+  return items;
 }

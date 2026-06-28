@@ -695,7 +695,7 @@ export async function logEvent(event: string, metadata?: Record<string, unknown>
 export async function getSwotItems(): Promise<{
   items: Array<{
     id: string;
-    quadrant: 'strength' | 'weakness' | 'opportunity' | 'threat';
+    category: 'strength' | 'weakness' | 'opportunity' | 'threat';
     title: string;
     description: string;
     impact: 'high' | 'medium' | 'low';
@@ -705,7 +705,7 @@ export async function getSwotItems(): Promise<{
   return apiCall('/swot');
 }
 
-export async function refreshSwotAnalysis(): Promise<{ queued: boolean } | null> {
+export async function refreshSwotAnalysis(): Promise<{ queued: boolean; recommendationId?: string } | null> {
   return apiCall('/swot/refresh', 'POST');
 }
 

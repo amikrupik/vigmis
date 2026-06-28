@@ -189,8 +189,37 @@ export async function webhookRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Missing signed_request' });
     }
 
-    // Decode the signed_request (format: base64url(signature).base64url(payload))
-    const [, payloadB64] = signedRequest.split('.');
+    // Verify HMAC-SHA256 signature before acting on the payload.
+    // signed_request format: base64url(HMAC-SHA256(payload)) + '.' + base64url(payload)
+    const appSecret = process.env.META_APP_SECRET;
+    if (!appSecret) {
+      request.log.error('META_APP_SECRET not set — refusing Meta webhook');
+      return reply.code(500).send({ error: 'Webhook not configured' });
+    }
+
+    const dotIndex = signedRequest.indexOf('.');
+    if (dotIndex === -1) {
+      return reply.code(400).send({ error: 'Invalid signed_request format' });
+    }
+    const sigB64 = signedRequest.slice(0, dotIndex);
+    const payloadB64 = signedRequest.slice(dotIndex + 1);
+
+    const expectedSig = crypto
+      .createHmac('sha256', appSecret)
+      .update(payloadB64)
+      .digest();
+
+    let sigValid = false;
+    try {
+      const providedSig = Buffer.from(sigB64, 'base64url');
+      sigValid = providedSig.length === expectedSig.length &&
+        crypto.timingSafeEqual(providedSig, expectedSig);
+    } catch { /* invalid base64 */ }
+
+    if (!sigValid) {
+      return reply.code(401).send({ error: 'Invalid signature' });
+    }
+
     let payload: Record<string, any> = {};
     try {
       payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
@@ -201,9 +230,13 @@ export async function webhookRoutes(app: FastifyInstance) {
     const metaUserId: string = payload?.user_id ?? '';
 
     if (metaUserId) {
-      // Revoke stored Meta OAuth token for this user (best-effort)
+      // Revoke stored Meta platform token by matching the account_id column (unencrypted).
+      // access_token is AES-encrypted — cannot be searched via LIKE.
       try {
-        await db.from('oauth_tokens').delete().eq('platform', 'meta').like('access_token', `%${metaUserId}%`);
+        await db.from('platform_tokens')
+          .delete()
+          .eq('platform', 'meta')
+          .eq('account_id', metaUserId);
       } catch { /* non-fatal */ }
     }
 

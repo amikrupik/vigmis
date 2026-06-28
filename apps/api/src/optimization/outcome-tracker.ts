@@ -50,12 +50,15 @@ export async function runOutcomeTracker(): Promise<void> {
 
   if (!protocols?.length) return;
 
-  // Idempotency: only process protocols that haven't been measured yet
+  // Idempotency: only process protocols that haven't been measured yet.
+  // Filter by tenant_id set to avoid cross-tenant false matches on protocolId.
   const ids = protocols.map(p => p.id);
+  const tenantIds = [...new Set(protocols.map(p => p.tenant_id))];
   const { data: alreadyMeasured } = await db
     .from('audit_log')
     .select('payload')
     .eq('action', OUTCOME_ACTION)
+    .in('tenant_id', tenantIds)
     .in('payload->protocolId', ids as any);
 
   const measuredIds = new Set(

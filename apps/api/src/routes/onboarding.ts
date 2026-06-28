@@ -3,8 +3,6 @@
 // POST /onboarding/chat      — AI intake interview message
 // POST /onboarding/analyze   — full website + market + strategy analysis
 
-export const maxDuration = 300;
-
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db, decryptToken } from '@vigmis/db';

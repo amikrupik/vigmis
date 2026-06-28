@@ -33,14 +33,16 @@ async function generateState(tenantId: string, platform: string, codeVerifier?: 
 }
 
 async function consumeState(state: string): Promise<{ tenantId: string; platform: string; codeVerifier?: string; returnTo?: string } | null> {
+  // Atomic DELETE...RETURNING: only one caller can delete a given state row.
+  // Expired states are rejected by the gt filter — no second query needed.
   const { data } = await db
     .from('oauth_states')
-    .select('tenant_id, platform, code_verifier, return_to, expires_at')
+    .delete()
     .eq('state', state)
+    .gt('expires_at', new Date().toISOString())
+    .select('tenant_id, platform, code_verifier, return_to')
     .maybeSingle();
-  // Delete regardless (consumed or expired) to prevent replay.
-  await db.from('oauth_states').delete().eq('state', state);
-  if (!data || new Date(data.expires_at) < new Date()) return null;
+  if (!data) return null;
   return { tenantId: data.tenant_id, platform: data.platform, codeVerifier: data.code_verifier ?? undefined, returnTo: data.return_to ?? undefined };
 }
 

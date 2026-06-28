@@ -152,7 +152,7 @@ export async function billingRoutes(app: FastifyInstance) {
         // but the subscription stays 'active' until period end — status only becomes 'canceled'
         // on subscription.deleted. Check both to set downgrade_requested_at correctly.
         const isCanceled = obj.status === 'canceled' || obj.cancel_at_period_end === true;
-        const plan = obj.status === 'active' ? 'pro' : 'free';
+        const plan = ['active', 'trialing', 'past_due'].includes(obj.status) ? 'pro' : 'free';
 
         if (billing) {
           const updatePayload: Record<string, any> = {

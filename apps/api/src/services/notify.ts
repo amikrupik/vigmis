@@ -33,15 +33,16 @@ async function sendWhatsApp(to: string, message: string): Promise<void> {
   );
 }
 
-function buildUnsubscribeToken(tenantId: string): string {
+function buildUnsubscribeToken(tenantId: string): string | null {
   const key = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!key) return tenantId; // fallback — unsubscribe will fail, but email still delivers
+  if (!key) return null; // omit footer rather than emit a broken unsubscribe link
   const hmac = crypto.createHmac('sha256', key).update(tenantId).digest('hex');
   return `${tenantId}.${hmac}`; // format expected by POST /account/unsubscribe
 }
 
 function withUnsubscribeFooter(html: string, tenantId: string): string {
   const token = buildUnsubscribeToken(tenantId);
+  if (!token) return html; // no key — omit footer, email still delivers
   return `${html}
 <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center">
   You're receiving this because you enabled email alerts in Vigmis.

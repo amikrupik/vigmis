@@ -3923,7 +3923,7 @@ function StrategyTab({ settings: _settings }: any) {
   // Living SWOT
   const [swotItems, setSwotItems] = useState<Array<{
     id: string;
-    quadrant: 'strength' | 'weakness' | 'opportunity' | 'threat';
+    category: 'strength' | 'weakness' | 'opportunity' | 'threat';
     title: string;
     description: string;
     impact: 'high' | 'medium' | 'low';
@@ -4475,7 +4475,7 @@ function StrategyTab({ settings: _settings }: any) {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {quadrants.map(({ key, label, headerClass }) => {
-                  const items = swotItems.filter(i => i.quadrant === key);
+                  const items = swotItems.filter(i => i.category === key);
                   return (
                     <div key={key} className={`border rounded-xl overflow-hidden ${headerClass.includes('border-emerald') ? 'border-emerald-200' : headerClass.includes('border-rose') ? 'border-rose-200' : headerClass.includes('border-indigo') ? 'border-indigo-200' : 'border-amber-200'}`}>
                       <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider ${headerClass}`}>

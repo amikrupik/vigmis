@@ -303,6 +303,7 @@ function detectRegime(snapshots7d: number[], snapshots60d: number[]): 'normal' |
   const avg60 = snapshots60d.reduce((s, v) => s + v, 0) / snapshots60d.length;
   if (avg60 <= 0) return 'normal';
   const ratio = avg7 / avg60;
+  if (ratio < 0.5)  return 'pivot_needed';
   if (ratio < 0.75) return 'degrading';
   return 'normal';
 }
